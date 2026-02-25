@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Two intersecting timber members showing a mortise and tenon -->
+  <!-- Primary member (horizontal) -->
+  <rect x="4" y="22" width="56" height="16" rx="1" fill="#C19A5B" stroke="#8B6914" stroke-width="1.5"/>
+  <!-- Grain lines on primary -->
+  <line x1="8" y1="28" x2="18" y2="28" stroke="#A6843F" stroke-width="0.5" opacity="0.5"/>
+  <line x1="46" y1="32" x2="56" y2="32" stroke="#A6843F" stroke-width="0.5" opacity="0.5"/>
+  <!-- Mortise hole in primary -->
+  <rect x="26" y="22" width="12" height="16" fill="#6B4E1E" stroke="#5A3E12" stroke-width="0.8"/>
+  <!-- Secondary member (vertical) -->
+  <rect x="27" y="4" width="10" height="18" rx="1" fill="#D4A96A" stroke="#8B6914" stroke-width="1.5"/>
+  <rect x="27" y="38" width="10" height="22" rx="1" fill="#D4A96A" stroke="#8B6914" stroke-width="1.5"/>
+  <!-- Tenon passing through mortise -->
+  <rect x="29" y="22" width="6" height="16" fill="#D4A96A" stroke="#8B6914" stroke-width="0.8"/>
+  <!-- Peg holes -->
+  <circle cx="32" cy="27" r="2" fill="#5A3E12" stroke="#3D2A0D" stroke-width="0.5"/>
+  <circle cx="32" cy="33" r="2" fill="#5A3E12" stroke="#3D2A0D" stroke-width="0.5"/>
+  <!-- Green plus overlay -->
+  <circle cx="52" cy="12" r="10" fill="#4CAF50" stroke="#2E7D32" stroke-width="1.5"/>
+  <line x1="52" y1="6" x2="52" y2="18" stroke="white" stroke-width="3" stroke-linecap="round"/>
+  <line x1="46" y1="12" x2="58" y2="12" stroke="white" stroke-width="3" stroke-linecap="round"/>
+</svg>
