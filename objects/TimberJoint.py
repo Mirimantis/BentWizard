@@ -147,9 +147,13 @@ class TimberJoint:
                 "message": "Members no longer intersect at a valid angle",
                 "code": "NO_INTERSECTION",
             }])
-            # Still touch members to clear old cuts.
-            primary.touch()
-            secondary.touch()
+            # Touch members to clear old cuts (with same guard).
+            if not getattr(self, '_skip_touch', False):
+                self._skip_touch = True
+                primary.touch()
+                secondary.touch()
+            else:
+                self._skip_touch = False
             return
 
         # Update intersection display properties.
@@ -240,8 +244,22 @@ class TimberJoint:
         obj.RotationalStiffness = sp.rotational_stiffness
 
         # 8. Touch both members so they recompute with new cut shapes.
-        primary.touch()
-        secondary.touch()
+        #
+        # Guard against infinite recompute: Joint depends on Members via
+        # Link, so FreeCAD recomputes Joint after Members.  If we always
+        # touch(), Members recompute → Joint recomputes → touch() → loop.
+        #
+        # The alternating flag breaks the cycle:
+        #   Pass 1: _skip_touch is False → touch members, set True
+        #   Pass 2: members recompute, joint recomputes again via Link dep,
+        #           _skip_touch is True → skip touch, set False
+        #   No pass 3 needed.
+        if not getattr(self, '_skip_touch', False):
+            self._skip_touch = True
+            primary.touch()
+            secondary.touch()
+        else:
+            self._skip_touch = False
 
     # -- serialization ------------------------------------------------------
 
@@ -353,5 +371,10 @@ def create_timber_joint(primary_obj, secondary_obj, intersection_result,
         TimberJointViewProvider(obj.ViewObject)
         obj.ViewObject.ShapeColor = (0.55, 0.40, 0.25)  # darker timber tone
 
+    # Two recompute passes are needed:
+    #   Pass 1: Members build raw solids, Joint computes cut shapes and
+    #           touches both members.
+    #   Pass 2: Members recompute with the new cut shapes applied.
+    doc.recompute()
     doc.recompute()
     return obj

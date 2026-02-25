@@ -55,6 +55,19 @@ def _member_local_cs(obj):
     return start, x_axis, y_axis, z_axis
 
 
+def _crossing_footprint(host_x, other_obj):
+    """Compute the extent of the other member's cross-section along host_x.
+
+    For a 90-degree crossing of a vertical post (150x200) through a
+    horizontal beam, this returns the post's *width* (150) along the
+    beam's datum, not the post's height.
+    """
+    _o, _ox, oy, oz = _member_local_cs(other_obj)
+    w = float(other_obj.Width)
+    h = float(other_obj.Height)
+    return abs(oy.dot(host_x)) * w + abs(oz.dot(host_x)) * h
+
+
 # ---------------------------------------------------------------------------
 # Joint Definition
 # ---------------------------------------------------------------------------
@@ -89,7 +102,22 @@ class HalfLapDefinition(TimberJointDefinition):
         sec_h = float(secondary.Height)
         sec_w = float(secondary.Width)
 
+        _pri_o, pri_x, _pri_y, _pri_z = _member_local_cs(primary)
+        _sec_o, sec_x, _sec_y, _sec_z = _member_local_cs(secondary)
+
         clearance = 1.6  # 1/16 inch
+
+        # The notch width along each host's datum is the crossing member's
+        # footprint projected onto that axis.
+        sec_footprint = _crossing_footprint(pri_x, secondary)
+        pri_footprint = _crossing_footprint(sec_x, primary)
+
+        # Fallback: if footprint is near-zero (parallel datums — shouldn't
+        # happen for a valid joint), use the crossing member's width.
+        if sec_footprint < 1.0:
+            sec_footprint = sec_w
+        if pri_footprint < 1.0:
+            pri_footprint = pri_w
 
         params = [
             JointParameter("lap_depth_primary", "length",
@@ -103,13 +131,15 @@ class HalfLapDefinition(TimberJointDefinition):
                            group="Lap",
                            description="Depth of notch in secondary member"),
             JointParameter("lap_width_primary", "length",
-                           sec_w + clearance, sec_w + clearance,
-                           min_value=sec_w * 0.5,
+                           sec_footprint + clearance,
+                           sec_footprint + clearance,
+                           min_value=10.0,
                            group="Lap",
                            description="Width of notch in primary (accepts secondary)"),
             JointParameter("lap_width_secondary", "length",
-                           pri_w + clearance, pri_w + clearance,
-                           min_value=pri_w * 0.5,
+                           pri_footprint + clearance,
+                           pri_footprint + clearance,
+                           min_value=10.0,
                            group="Lap",
                            description="Width of notch in secondary (accepts primary)"),
         ]
@@ -118,75 +148,49 @@ class HalfLapDefinition(TimberJointDefinition):
     # -- primary cut --------------------------------------------------------
 
     def build_primary_tool(self, params, primary, secondary, joint_cs):
-        """Build the notch to subtract from the primary member."""
+        """Build the notch to subtract from the primary member.
+
+        The notch is constructed entirely in the primary member's local
+        coordinate system (pri_x, pri_y, pri_z) to avoid degeneracy when
+        the crossing member's direction is parallel to the host's height.
+        """
         lap_depth = params.get("lap_depth_primary")
         lap_width = params.get("lap_width_primary")
 
         _pri_o, pri_x, pri_y, pri_z = _member_local_cs(primary)
-        _sec_o, sec_x, _sec_y, _sec_z = _member_local_cs(secondary)
-
+        pri_w = float(primary.Width)
         pri_h = float(primary.Height)
-
-        # The notch is cut from the top face of the primary member,
-        # centred on the intersection point.
-        # Notch direction: along the secondary datum direction
-        # Notch width: lap_width (along secondary datum)
-        # Notch depth: lap_depth (from top of primary downward)
-        # Notch length: extends through the primary member width
-
-        # Project secondary axis into primary cross-section plane.
-        sec_in_plane = sec_x - pri_x * sec_x.dot(pri_x)
-        sec_len = sec_in_plane.Length
-        if sec_len < 1e-6:
-            sec_in_plane = pri_y
-        else:
-            sec_in_plane.normalize()
+        extra = 2.0
 
         origin = joint_cs.origin
 
-        # Cut from top: start at (origin + pri_z * pri_h/2) down by lap_depth.
-        # Actually: the notch goes along sec_in_plane by lap_width,
-        # across pri cross-section.
+        # The notch is a box:
+        #   Along pri_x (datum): lap_width, centred on intersection
+        #   Along pri_y (width): full member width + extra (through-cut)
+        #   Along pri_z (height): lap_depth from the top face downward
 
-        # Notch box dimensions:
-        # Along sec_in_plane: lap_width
-        # Along pri_z (downward from top): lap_depth
-        # Along pri_y (through member): pri_w + extra
-
-        pri_w = float(primary.Width)
-        extra = 2.0  # overshoot for clean boolean
-
-        # Determine the top surface position relative to intersection point.
-        # For Bottom reference: datum at bottom, top at datum + pri_z * pri_h
-        # We need the top of the member at the intersection.
+        # Corner = bottom-corner of the notch box.
+        # For "Bottom" reference: top face is at datum + pri_z * pri_h,
+        # so notch goes from (pri_h - lap_depth) to pri_h in local z.
         ref = primary.ReferenceFace
         if ref == "Bottom":
-            top_offset = pri_z * pri_h
+            z_top = pri_h
         elif ref == "Top":
-            top_offset = FreeCAD.Vector(0, 0, 0)
-        elif ref == "Left":
-            top_offset = pri_z * (pri_h / 2.0)
-        elif ref == "Right":
-            top_offset = pri_z * (pri_h / 2.0)
+            z_top = 0.0
+        elif ref in ("Left", "Right"):
+            z_top = pri_h / 2.0
         else:
-            top_offset = pri_z * pri_h
+            z_top = pri_h
 
-        # Top of member at intersection point (approximately).
-        # The actual top depends on where the datum is relative to the section.
-        # For a Bottom-reference member, the top is at datum + z * Height.
-        # The datum passes through the intersection point (approximately).
+        corner = (origin
+                  - pri_x * (lap_width / 2.0)
+                  - pri_y * ((pri_w + 2 * extra) / 2.0)
+                  + pri_z * (z_top - lap_depth))
 
-        # Corner of notch box: at top minus lap_depth, centred on intersection.
-        notch_top = origin + top_offset
-        notch_bottom = notch_top - pri_z * lap_depth
-
-        corner = (notch_bottom
-                  - sec_in_plane * (lap_width / 2.0)
-                  - pri_y * ((pri_w + 2 * extra) / 2.0))
-
+        # Profile rectangle in the pri_x / pri_z plane.
         p1 = corner
-        p2 = corner + sec_in_plane * lap_width
-        p3 = corner + sec_in_plane * lap_width + pri_z * lap_depth
+        p2 = corner + pri_x * lap_width
+        p3 = corner + pri_x * lap_width + pri_z * lap_depth
         p4 = corner + pri_z * lap_depth
 
         wire = Part.makePolygon([p1, p2, p3, p4, p1])
@@ -198,65 +202,64 @@ class HalfLapDefinition(TimberJointDefinition):
     # -- secondary profile --------------------------------------------------
 
     def build_secondary_profile(self, params, primary, secondary, joint_cs):
-        """Build the notch for the secondary member."""
+        """Build the notch for the secondary member.
+
+        Same approach as primary — entirely in the secondary member's
+        local coordinate system.
+        """
         lap_depth = params.get("lap_depth_secondary")
         lap_width = params.get("lap_width_secondary")
 
         _sec_o, sec_x, sec_y, sec_z = _member_local_cs(secondary)
-        _pri_o, pri_x, _pri_y, _pri_z = _member_local_cs(primary)
-
         sec_h = float(secondary.Height)
         sec_w = float(secondary.Width)
-
-        # Project primary axis into secondary cross-section plane.
-        pri_in_plane = pri_x - sec_x * pri_x.dot(sec_x)
-        pri_len = pri_in_plane.Length
-        if pri_len < 1e-6:
-            pri_in_plane = sec_y
-        else:
-            pri_in_plane.normalize()
+        extra = 2.0
 
         origin = joint_cs.origin
 
-        extra = 2.0
-
-        # Secondary notch is cut from the bottom (opposite face from primary).
+        # The notch is cut from the BOTTOM face (opposite the primary's
+        # top-face notch, so the two halves nest together).
         ref = secondary.ReferenceFace
         if ref == "Bottom":
-            bottom_offset = FreeCAD.Vector(0, 0, 0)
+            z_bottom = 0.0
         elif ref == "Top":
-            bottom_offset = sec_z * (-sec_h)
-        elif ref == "Left":
-            bottom_offset = sec_z * (-sec_h / 2.0)
-        elif ref == "Right":
-            bottom_offset = sec_z * (-sec_h / 2.0)
+            z_bottom = -sec_h
+        elif ref in ("Left", "Right"):
+            z_bottom = -sec_h / 2.0
         else:
-            bottom_offset = FreeCAD.Vector(0, 0, 0)
+            z_bottom = 0.0
 
-        notch_bottom = origin + bottom_offset
-        notch_top = notch_bottom + sec_z * lap_depth
+        corner = (origin
+                  - sec_x * (lap_width / 2.0)
+                  - sec_y * ((sec_w + 2 * extra) / 2.0)
+                  + sec_z * z_bottom)
 
-        corner = (notch_bottom
-                  - pri_in_plane * (lap_width / 2.0)
-                  - sec_y * ((sec_w + 2 * extra) / 2.0))
-
+        # Profile rectangle in the sec_x / sec_z plane.
         p1 = corner
-        p2 = corner + pri_in_plane * lap_width
-        p3 = corner + pri_in_plane * lap_width + sec_z * lap_depth
+        p2 = corner + sec_x * lap_width
+        p3 = corner + sec_x * lap_width + sec_z * lap_depth
         p4 = corner + sec_z * lap_depth
 
         wire = Part.makePolygon([p1, p2, p3, p4, p1])
         face = Part.Face(wire)
         shoulder_cut = face.extrude(sec_y * (sec_w + 2 * extra))
 
-        # For a half lap, the "tenon" is the remaining half-section that
-        # nests into the other member's notch.  We represent it as a thin
-        # box at the lap depth for visualization.
-        tenon_corner = notch_top - pri_in_plane * (lap_width / 2.0) - sec_y * (sec_w / 2.0)
+        # The "tenon" for visualization: the remaining half-section that
+        # nests into the other member's notch.
+        tenon_corner = (origin
+                        - sec_x * (lap_width / 2.0)
+                        - sec_y * (sec_w / 2.0)
+                        + sec_z * lap_depth)
+
+        # Tenon extends from lap_depth to full height.
+        remaining_h = sec_h - lap_depth
+        if remaining_h < 1.0:
+            remaining_h = 1.0
+
         tp1 = tenon_corner
-        tp2 = tenon_corner + pri_in_plane * lap_width
-        tp3 = tenon_corner + pri_in_plane * lap_width + sec_z * (sec_h - lap_depth)
-        tp4 = tenon_corner + sec_z * (sec_h - lap_depth)
+        tp2 = tenon_corner + sec_x * lap_width
+        tp3 = tenon_corner + sec_x * lap_width + sec_z * remaining_h
+        tp4 = tenon_corner + sec_z * remaining_h
 
         tenon_wire = Part.makePolygon([tp1, tp2, tp3, tp4, tp1])
         tenon_face = Part.Face(tenon_wire)
