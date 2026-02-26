@@ -166,7 +166,17 @@ class TimberMember:
         if execute() throws.
         """
         try:
-            obj.Shape = self._build_solid(obj)
+            solid = self._build_solid(obj)
+            # Apply boolean cuts from connected joints.
+            cuts = self._collect_joint_cuts(obj)
+            for cut_tool in cuts:
+                try:
+                    solid = solid.cut(cut_tool)
+                except Exception as exc:
+                    FreeCAD.Console.PrintWarning(
+                        f"TimberMember boolean cut failed: {exc}\n"
+                    )
+            obj.Shape = solid
         except Exception as e:
             FreeCAD.Console.PrintError(
                 f"TimberMember execute failed: {e}\n"
@@ -246,6 +256,81 @@ class TimberMember:
         solid = face.extrude(datum_axis * length)
 
         return solid
+
+    # -- joint cut collection -----------------------------------------------
+
+    @staticmethod
+    def _collect_joint_cuts(obj):
+        """Scan the document for TimberJoint cut tools targeting this member.
+
+        Returns a list of ``Part.Shape`` cut tools to boolean-subtract from
+        the member solid.  Uses a document scan (no Link) to avoid creating
+        a circular dependency with TimberJoint objects.
+        """
+        doc = obj.Document
+        if doc is None:
+            return []
+
+        cuts = []
+        for doc_obj in doc.Objects:
+            # Quick filter: must have PrimaryMember property.
+            if not hasattr(doc_obj, "PrimaryMember"):
+                continue
+            if not hasattr(doc_obj, "PrimaryCutTool"):
+                continue
+
+            if doc_obj.PrimaryMember == obj:
+                shape = doc_obj.PrimaryCutTool
+                if shape and not shape.isNull():
+                    cuts.append(shape)
+            elif getattr(doc_obj, "SecondaryMember", None) == obj:
+                shape = doc_obj.SecondaryCutTool
+                if shape and not shape.isNull():
+                    cuts.append(shape)
+
+        return cuts
+
+    # -- coordinate system export -------------------------------------------
+
+    @staticmethod
+    def get_member_local_cs(obj):
+        """Return the member's local coordinate system.
+
+        Returns ``(origin, x_axis, y_axis, z_axis)`` where:
+
+        - ``origin`` = datum start point
+        - ``x_axis`` = unit vector along datum (start -> end)
+        - ``y_axis`` = unit vector in width direction
+        - ``z_axis`` = unit vector in height direction
+
+        This matches the coordinate system used in ``_build_solid()``.
+        """
+        start = FreeCAD.Vector(obj.StartPoint)
+        end = FreeCAD.Vector(obj.EndPoint)
+        direction = end - start
+        length = direction.Length
+
+        if length < 1e-6:
+            return (start,
+                    FreeCAD.Vector(1, 0, 0),
+                    FreeCAD.Vector(0, 1, 0),
+                    FreeCAD.Vector(0, 0, 1))
+
+        x_axis = FreeCAD.Vector(direction)
+        x_axis.normalize()
+
+        world_z = FreeCAD.Vector(0, 0, 1)
+        if abs(x_axis.dot(world_z)) > 0.999:
+            up_hint = FreeCAD.Vector(0, 1, 0)
+        else:
+            up_hint = world_z
+
+        y_axis = x_axis.cross(up_hint)
+        y_axis.normalize()
+        z_axis = y_axis.cross(x_axis)
+        z_axis.normalize()
+
+        return (start, x_axis, y_axis, z_axis)
 
     # -- serialization ------------------------------------------------------
 
