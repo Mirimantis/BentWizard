@@ -9,7 +9,7 @@ _ROOT = os.path.dirname(__file__)
 class TimberFrameWorkbench(FreeCADGui.Workbench):
     """FreeCAD workbench for traditional timber frame design."""
 
-    MenuText = "Timber Frame"
+    MenuText = "BentWizard Timber Framing"
     ToolTip = "Design and analyze traditional timber frame structures"
     Icon = os.path.join(_ROOT, "resources", "icons", "workbench.svg")
 
