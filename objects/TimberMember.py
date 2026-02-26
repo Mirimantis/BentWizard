@@ -299,7 +299,11 @@ class TimberMember:
         Returns ``(origin, x_axis, y_axis, z_axis)`` where:
 
         - ``origin`` = datum start point
+<<<<<<< claude/gallant-hofstadter-v2
         - ``x_axis`` = unit vector along datum (start -> end)
+=======
+        - ``x_axis`` = unit vector along datum (start → end)
+>>>>>>> main
         - ``y_axis`` = unit vector in width direction
         - ``z_axis`` = unit vector in height direction
 

@@ -14,12 +14,8 @@ import FreeCAD
 import Part
 
 from joints.base import JointCoordinateSystem, ParameterSet
-from joints.intersection import (
-    closest_approach_segments,
-    compute_joint_cs,
-    INTERSECTION_TOLERANCE,
-)
-from joints.loader import get_definition, get_ids, DEFAULT_JOINT_TYPES
+from joints.intersection import compute_joint_cs
+from joints.loader import get_definition, DEFAULT_JOINT_TYPES
 
 # ---------------------------------------------------------------------------
 # Intersection type enumeration values
@@ -73,16 +69,9 @@ class TimberJoint:
             obj.IntersectionType = INTERSECTION_TYPES
             obj.IntersectionType = "EndpointToMidpoint"
 
-        # Joint definition — enumeration populated from registry.
-        _ensure("App::PropertyEnumeration", "JointType", "Joint",
-                "Joint type from the registry")
-        if not obj.JointType:
-            ids = get_ids()
-            if not ids:
-                ids = ["through_mortise_tenon", "half_lap", "housed_dovetail"]
-            obj.JointType = ids
-            obj.JointType = ids[0]
-
+        # Joint definition
+        _ensure("App::PropertyString", "JointType", "Joint",
+                "ID string from joint registry")
         _ensure("App::PropertyString", "Parameters", "Joint",
                 "JSON-serialized ParameterSet values")
 
@@ -143,44 +132,8 @@ class TimberJoint:
             obj.SecondaryCutTool = Part.Shape()
             return
 
-        # 1. Recalculate the intersection point from current member geometry.
-        #    This is the key fix: we must NOT use the stored
-        #    obj.IntersectionPoint because the members may have moved.
-        p_start = FreeCAD.Vector(primary.StartPoint)
-        p_end = FreeCAD.Vector(primary.EndPoint)
-        s_start = FreeCAD.Vector(secondary.StartPoint)
-        s_end = FreeCAD.Vector(secondary.EndPoint)
-
-        pt1, pt2, dist, t1, t2 = closest_approach_segments(
-            p_start, p_end, s_start, s_end,
-        )
-
-        if dist > INTERSECTION_TOLERANCE:
-            FreeCAD.Console.PrintWarning(
-                "TimberJoint: members no longer intersect within tolerance "
-                f"(distance={dist:.1f}mm)\n"
-            )
-            obj.Shape = Part.makeBox(1, 1, 1)
-            obj.PrimaryCutTool = Part.Shape()
-            obj.SecondaryCutTool = Part.Shape()
-            obj.ValidationResults = json.dumps([{
-                "level": "error",
-                "message": "Members no longer intersect within tolerance",
-                "code": "NO_INTERSECTION",
-            }])
-            if not getattr(self, '_skip_touch', False):
-                self._skip_touch = True
-                primary.touch()
-                secondary.touch()
-            else:
-                self._skip_touch = False
-            return
-
-        # Fresh intersection point from current geometry.
-        fresh_point = (pt1 + pt2) * 0.5
-
-        # Build the joint coordinate system with the fresh point.
-        joint_cs = compute_joint_cs(primary, secondary, fresh_point)
+        # 1. Recompute intersection geometry.
+        joint_cs = compute_joint_cs(primary, secondary, obj.IntersectionPoint)
 
         if joint_cs is None:
             FreeCAD.Console.PrintWarning(
@@ -194,6 +147,7 @@ class TimberJoint:
                 "message": "Members no longer intersect at a valid angle",
                 "code": "NO_INTERSECTION",
             }])
+            # Touch members to clear old cuts (with same guard).
             if not getattr(self, '_skip_touch', False):
                 self._skip_touch = True
                 primary.touch()
@@ -291,14 +245,15 @@ class TimberJoint:
 
         # 8. Touch both members so they recompute with new cut shapes.
         #
-        # FreeCAD's Document::recompute() loops until no objects are
-        # touched (up to 100 passes), so touching here triggers a second
-        # pass where members pick up the new cut tools.
+        # Guard against infinite recompute: Joint depends on Members via
+        # Link, so FreeCAD recomputes Joint after Members.  If we always
+        # touch(), Members recompute → Joint recomputes → touch() → loop.
         #
-        # The alternating flag prevents infinite loops:
-        #   Pass 1: _skip_touch False → touch members, set True
-        #   Pass 2: members recompute with cuts, joint re-executes via
-        #           Link dependency, _skip_touch True → skip, set False
+        # The alternating flag breaks the cycle:
+        #   Pass 1: _skip_touch is False → touch members, set True
+        #   Pass 2: members recompute, joint recomputes again via Link dep,
+        #           _skip_touch is True → skip touch, set False
+        #   No pass 3 needed.
         if not getattr(self, '_skip_touch', False):
             self._skip_touch = True
             primary.touch()

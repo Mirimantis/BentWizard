@@ -121,17 +121,11 @@ def load_all() -> None:
     # Built-in joints first.
     for defn in _discover_in_directory(_get_builtin_dir()):
         _registry[defn.ID] = defn
-        FreeCAD.Console.PrintMessage(
-            f"  Joint loaded: {defn.NAME} [{defn.ID}]\n"
-        )
 
     # User joints (override built-in if same ID).
     user_dir = _get_user_joints_dir()
     for defn in _discover_in_directory(user_dir):
         _registry[defn.ID] = defn
-        FreeCAD.Console.PrintMessage(
-            f"  Joint loaded (user): {defn.NAME} [{defn.ID}]\n"
-        )
 
     _loaded = True
     FreeCAD.Console.PrintMessage(
@@ -155,13 +149,6 @@ def get_all_definitions() -> dict:
     if not _loaded:
         load_all()
     return dict(_registry)
-
-
-def get_ids() -> list:
-    """Return a sorted list of all registered joint type IDs."""
-    if not _loaded:
-        load_all()
-    return sorted(_registry.keys())
 
 
 def get_suggested_types(intersection_type: str, primary_role: str,

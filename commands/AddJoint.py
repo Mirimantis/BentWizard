@@ -3,8 +3,9 @@
 import FreeCAD
 import FreeCADGui
 
+from objects.TimberMember import TimberMember
 from objects.TimberJoint import create_timber_joint
-from joints.intersection import _test_pair, INTERSECTION_TOLERANCE
+from joints.intersection import detect_intersections_for_member, _test_pair, INTERSECTION_TOLERANCE
 
 
 class AddJointCommand:
