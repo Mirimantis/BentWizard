@@ -9,7 +9,7 @@ _ROOT = os.path.dirname(__file__)
 class TimberFrameWorkbench(FreeCADGui.Workbench):
     """FreeCAD workbench for traditional timber frame design."""
 
-    MenuText = "Timber Frame"
+    MenuText = "BentWizard Timber Framing"
     ToolTip = "Design and analyze traditional timber frame structures"
     Icon = os.path.join(_ROOT, "resources", "icons", "workbench.svg")
 
@@ -19,9 +19,12 @@ class TimberFrameWorkbench(FreeCADGui.Workbench):
     def Initialize(self):
         """Called when the workbench is first activated."""
         from commands import AddMember  # noqa: F401
+        from commands import AddJoint   # noqa: F401
+        from joints import loader
+        loader.load_all()
 
-        self.appendToolbar("Timber Frame", ["TF_AddMember"])
-        self.appendMenu("Timber Frame", ["TF_AddMember"])
+        self.appendToolbar("Timber Frame", ["TF_AddMember", "TF_AddJoint"])
+        self.appendMenu("Timber Frame", ["TF_AddMember", "TF_AddJoint"])
 
     def Activated(self):
         """Called when switching to this workbench."""
