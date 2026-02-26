@@ -98,12 +98,15 @@ class TimberMember:
                 setattr(obj, name, default)
 
         # Datum
-        _ensure("App::PropertyVector", "StartPoint", "Datum",
+        # FreeCAD's property panel sorts alphabetically within a group,
+        # so we use "Datum 1" / "Datum 2" / "Datum 3" sub-groups to
+        # guarantee StartPoint appears before EndPoint.
+        _ensure("App::PropertyVector", "StartPoint", "Datum 1",
                 "Start of the datum line")
-        _ensure("App::PropertyVector", "EndPoint", "Datum",
+        _ensure("App::PropertyVector", "EndPoint", "Datum 2",
                 "End of the datum line",
                 FreeCAD.Vector(0, 0, 1000))
-        _ensure("App::PropertyFloatList", "SupportFractions", "Datum",
+        _ensure("App::PropertyFloatList", "SupportFractions", "Datum 3",
                 "Fractional support positions along datum (simple beam = [0, 1])",
                 [0.0, 1.0])
 

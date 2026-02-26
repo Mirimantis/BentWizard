@@ -183,16 +183,26 @@ class TimberJoint:
             return
 
         # 3. Deserialize or create ParameterSet.
+        #    When the JointType changes, the stored Parameters contain keys
+        #    from the old definition that won't match the new one.  Detect
+        #    this by comparing parameter names and create fresh params when
+        #    they don't match.
+        fresh = definition.get_parameters(primary, secondary, joint_cs)
         if obj.Parameters:
             params = ParameterSet.from_json(obj.Parameters)
-            # Update derived defaults in case members changed.
-            fresh = definition.get_parameters(primary, secondary, joint_cs)
-            new_defaults = {}
-            for name, p in fresh.items():
-                new_defaults[name] = p.default_value
-            params.update_defaults(new_defaults)
+            stored_names = set(name for name, _ in params.items())
+            fresh_names = set(name for name, _ in fresh.items())
+            if stored_names != fresh_names:
+                # Joint type changed — discard old params, use fresh.
+                params = fresh
+            else:
+                # Same joint type — update derived defaults, keep overrides.
+                new_defaults = {}
+                for name, p in fresh.items():
+                    new_defaults[name] = p.default_value
+                params.update_defaults(new_defaults)
         else:
-            params = definition.get_parameters(primary, secondary, joint_cs)
+            params = fresh
 
         obj.Parameters = params.to_json()
 
@@ -369,7 +379,7 @@ def create_timber_joint(primary_obj, secondary_obj, intersection_result,
 
     if FreeCAD.GuiUp:
         TimberJointViewProvider(obj.ViewObject)
-        obj.ViewObject.ShapeColor = (0.55, 0.40, 0.25)  # darker timber tone
+        obj.ViewObject.ShapeColor = (0.40, 0.50, 0.60)  # blue-gray, distinct from timber
 
     # Two recompute passes are needed:
     #   Pass 1: Members build raw solids, Joint computes cut shapes and
