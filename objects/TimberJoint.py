@@ -14,8 +14,12 @@ import FreeCAD
 import Part
 
 from joints.base import JointCoordinateSystem, ParameterSet
-from joints.intersection import compute_joint_cs
-from joints.loader import get_definition, DEFAULT_JOINT_TYPES
+from joints.intersection import (
+    closest_approach_segments,
+    compute_joint_cs,
+    INTERSECTION_TOLERANCE,
+)
+from joints.loader import get_definition, get_ids, DEFAULT_JOINT_TYPES
 
 # ---------------------------------------------------------------------------
 # Intersection type enumeration values
@@ -70,8 +74,14 @@ class TimberJoint:
             obj.IntersectionType = "EndpointToMidpoint"
 
         # Joint definition
-        _ensure("App::PropertyString", "JointType", "Joint",
-                "ID string from joint registry")
+        _ensure("App::PropertyEnumeration", "JointType", "Joint",
+                "Joint type from the registry")
+        if not obj.JointType:
+            ids = get_ids()
+            if not ids:
+                ids = ["through_mortise_tenon", "half_lap", "housed_dovetail"]
+            obj.JointType = ids
+            obj.JointType = ids[0]
         _ensure("App::PropertyString", "Parameters", "Joint",
                 "JSON-serialized ParameterSet values")
 
@@ -132,8 +142,33 @@ class TimberJoint:
             obj.SecondaryCutTool = Part.Shape()
             return
 
-        # 1. Recompute intersection geometry.
-        joint_cs = compute_joint_cs(primary, secondary, obj.IntersectionPoint)
+        # 1. Recompute intersection geometry from current member positions.
+        p_start = FreeCAD.Vector(primary.StartPoint)
+        p_end = FreeCAD.Vector(primary.EndPoint)
+        s_start = FreeCAD.Vector(secondary.StartPoint)
+        s_end = FreeCAD.Vector(secondary.EndPoint)
+
+        pt1, pt2, dist, t1, t2 = closest_approach_segments(
+            p_start, p_end, s_start, s_end,
+        )
+
+        if dist > INTERSECTION_TOLERANCE:
+            FreeCAD.Console.PrintWarning(
+                "TimberJoint: members no longer within intersection "
+                f"tolerance ({dist:.1f}mm > {INTERSECTION_TOLERANCE}mm)\n"
+            )
+            obj.Shape = Part.makeBox(1, 1, 1)
+            obj.PrimaryCutTool = Part.Shape()
+            obj.SecondaryCutTool = Part.Shape()
+            obj.ValidationResults = json.dumps([{
+                "level": "error",
+                "message": f"Members too far apart ({dist:.1f}mm)",
+                "code": "OUT_OF_TOLERANCE",
+            }])
+            return
+
+        fresh_point = (pt1 + pt2) * 0.5
+        joint_cs = compute_joint_cs(primary, secondary, fresh_point)
 
         if joint_cs is None:
             FreeCAD.Console.PrintWarning(
@@ -183,16 +218,26 @@ class TimberJoint:
             return
 
         # 3. Deserialize or create ParameterSet.
+        #    When the JointType changes, the stored Parameters contain keys
+        #    from the old definition that won't match the new one.  Detect
+        #    this by comparing parameter names and create fresh params when
+        #    they don't match.
+        fresh = definition.get_parameters(primary, secondary, joint_cs)
         if obj.Parameters:
             params = ParameterSet.from_json(obj.Parameters)
-            # Update derived defaults in case members changed.
-            fresh = definition.get_parameters(primary, secondary, joint_cs)
-            new_defaults = {}
-            for name, p in fresh.items():
-                new_defaults[name] = p.default_value
-            params.update_defaults(new_defaults)
+            stored_names = set(name for name, _ in params.items())
+            fresh_names = set(name for name, _ in fresh.items())
+            if stored_names != fresh_names:
+                # Joint type changed — discard old params, use fresh.
+                params = fresh
+            else:
+                # Same joint type — update derived defaults, keep overrides.
+                new_defaults = {}
+                for name, p in fresh.items():
+                    new_defaults[name] = p.default_value
+                params.update_defaults(new_defaults)
         else:
-            params = definition.get_parameters(primary, secondary, joint_cs)
+            params = fresh
 
         obj.Parameters = params.to_json()
 
@@ -369,7 +414,7 @@ def create_timber_joint(primary_obj, secondary_obj, intersection_result,
 
     if FreeCAD.GuiUp:
         TimberJointViewProvider(obj.ViewObject)
-        obj.ViewObject.ShapeColor = (0.55, 0.40, 0.25)  # darker timber tone
+        obj.ViewObject.ShapeColor = (0.40, 0.50, 0.60)  # blue-gray, distinct from timber
 
     # Two recompute passes are needed:
     #   Pass 1: Members build raw solids, Joint computes cut shapes and
