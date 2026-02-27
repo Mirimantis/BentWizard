@@ -14,8 +14,12 @@ import FreeCAD
 import Part
 
 from joints.base import JointCoordinateSystem, ParameterSet
-from joints.intersection import compute_joint_cs
-from joints.loader import get_definition, DEFAULT_JOINT_TYPES
+from joints.intersection import (
+    closest_approach_segments,
+    compute_joint_cs,
+    INTERSECTION_TOLERANCE,
+)
+from joints.loader import get_definition, get_ids, DEFAULT_JOINT_TYPES
 
 # ---------------------------------------------------------------------------
 # Intersection type enumeration values
@@ -70,8 +74,14 @@ class TimberJoint:
             obj.IntersectionType = "EndpointToMidpoint"
 
         # Joint definition
-        _ensure("App::PropertyString", "JointType", "Joint",
-                "ID string from joint registry")
+        _ensure("App::PropertyEnumeration", "JointType", "Joint",
+                "Joint type from the registry")
+        if not obj.JointType:
+            ids = get_ids()
+            if not ids:
+                ids = ["through_mortise_tenon", "half_lap", "housed_dovetail"]
+            obj.JointType = ids
+            obj.JointType = ids[0]
         _ensure("App::PropertyString", "Parameters", "Joint",
                 "JSON-serialized ParameterSet values")
 
@@ -132,8 +142,33 @@ class TimberJoint:
             obj.SecondaryCutTool = Part.Shape()
             return
 
-        # 1. Recompute intersection geometry.
-        joint_cs = compute_joint_cs(primary, secondary, obj.IntersectionPoint)
+        # 1. Recompute intersection geometry from current member positions.
+        p_start = FreeCAD.Vector(primary.StartPoint)
+        p_end = FreeCAD.Vector(primary.EndPoint)
+        s_start = FreeCAD.Vector(secondary.StartPoint)
+        s_end = FreeCAD.Vector(secondary.EndPoint)
+
+        pt1, pt2, dist, t1, t2 = closest_approach_segments(
+            p_start, p_end, s_start, s_end,
+        )
+
+        if dist > INTERSECTION_TOLERANCE:
+            FreeCAD.Console.PrintWarning(
+                "TimberJoint: members no longer within intersection "
+                f"tolerance ({dist:.1f}mm > {INTERSECTION_TOLERANCE}mm)\n"
+            )
+            obj.Shape = Part.makeBox(1, 1, 1)
+            obj.PrimaryCutTool = Part.Shape()
+            obj.SecondaryCutTool = Part.Shape()
+            obj.ValidationResults = json.dumps([{
+                "level": "error",
+                "message": f"Members too far apart ({dist:.1f}mm)",
+                "code": "OUT_OF_TOLERANCE",
+            }])
+            return
+
+        fresh_point = (pt1 + pt2) * 0.5
+        joint_cs = compute_joint_cs(primary, secondary, fresh_point)
 
         if joint_cs is None:
             FreeCAD.Console.PrintWarning(
