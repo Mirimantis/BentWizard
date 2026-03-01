@@ -522,3 +522,22 @@ No other external dependencies. All reference data is bundled as CSV.
 - `App::PropertyFloatList` stores lists of floats; use JSON string properties for complex structured data.
 - ViewProvider classes must implement `getIcon()`, `attach()`, `updateData()`, `onChanged()`, `getDisplayModes()`, `getDefaultDisplayMode()`, `setDisplayMode()`, `onDelete()`.
 - Coin3D scene graph is accessed via `vobj.RootNode` in the ViewProvider.
+
+---
+
+## Decisions Log
+
+Record any non-obvious direction choices made during development — what was decided, why, and what alternatives were considered. Most recent first.
+
+<!--
+Template:
+### YYYY-MM-DD — Short title
+**Decision:** What was chosen.
+**Reason:** Why this direction was taken.
+**Alternatives considered:** What else was on the table and why it was rejected.
+-->
+
+### 2026-02-26 — Collinear endpoint-to-endpoint datums rejected by intersection detector
+**Decision:** `compute_joint_cs` returns `None` (no joint formed) when two datum lines are co-linear (angle < 5°), even if their endpoints touch. This means a straight splice — two timbers laid end-to-end along the same axis — does not auto-create a joint.
+**Reason:** A co-linear pair produces a degenerate joint coordinate system (zero cross product → no well-defined normal or secondary axis). All joint geometry is defined in the local JCS, so without a valid JCS the joint definition machinery cannot function. The 5° floor (`MIN_ANGLE_DEGREES`) guards against this.
+**Alternatives considered:** Special-casing the scarf/splice scenario with a hard-coded "along-axis" JCS. Deferred: `scarf_bladed` is not yet implemented, and the correct UX for a straight splice (select two members + explicit Scarf command) is cleaner than relying on auto-detection for a joint family that needs explicit user intent anyway.
