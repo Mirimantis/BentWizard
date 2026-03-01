@@ -171,10 +171,10 @@ def compute_joint_cs(primary_obj, secondary_obj,
     JointCoordinateSystem or None
         ``None`` if the datums are near-parallel (angle < 5 degrees).
     """
-    p_start = FreeCAD.Vector(primary_obj.StartPoint)
-    p_end = FreeCAD.Vector(primary_obj.EndPoint)
-    s_start = FreeCAD.Vector(secondary_obj.StartPoint)
-    s_end = FreeCAD.Vector(secondary_obj.EndPoint)
+    p_start = FreeCAD.Vector(primary_obj.A_StartPoint)
+    p_end = FreeCAD.Vector(primary_obj.B_EndPoint)
+    s_start = FreeCAD.Vector(secondary_obj.A_StartPoint)
+    s_end = FreeCAD.Vector(secondary_obj.B_EndPoint)
 
     p_dir = p_end - p_start
     s_dir = s_end - s_start
@@ -378,10 +378,10 @@ def _test_pair(obj_a, obj_b,
 
     Returns an :class:`IntersectionResult` or ``None``.
     """
-    p1 = FreeCAD.Vector(obj_a.StartPoint)
-    d1 = FreeCAD.Vector(obj_a.EndPoint)
-    p2 = FreeCAD.Vector(obj_b.StartPoint)
-    d2 = FreeCAD.Vector(obj_b.EndPoint)
+    p1 = FreeCAD.Vector(obj_a.A_StartPoint)
+    d1 = FreeCAD.Vector(obj_a.B_EndPoint)
+    p2 = FreeCAD.Vector(obj_b.A_StartPoint)
+    d2 = FreeCAD.Vector(obj_b.B_EndPoint)
 
     pt1, pt2, dist, t1, t2 = closest_approach_segments(p1, d1, p2, d2)
 

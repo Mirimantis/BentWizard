@@ -27,8 +27,8 @@ from joints.base import (
 
 def _member_local_cs(obj):
     """Return the member local coordinate system (origin, x, y, z)."""
-    start = FreeCAD.Vector(obj.StartPoint)
-    end = FreeCAD.Vector(obj.EndPoint)
+    start = FreeCAD.Vector(obj.A_StartPoint)
+    end = FreeCAD.Vector(obj.B_EndPoint)
     direction = end - start
     length = direction.Length
 

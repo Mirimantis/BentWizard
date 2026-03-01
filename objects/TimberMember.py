@@ -98,15 +98,14 @@ class TimberMember:
                 setattr(obj, name, default)
 
         # Datum
-        # FreeCAD's property panel sorts alphabetically within a group,
-        # so we use "Datum 1" / "Datum 2" / "Datum 3" sub-groups to
-        # guarantee StartPoint appears before EndPoint.
-        _ensure("App::PropertyVector", "StartPoint", "Datum 1",
+        # FreeCAD sorts properties alphabetically within a group.
+        # "A_" / "B_" prefixes keep Start before End in the panel.
+        _ensure("App::PropertyVector", "A_StartPoint", "Datum",
                 "Start of the datum line")
-        _ensure("App::PropertyVector", "EndPoint", "Datum 2",
+        _ensure("App::PropertyVector", "B_EndPoint", "Datum",
                 "End of the datum line",
                 FreeCAD.Vector(0, 0, 1000))
-        _ensure("App::PropertyFloatList", "SupportFractions", "Datum 3",
+        _ensure("App::PropertyFloatList", "SupportFractions", "Datum",
                 "Fractional support positions along datum (simple beam = [0, 1])",
                 [0.0, 1.0])
 
@@ -197,8 +196,8 @@ class TimberMember:
         (layout marks, positioning offsets) but does not affect the
         solid's position relative to the datum.
         """
-        start = FreeCAD.Vector(obj.StartPoint)
-        end = FreeCAD.Vector(obj.EndPoint)
+        start = FreeCAD.Vector(obj.A_StartPoint)
+        end = FreeCAD.Vector(obj.B_EndPoint)
         direction = end - start
         length = direction.Length
 
@@ -290,8 +289,8 @@ class TimberMember:
 
         This matches the coordinate system used in ``_build_solid()``.
         """
-        start = FreeCAD.Vector(obj.StartPoint)
-        end = FreeCAD.Vector(obj.EndPoint)
+        start = FreeCAD.Vector(obj.A_StartPoint)
+        end = FreeCAD.Vector(obj.B_EndPoint)
         direction = end - start
         length = direction.Length
 
@@ -409,9 +408,9 @@ def create_timber_member(name="TimberMember", start=None, end=None, role="Post")
     TimberMember(obj)
 
     if start is not None:
-        obj.StartPoint = start
+        obj.A_StartPoint = start
     if end is not None:
-        obj.EndPoint = end
+        obj.B_EndPoint = end
     if role in ROLES:
         obj.Role = role
 
