@@ -94,14 +94,29 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         sec_w = float(secondary.Width)
         sec_h = float(secondary.Height)
         pri_w = float(primary.Width)
+        pri_h = float(primary.Height)
 
         # Clearance per side (1/16" = 1.6 mm)
         clearance = 1.6
 
+        # Compute through extent: how far the tenon must travel through
+        # the primary member, based on the secondary's approach direction.
+        _pri_o, pri_x, pri_y, pri_z = _member_local_cs(primary)
+        _sec_o, sec_x, _sec_y, _sec_z = _member_local_cs(secondary)
+
+        sec_in_plane = sec_x - pri_x * sec_x.dot(pri_x)
+        sec_len = sec_in_plane.Length
+        if sec_len < 1e-6:
+            through_extent = pri_w
+        else:
+            sec_in_plane.normalize()
+            through_extent = (abs(sec_in_plane.dot(pri_y)) * pri_w
+                              + abs(sec_in_plane.dot(pri_z)) * pri_h)
+
         # Tenon dimensions
         tenon_width = sec_w / 3.0
         tenon_height = sec_h * 0.75
-        tenon_length = pri_w  # through joint
+        tenon_length = through_extent  # through joint
 
         # Mortise dimensions (tenon + clearance)
         mortise_width = tenon_width + 2 * clearance
@@ -127,7 +142,8 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
                            group="Tenon",
                            description="Height of the tenon"),
             JointParameter("tenon_length", "length", tenon_length, tenon_length,
-                           min_value=pri_w * 0.5, max_value=pri_w * 1.5,
+                           min_value=through_extent * 0.5,
+                           max_value=through_extent * 1.5,
                            group="Tenon",
                            description="Length of the tenon (through primary)"),
             JointParameter("mortise_width", "length", mortise_width, mortise_width,
@@ -172,36 +188,53 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
     def build_primary_tool(self, params, primary, secondary, joint_cs):
         """Build the mortise void to subtract from the primary member.
 
-        The mortise is always aligned with the primary member's local
-        coordinate system:
-        - Through: pri_y (width direction — passes through the member)
-        - Width:   pri_x (along datum / grain)
-        - Height:  pri_z (height direction)
+        The mortise through-direction follows the secondary member's
+        approach into the primary's cross-section.  The mortise opening
+        matches the tenon cross-section orientation (sec_y × sec_z).
         """
         mw = params.get("mortise_width")
         mh = params.get("mortise_height")
 
         _pri_origin, pri_x, pri_y, pri_z = _member_local_cs(primary)
+        _sec_origin, sec_x, sec_y, sec_z = _member_local_cs(secondary)
         pri_w = float(primary.Width)
+        pri_h = float(primary.Height)
 
         origin = joint_cs.origin
 
-        extra = 2.0  # mm overshoot for boolean reliability
-        through_length = pri_w + 2 * extra
+        # The through-direction is the secondary datum projected into the
+        # primary's cross-section plane (perpendicular to pri_x).
+        sec_in_plane = sec_x - pri_x * sec_x.dot(pri_x)
+        sec_len = sec_in_plane.Length
+        if sec_len < 1e-6:
+            sec_in_plane = pri_y
+        else:
+            sec_in_plane.normalize()
 
+        through_dir = sec_in_plane
+
+        # Through extent: how far the mortise must travel through the
+        # primary member in this direction.
+        through_extent = (abs(through_dir.dot(pri_y)) * pri_w
+                          + abs(through_dir.dot(pri_z)) * pri_h)
+
+        extra = 2.0  # mm overshoot for boolean reliability
+        through_length = through_extent + 2 * extra
+
+        # Mortise opening matches the tenon cross-section (sec_y × sec_z).
         corner = (origin
-                  - pri_x * (mw / 2.0)
-                  - pri_z * (mh / 2.0)
-                  - pri_y * (through_length / 2.0))
+                  - sec_y * (mw / 2.0)
+                  - sec_z * (mh / 2.0)
+                  - through_dir * (through_length / 2.0))
 
         p1 = corner
-        p2 = corner + pri_x * mw
-        p3 = corner + pri_x * mw + pri_z * mh
-        p4 = corner + pri_z * mh
+        p2 = corner + sec_y * mw
+        p3 = corner + sec_y * mw + sec_z * mh
+        p4 = corner + sec_z * mh
 
         wire = Part.makePolygon([p1, p2, p3, p4, p1])
         face = Part.Face(wire)
-        mortise = face.extrude(pri_y * through_length)
+        mortise = face.extrude(through_dir * through_length)
 
         return mortise
 
@@ -296,12 +329,26 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         edge_dist = params.get("peg_edge_distance")
         th = params.get("tenon_height")
 
-        _pri_origin, _pri_x, pri_y, pri_z = _member_local_cs(primary)
+        _pri_origin, pri_x, pri_y, pri_z = _member_local_cs(primary)
+        _sec_origin, sec_x, sec_y, sec_z = _member_local_cs(secondary)
         pri_w = float(primary.Width)
+        pri_h = float(primary.Height)
 
+        # Peg axis follows the mortise through-direction (secondary
+        # approach projected into the primary's cross-section).
+        sec_in_plane = sec_x - pri_x * sec_x.dot(pri_x)
+        sec_len = sec_in_plane.Length
+        if sec_len < 1e-6:
+            peg_axis = pri_y
+            through_extent = pri_w
+        else:
+            sec_in_plane.normalize()
+            peg_axis = sec_in_plane
+            through_extent = (abs(sec_in_plane.dot(pri_y)) * pri_w
+                              + abs(sec_in_plane.dot(pri_z)) * pri_h)
+
+        # Pegs are spaced along the tenon height direction (sec_z).
         pegs = []
-        # Pegs are centred vertically within the tenon height, spaced evenly.
-        # Peg axis goes through the primary member (along pri_y).
         if count == 1:
             offsets = [0.0]
         else:
@@ -310,12 +357,12 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
                        for i in range(count)]
 
         for off_z in offsets:
-            center = joint_cs.origin + pri_z * off_z
+            center = joint_cs.origin + sec_z * off_z
             pegs.append(PegDefinition(
                 center=center,
                 diameter=diameter,
-                length=pri_w + 20.0,  # extend beyond both faces
-                axis=pri_y,
+                length=through_extent + 20.0,
+                axis=peg_axis,
                 offset=params.get("drawbore_offset"),
             ))
 

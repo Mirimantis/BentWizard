@@ -221,16 +221,7 @@ class HousedDovetailDefinition(TimberJointDefinition):
         _pri_o, pri_x, pri_y, pri_z = _member_local_cs(primary)
         _sec_o, sec_x, _sec_y, _sec_z = _member_local_cs(secondary)
 
-        # The housing is cut into the face of the primary member where the
-        # secondary meets it.
-        # Width direction: along primary datum axis (the dovetail fans out
-        # along the primary member).
-        # Height direction: vertical (pri_z).
-        # Depth direction: into the primary member.
-
         # Determine the face of the primary that the secondary enters.
-        # The entry face normal is approximately the secondary datum direction
-        # projected into the primary's cross-section.
         sec_in_plane = sec_x - pri_x * sec_x.dot(pri_x)
         sec_len = sec_in_plane.Length
         if sec_len < 1e-6:
@@ -240,8 +231,13 @@ class HousedDovetailDefinition(TimberJointDefinition):
 
         # The dovetail spreads along the primary datum axis.
         width_dir = pri_x
-        height_dir = pri_z
         depth_dir = sec_in_plane
+
+        # Height direction: perpendicular to both width and depth.
+        # Using cross product avoids degeneracy when depth_dir is
+        # parallel to pri_z.
+        height_dir = depth_dir.cross(width_dir)
+        height_dir.normalize()
 
         origin = joint_cs.origin
 
@@ -263,7 +259,7 @@ class HousedDovetailDefinition(TimberJointDefinition):
         shoulder_d = params.get("shoulder_depth")
 
         sec_origin, sec_x, sec_y, sec_z = _member_local_cs(secondary)
-        _pri_o, pri_x, _pri_y, pri_z = _member_local_cs(primary)
+        _pri_o, pri_x, _pri_y, _pri_z = _member_local_cs(primary)
         sec_w = float(secondary.Width)
         sec_h = float(secondary.Height)
 
@@ -281,20 +277,26 @@ class HousedDovetailDefinition(TimberJointDefinition):
             tenon_direction = sec_x
             shoulder_origin = sec_end
 
-        # The dovetail tenon extends from the secondary end into the primary.
         # Width direction: along primary datum (the dovetail fans along it).
-        # Height direction: vertical (pri_z).
-        # Depth direction: tenon_direction (into primary member).
+        width_dir = pri_x
 
-        # Note: for the tenon, we reverse the depth direction and swap
-        # narrow/wide because the tenon should be narrow at entry (which is
-        # the face of the primary) and wide at the back (inside the primary).
+        # Height direction: perpendicular to both width and tenon direction.
+        # This avoids degeneracy when tenon_direction is parallel to pri_z.
+        height_dir = tenon_direction.cross(width_dir)
+        height_dir.normalize()
+
+        # The tenon is wide at the base (shoulder) and narrow at the tip.
+        # _make_trapezoid_wire makes narrow at origin, wide at back,
+        # so we pass wide_w as "narrow" (at origin=shoulder) and
+        # narrow_w as "wide" (at back=tip).  This way the tenon is
+        # wider at the shoulder and narrower at the tip — correct
+        # dovetail orientation for withdrawal resistance.
         tenon = _make_trapezoid_wire(
             shoulder_origin,
-            pri_x,         # width direction
-            pri_z,         # height direction
-            tenon_direction,  # depth direction
-            narrow_w, wide_w, height, depth,
+            width_dir,
+            height_dir,
+            tenon_direction,
+            wide_w, narrow_w, height, depth,
         )
 
         # Shoulder cut: cuts INTO the secondary member at the joint end,
@@ -316,8 +318,8 @@ class HousedDovetailDefinition(TimberJointDefinition):
         # Dovetail-shaped box going inward (the portion to keep).
         tenon_inward = _make_trapezoid_wire(
             shoulder_origin,
-            pri_x, pri_z, inward_dir,
-            narrow_w, wide_w, height, depth,
+            width_dir, height_dir, inward_dir,
+            wide_w, narrow_w, height, depth,
         )
 
         try:
