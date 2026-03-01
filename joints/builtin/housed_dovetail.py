@@ -1,4 +1,4 @@
-"""Housed Dovetail — a dovetail-shaped tenon in a matching housing.
+"""Dovetail — a dovetail-shaped tenon in a matching slot.
 
 The trapezoidal dovetail shape provides withdrawal resistance, making
 this joint ideal for beam-to-post or joist-to-beam connections where
@@ -59,7 +59,7 @@ def _member_local_cs(obj):
 
 def _make_trapezoid_wire(origin, width_dir, height_dir, depth_dir,
                          narrow_width, wide_width, height, depth):
-    """Create a trapezoidal prism wire for a dovetail shape.
+    """Create a trapezoidal prism solid for a dovetail shape.
 
     The trapezoid is narrower at the entry face and wider at the back.
 
@@ -119,18 +119,53 @@ def _make_trapezoid_wire(origin, width_dir, height_dir, depth_dir,
     return solid
 
 
+def _approach_depth_dir(primary, secondary, joint_cs):
+    """Return ``depth_dir`` pointing from the approach face INTO the primary.
+
+    ``sec_x`` points from secondary start toward secondary end.  When the
+    joint is at the *start* end, ``sec_x`` points **away** from the primary,
+    so we need to negate the projected direction.  When the joint is at the
+    *end* end, ``sec_x`` already points toward the primary.
+    """
+    _pri_o, pri_x, pri_y, _pri_z = _member_local_cs(primary)
+    _sec_o, sec_x, _sec_y, _sec_z = _member_local_cs(secondary)
+
+    sec_start = FreeCAD.Vector(secondary.A_StartPoint)
+    sec_end = FreeCAD.Vector(secondary.B_EndPoint)
+    dist_start = (joint_cs.origin - sec_start).Length
+    dist_end = (joint_cs.origin - sec_end).Length
+
+    # Project secondary datum into primary cross-section plane.
+    sec_in_plane = sec_x - pri_x * sec_x.dot(pri_x)
+    if sec_in_plane.Length < 1e-6:
+        sec_in_plane = pri_y
+    else:
+        sec_in_plane.normalize()
+
+    # When joint is at the start end sec_x (and its projection) points
+    # away from the primary — flip to get the INTO direction.
+    if dist_start <= dist_end:
+        return sec_in_plane * -1.0
+    return FreeCAD.Vector(sec_in_plane)
+
+
+# Channel mode constants
+CHANNEL_THROUGH = "Through"
+CHANNEL_HALF = "Half"
+
+
 # ---------------------------------------------------------------------------
 # Joint Definition
 # ---------------------------------------------------------------------------
 
-class HousedDovetailDefinition(TimberJointDefinition):
-    """Housed dovetail joint definition."""
+class DovetailDefinition(TimberJointDefinition):
+    """Dovetail joint definition."""
 
-    NAME = "Housed Dovetail"
-    ID = "housed_dovetail"
+    NAME = "Dovetail"
+    ID = "dovetail"
     CATEGORY = "Dovetail"
     DESCRIPTION = (
-        "A dovetail-shaped tenon fits into a matching trapezoidal housing. "
+        "A dovetail-shaped tenon fits into a matching trapezoidal slot. "
         "Provides withdrawal resistance for beam-to-post or joist-to-beam "
         "connections."
     )
@@ -162,8 +197,8 @@ class HousedDovetailDefinition(TimberJointDefinition):
         spread = 2.0 * tail_height * math.tan(math.radians(dovetail_angle))
         tail_width_wide = tail_width_narrow + spread
 
-        # Housing depth: half the primary member width (half-housed).
-        housing_depth = pri_w * 0.5
+        # Slot depth: half the primary member width.
+        slot_depth = pri_w * 0.5
 
         # Shoulder: material above/below the dovetail on the secondary.
         shoulder_depth = (sec_h - tail_height) / 2.0
@@ -180,7 +215,7 @@ class HousedDovetailDefinition(TimberJointDefinition):
                            tail_width_narrow, tail_width_narrow,
                            min_value=20.0, max_value=sec_w * 0.9,
                            group="Dovetail",
-                           description="Width at the narrow (entry) end"),
+                           description="Width at the narrow (surface) end"),
             JointParameter("tail_width_wide", "length",
                            tail_width_wide, tail_width_wide,
                            min_value=tail_width_narrow,
@@ -191,11 +226,11 @@ class HousedDovetailDefinition(TimberJointDefinition):
                            min_value=20.0, max_value=sec_h * 0.8,
                            group="Dovetail",
                            description="Height of the dovetail"),
-            JointParameter("housing_depth", "length",
-                           housing_depth, housing_depth,
+            JointParameter("slot_depth", "length",
+                           slot_depth, slot_depth,
                            min_value=pri_w * 0.25, max_value=pri_w * 0.75,
-                           group="Housing",
-                           description="Depth of housing in primary member"),
+                           group="Slot",
+                           description="Depth of dovetail slot in primary member"),
             JointParameter("shoulder_depth", "length",
                            shoulder_depth, shoulder_depth,
                            min_value=0.0,
@@ -204,99 +239,114 @@ class HousedDovetailDefinition(TimberJointDefinition):
             JointParameter("clearance", "length",
                            clearance, clearance,
                            min_value=0.0, max_value=3.0,
-                           group="Housing",
-                           description="Clearance per side in housing"),
+                           group="Slot",
+                           description="Clearance per side in slot"),
+            JointParameter("channel_mode", "enumeration",
+                           CHANNEL_THROUGH, CHANNEL_THROUGH,
+                           group="Slot",
+                           description="Through = open both sides; "
+                                       "Half = open toward nearer edge",
+                           enum_options=[CHANNEL_THROUGH, CHANNEL_HALF]),
+            JointParameter("flip_channel", "boolean",
+                           False, False,
+                           group="Slot",
+                           description="Reverse which side the half-channel "
+                                       "opens toward"),
         ]
         return ParameterSet(params)
 
-    # -- primary cut (housing) ----------------------------------------------
+    # -- primary cut (dovetail slot) ----------------------------------------
 
     def build_primary_tool(self, params, primary, secondary, joint_cs):
-        """Build the dovetail housing channel to subtract from the primary.
+        """Build the dovetail slot to subtract from the primary member.
 
-        The housing is an open-ended channel running along the primary
-        member.  The dovetail cross-section (narrow at entry face, wide
-        at back) prevents the secondary from pulling straight out.  The
-        channel is open toward the nearer end of the primary so the
-        tenon can slide in during assembly.
+        The slot is on the face of the primary where the secondary
+        approaches.  The dovetail cross-section (narrow at the approach
+        face, wide at the back) prevents the secondary from being
+        pulled straight out.
+
+        The slot runs perpendicular to the approach face.  ``Through``
+        mode opens both sides; ``Half`` opens toward one edge.
         """
         clearance = params.get("clearance")
         narrow_w = params.get("tail_width_narrow") + 2 * clearance
         wide_w = params.get("tail_width_wide") + 2 * clearance
-        depth = params.get("housing_depth")
+        slot_depth = params.get("slot_depth")
+        channel_mode = params.get("channel_mode")
+        flip = params.get("flip_channel")
 
         _pri_o, pri_x, pri_y, pri_z = _member_local_cs(primary)
-        _sec_o, sec_x, _sec_y, _sec_z = _member_local_cs(secondary)
         pri_w = float(primary.Width)
         pri_h = float(primary.Height)
 
-        # Secondary approach direction projected into primary cross-section.
-        sec_in_plane = sec_x - pri_x * sec_x.dot(pri_x)
-        sec_len = sec_in_plane.Length
-        if sec_len < 1e-6:
-            sec_in_plane = pri_y
-        else:
-            sec_in_plane.normalize()
+        # depth_dir: from the approach face INTO the primary.
+        depth_dir = _approach_depth_dir(primary, secondary, joint_cs)
 
-        depth_dir = sec_in_plane
-
-        # Dovetail taper direction: perpendicular to both depth and
-        # primary axis.  This is the direction in which the cross-
-        # section is narrow at the entry face and wide at the back.
+        # Taper direction: perpendicular to both primary axis and depth.
+        # The dovetail taper (narrow→wide) is measured along pri_x.
+        # The slot runs along taper_dir through the primary cross-section.
         taper_dir = depth_dir.cross(pri_x)
         taper_dir.normalize()
 
-        # Through extent to locate the entry face.
+        # Through extent to locate the approach face.
         through_extent = (abs(depth_dir.dot(pri_y)) * pri_w
                           + abs(depth_dir.dot(pri_z)) * pri_h)
-        entry_face_origin = joint_cs.origin - depth_dir * (through_extent / 2.0)
 
-        # Determine slide direction: toward the nearer end of the primary.
-        pri_start = FreeCAD.Vector(primary.A_StartPoint)
-        pri_end = FreeCAD.Vector(primary.B_EndPoint)
-        to_start = (pri_start - joint_cs.origin).dot(pri_x)
-        to_end = (pri_end - joint_cs.origin).dot(pri_x)
+        # Approach face: the face of the primary nearest the secondary.
+        approach_face = joint_cs.origin - depth_dir * (through_extent / 2.0)
 
-        if abs(to_start) <= abs(to_end):
-            slide_sign = -1.0 if to_start < 0 else 1.0
-            slide_dist = abs(to_start) + 20.0
+        # Slot extent along taper_dir.
+        taper_extent = (abs(taper_dir.dot(pri_y)) * pri_w
+                        + abs(taper_dir.dot(pri_z)) * pri_h)
+
+        extra = 2.0  # mm overshoot for boolean reliability
+
+        if channel_mode == CHANNEL_THROUGH:
+            slot_length = taper_extent + 2 * extra
+            slot_center = approach_face
         else:
-            slide_sign = 1.0 if to_end > 0 else -1.0
-            slide_dist = abs(to_end) + 20.0
+            # Half: open toward the nearer edge in taper_dir.
+            # Check which edge of the primary is closer to the joint
+            # in the taper_dir direction.
+            slot_half = taper_extent / 2.0 + extra
+            # Default: open in +taper_dir if joint is above centre,
+            # otherwise -taper_dir.  flip reverses this.
+            open_sign = 1.0
+            if flip:
+                open_sign = -1.0
+            open_dir = taper_dir * open_sign
+            slot_length = slot_half
+            slot_center = approach_face + open_dir * (slot_half / 2.0)
 
-        slide_dir = pri_x * slide_sign
-
-        # Build housing channel.  _make_trapezoid_wire centres its
-        # "height" dimension on origin, so place origin at the
-        # midpoint of the channel (stopped end → open end).
-        channel_center = entry_face_origin + slide_dir * (slide_dist / 2.0)
-
-        housing = _make_trapezoid_wire(
-            channel_center,
-            taper_dir,       # width param: dovetail taper
-            slide_dir,       # height param: channel runs this way
+        # The slot runs along taper_dir, so taper_dir is the "height"
+        # parameter in _make_trapezoid_wire.  The dovetail taper
+        # (narrow at approach face, wide at back) is along pri_x.
+        slot = _make_trapezoid_wire(
+            slot_center,
+            pri_x,           # width param: dovetail taper
+            taper_dir,       # height param: slot runs this way
             depth_dir,       # depth param: into the primary
-            narrow_w,        # narrow at entry face
+            narrow_w,        # narrow at approach face
             wide_w,          # wide at back
-            slide_dist,      # channel length
-            depth,           # housing depth
+            slot_length,     # slot extent
+            slot_depth,      # depth into primary
         )
 
-        return housing
+        return slot
 
     # -- secondary profile (dovetail tenon + shoulder) ----------------------
 
     def build_secondary_profile(self, params, primary, secondary, joint_cs):
         """Build the dovetail tenon shape and shoulder cut.
 
-        The tenon taper matches the housing: the dovetail spread is
-        perpendicular to both the primary axis and the approach
-        direction, so the tenon slides into the housing channel.
+        The tenon taper matches the slot: wider at the base (shoulder),
+        narrower at the tip, so it locks against the dovetail profile
+        and cannot be withdrawn.
         """
         narrow_w = params.get("tail_width_narrow")
         wide_w = params.get("tail_width_wide")
         tail_h = params.get("tail_height")
-        depth = params.get("housing_depth")
+        slot_depth = params.get("slot_depth")
 
         sec_origin, sec_x, sec_y, sec_z = _member_local_cs(secondary)
         _pri_o, pri_x, _pri_y, _pri_z = _member_local_cs(primary)
@@ -317,9 +367,10 @@ class HousedDovetailDefinition(TimberJointDefinition):
             tenon_direction = sec_x
             shoulder_origin = sec_end
 
-        # Taper direction: matches the housing (perpendicular to both
-        # the primary axis and the tenon/approach direction).
-        taper_dir = tenon_direction.cross(pri_x)
+        # Taper direction: matches the slot (perpendicular to both
+        # the primary axis and the approach direction).
+        depth_dir = _approach_depth_dir(primary, secondary, joint_cs)
+        taper_dir = depth_dir.cross(pri_x)
         taper_dir.normalize()
 
         # Build tenon: wide at base (shoulder), narrow at tip.
@@ -327,10 +378,10 @@ class HousedDovetailDefinition(TimberJointDefinition):
         # so pass wide_w as "narrow" and narrow_w as "wide".
         tenon = _make_trapezoid_wire(
             shoulder_origin,
-            taper_dir,           # dovetail taper direction
-            pri_x,               # constant dimension along primary
+            pri_x,               # dovetail taper along primary axis
+            taper_dir,           # constant dimension
             tenon_direction,     # extends toward primary
-            wide_w, narrow_w, tail_h, depth,
+            wide_w, narrow_w, tail_h, slot_depth,
         )
 
         # Shoulder cut: removes material around the dovetail tenon
@@ -345,13 +396,13 @@ class HousedDovetailDefinition(TimberJointDefinition):
 
         full_wire = Part.makePolygon([fp1, fp2, fp3, fp4, fp1])
         full_face = Part.Face(full_wire)
-        full_box = full_face.extrude(inward_dir * depth)
+        full_box = full_face.extrude(inward_dir * slot_depth)
 
         # Dovetail-shaped box going inward (the portion to keep).
         tenon_inward = _make_trapezoid_wire(
             shoulder_origin,
-            taper_dir, pri_x, inward_dir,
-            wide_w, narrow_w, tail_h, depth,
+            pri_x, taper_dir, inward_dir,
+            wide_w, narrow_w, tail_h, slot_depth,
         )
 
         try:
@@ -373,7 +424,7 @@ class HousedDovetailDefinition(TimberJointDefinition):
         pri_w = float(primary.Width)
         tail_h = params.get("tail_height")
         narrow_w = params.get("tail_width_narrow")
-        housing_d = params.get("housing_depth")
+        slot_d = params.get("slot_depth")
 
         if tail_h > sec_h * 0.7:
             results.append(ValidationResult(
@@ -391,12 +442,12 @@ class HousedDovetailDefinition(TimberJointDefinition):
                 "DOVETAIL_TOO_WIDE",
             ))
 
-        if housing_d > pri_w * 0.6:
+        if slot_d > pri_w * 0.6:
             results.append(ValidationResult(
                 "warning",
-                f"Housing depth ({housing_d:.1f}mm) exceeds 60% of primary "
+                f"Slot depth ({slot_d:.1f}mm) exceeds 60% of primary "
                 f"member width ({pri_w:.1f}mm). May weaken the primary.",
-                "HOUSING_TOO_DEEP",
+                "SLOT_TOO_DEEP",
             ))
 
         if joint_cs.angle < self.MIN_ANGLE or joint_cs.angle > self.MAX_ANGLE:
@@ -417,7 +468,7 @@ class HousedDovetailDefinition(TimberJointDefinition):
             "tail_width_narrow": params.get("tail_width_narrow"),
             "tail_width_wide": params.get("tail_width_wide"),
             "tail_height": params.get("tail_height"),
-            "housing_depth": params.get("housing_depth"),
+            "slot_depth": params.get("slot_depth"),
             "dovetail_angle": params.get("dovetail_angle"),
             "angle": round(joint_cs.angle, 1),
         }

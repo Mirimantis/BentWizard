@@ -79,7 +79,7 @@ class TimberJoint:
         if not obj.JointType:
             ids = get_ids()
             if not ids:
-                ids = ["through_mortise_tenon", "half_lap", "housed_dovetail"]
+                ids = ["through_mortise_tenon", "half_lap", "dovetail"]
             obj.JointType = ids
             obj.JointType = ids[0]
         _ensure("App::PropertyString", "Parameters", "Joint",
