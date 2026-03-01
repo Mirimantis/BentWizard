@@ -297,19 +297,12 @@ class HousedDovetailDefinition(TimberJointDefinition):
             narrow_w, wide_w, height, depth,
         )
 
-        # Shoulder cut: remove the full cross-section except the tenon
-        # at the member end.
-        ref = secondary.ReferenceFace
-        if ref == "Bottom":
-            full_corner = shoulder_origin - sec_y * (sec_w / 2.0)
-        elif ref == "Top":
-            full_corner = shoulder_origin - sec_y * (sec_w / 2.0) - sec_z * sec_h
-        elif ref == "Left":
-            full_corner = shoulder_origin - sec_z * (sec_h / 2.0)
-        elif ref == "Right":
-            full_corner = shoulder_origin - sec_y * sec_w - sec_z * (sec_h / 2.0)
-        else:
-            full_corner = shoulder_origin - sec_y * (sec_w / 2.0)
+        # Shoulder cut: cuts INTO the secondary member at the joint end,
+        # removing the ring of material around the dovetail tenon.
+        inward_dir = tenon_direction * -1.0
+
+        # Full cross-section centred on datum.
+        full_corner = shoulder_origin - sec_y * (sec_w / 2.0) - sec_z * (sec_h / 2.0)
 
         fp1 = full_corner
         fp2 = full_corner + sec_y * sec_w
@@ -318,10 +311,17 @@ class HousedDovetailDefinition(TimberJointDefinition):
 
         full_wire = Part.makePolygon([fp1, fp2, fp3, fp4, fp1])
         full_face = Part.Face(full_wire)
-        full_box = full_face.extrude(tenon_direction * depth)
+        full_box = full_face.extrude(inward_dir * depth)
+
+        # Dovetail-shaped box going inward (the portion to keep).
+        tenon_inward = _make_trapezoid_wire(
+            shoulder_origin,
+            pri_x, pri_z, inward_dir,
+            narrow_w, wide_w, height, depth,
+        )
 
         try:
-            shoulder_cut = full_box.cut(tenon)
+            shoulder_cut = full_box.cut(tenon_inward)
         except Exception:
             shoulder_cut = full_box
 

@@ -170,22 +170,12 @@ class HalfLapDefinition(TimberJointDefinition):
         #   Along pri_z (height): lap_depth from the top face downward
 
         # Corner = bottom-corner of the notch box.
-        # For "Bottom" reference: top face is at datum + pri_z * pri_h,
-        # so notch goes from (pri_h - lap_depth) to pri_h in local z.
-        ref = primary.ReferenceFace
-        if ref == "Bottom":
-            z_top = pri_h
-        elif ref == "Top":
-            z_top = 0.0
-        elif ref in ("Left", "Right"):
-            z_top = pri_h / 2.0
-        else:
-            z_top = pri_h
-
+        # Datum runs through centre, so top face is at +pri_h/2.
+        # Notch goes from (pri_h/2 - lap_depth) to pri_h/2 in local z.
         corner = (origin
                   - pri_x * (lap_width / 2.0)
                   - pri_y * ((pri_w + 2 * extra) / 2.0)
-                  + pri_z * (z_top - lap_depth))
+                  + pri_z * (pri_h / 2.0 - lap_depth))
 
         # Profile rectangle in the pri_x / pri_z plane.
         p1 = corner
@@ -219,20 +209,11 @@ class HalfLapDefinition(TimberJointDefinition):
 
         # The notch is cut from the BOTTOM face (opposite the primary's
         # top-face notch, so the two halves nest together).
-        ref = secondary.ReferenceFace
-        if ref == "Bottom":
-            z_bottom = 0.0
-        elif ref == "Top":
-            z_bottom = -sec_h
-        elif ref in ("Left", "Right"):
-            z_bottom = -sec_h / 2.0
-        else:
-            z_bottom = 0.0
-
+        # Datum runs through centre, so bottom face is at -sec_h/2.
         corner = (origin
                   - sec_x * (lap_width / 2.0)
                   - sec_y * ((sec_w + 2 * extra) / 2.0)
-                  + sec_z * z_bottom)
+                  - sec_z * (sec_h / 2.0))
 
         # Profile rectangle in the sec_x / sec_z plane.
         p1 = corner
@@ -249,7 +230,7 @@ class HalfLapDefinition(TimberJointDefinition):
         tenon_corner = (origin
                         - sec_x * (lap_width / 2.0)
                         - sec_y * (sec_w / 2.0)
-                        + sec_z * lap_depth)
+                        + sec_z * (-sec_h / 2.0 + lap_depth))
 
         # Tenon extends from lap_depth to full height.
         remaining_h = sec_h - lap_depth
