@@ -192,11 +192,10 @@ class TimberMember:
     def _build_solid(obj):
         """Return a Part.Shape box oriented along the datum line.
 
-        The cross-section is placed according to ``ReferenceFace``:
-        - Bottom: datum runs along the bottom centre of the member.
-        - Top:    datum runs along the top centre.
-        - Left:   datum runs along the left centre.
-        - Right:  datum runs along the right centre.
+        The datum line always runs through the geometric centre of the
+        cross-section.  ``ReferenceFace`` is stored for future use
+        (layout marks, positioning offsets) but does not affect the
+        solid's position relative to the datum.
         """
         start = FreeCAD.Vector(obj.StartPoint)
         end = FreeCAD.Vector(obj.EndPoint)
@@ -228,25 +227,8 @@ class TimberMember:
         z_axis = y_axis.cross(datum_axis)
         z_axis.normalize()
 
-        # Offset from datum depending on ReferenceFace.
-        ref = obj.ReferenceFace
-        if ref == "Bottom":
-            offset = z_axis * 0.0 + y_axis * (-w / 2.0)
-            offset_z = 0.0
-        elif ref == "Top":
-            offset = z_axis * (-h) + y_axis * (-w / 2.0)
-            offset_z = 0.0
-        elif ref == "Left":
-            offset = z_axis * (-h / 2.0) + y_axis * 0.0
-            offset_z = 0.0
-        elif ref == "Right":
-            offset = z_axis * (-h / 2.0) + y_axis * (-w)
-            offset_z = 0.0
-        else:
-            offset = z_axis * 0.0 + y_axis * (-w / 2.0)
-            offset_z = 0.0
-
-        origin = start + offset
+        # Centre the cross-section on the datum line.
+        origin = start + z_axis * (-h / 2.0) + y_axis * (-w / 2.0)
 
         # Create a rectangular cross-section wire.
         p1 = origin
