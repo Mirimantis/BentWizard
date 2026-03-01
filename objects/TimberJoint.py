@@ -143,10 +143,10 @@ class TimberJoint:
             return
 
         # 1. Recompute intersection geometry from current member positions.
-        p_start = FreeCAD.Vector(primary.StartPoint)
-        p_end = FreeCAD.Vector(primary.EndPoint)
-        s_start = FreeCAD.Vector(secondary.StartPoint)
-        s_end = FreeCAD.Vector(secondary.EndPoint)
+        p_start = FreeCAD.Vector(primary.A_StartPoint)
+        p_end = FreeCAD.Vector(primary.B_EndPoint)
+        s_start = FreeCAD.Vector(secondary.A_StartPoint)
+        s_end = FreeCAD.Vector(secondary.B_EndPoint)
 
         pt1, pt2, dist, t1, t2 = closest_approach_segments(
             p_start, p_end, s_start, s_end,

@@ -29,8 +29,8 @@ from joints.base import (
 
 def _member_local_cs(obj):
     """Return the member local coordinate system (origin, x, y, z)."""
-    start = FreeCAD.Vector(obj.StartPoint)
-    end = FreeCAD.Vector(obj.EndPoint)
+    start = FreeCAD.Vector(obj.A_StartPoint)
+    end = FreeCAD.Vector(obj.B_EndPoint)
     direction = end - start
     length = direction.Length
 
@@ -212,16 +212,25 @@ class HousedDovetailDefinition(TimberJointDefinition):
     # -- primary cut (housing) ----------------------------------------------
 
     def build_primary_tool(self, params, primary, secondary, joint_cs):
-        """Build the dovetail housing to subtract from the primary member."""
-        narrow_w = params.get("tail_width_narrow") + 2 * params.get("clearance")
-        wide_w = params.get("tail_width_wide") + 2 * params.get("clearance")
-        height = params.get("tail_height") + 2 * params.get("clearance")
+        """Build the dovetail housing channel to subtract from the primary.
+
+        The housing is an open-ended channel running along the primary
+        member.  The dovetail cross-section (narrow at entry face, wide
+        at back) prevents the secondary from pulling straight out.  The
+        channel is open toward the nearer end of the primary so the
+        tenon can slide in during assembly.
+        """
+        clearance = params.get("clearance")
+        narrow_w = params.get("tail_width_narrow") + 2 * clearance
+        wide_w = params.get("tail_width_wide") + 2 * clearance
         depth = params.get("housing_depth")
 
         _pri_o, pri_x, pri_y, pri_z = _member_local_cs(primary)
         _sec_o, sec_x, _sec_y, _sec_z = _member_local_cs(secondary)
+        pri_w = float(primary.Width)
+        pri_h = float(primary.Height)
 
-        # Determine the face of the primary that the secondary enters.
+        # Secondary approach direction projected into primary cross-section.
         sec_in_plane = sec_x - pri_x * sec_x.dot(pri_x)
         sec_len = sec_in_plane.Length
         if sec_len < 1e-6:
@@ -229,21 +238,48 @@ class HousedDovetailDefinition(TimberJointDefinition):
         else:
             sec_in_plane.normalize()
 
-        # The dovetail spreads along the primary datum axis.
-        width_dir = pri_x
         depth_dir = sec_in_plane
 
-        # Height direction: perpendicular to both width and depth.
-        # Using cross product avoids degeneracy when depth_dir is
-        # parallel to pri_z.
-        height_dir = depth_dir.cross(width_dir)
-        height_dir.normalize()
+        # Dovetail taper direction: perpendicular to both depth and
+        # primary axis.  This is the direction in which the cross-
+        # section is narrow at the entry face and wide at the back.
+        taper_dir = depth_dir.cross(pri_x)
+        taper_dir.normalize()
 
-        origin = joint_cs.origin
+        # Through extent to locate the entry face.
+        through_extent = (abs(depth_dir.dot(pri_y)) * pri_w
+                          + abs(depth_dir.dot(pri_z)) * pri_h)
+        entry_face_origin = joint_cs.origin - depth_dir * (through_extent / 2.0)
+
+        # Determine slide direction: toward the nearer end of the primary.
+        pri_start = FreeCAD.Vector(primary.A_StartPoint)
+        pri_end = FreeCAD.Vector(primary.B_EndPoint)
+        to_start = (pri_start - joint_cs.origin).dot(pri_x)
+        to_end = (pri_end - joint_cs.origin).dot(pri_x)
+
+        if abs(to_start) <= abs(to_end):
+            slide_sign = -1.0 if to_start < 0 else 1.0
+            slide_dist = abs(to_start) + 20.0
+        else:
+            slide_sign = 1.0 if to_end > 0 else -1.0
+            slide_dist = abs(to_end) + 20.0
+
+        slide_dir = pri_x * slide_sign
+
+        # Build housing channel.  _make_trapezoid_wire centres its
+        # "height" dimension on origin, so place origin at the
+        # midpoint of the channel (stopped end → open end).
+        channel_center = entry_face_origin + slide_dir * (slide_dist / 2.0)
 
         housing = _make_trapezoid_wire(
-            origin, width_dir, height_dir, depth_dir,
-            narrow_w, wide_w, height, depth,
+            channel_center,
+            taper_dir,       # width param: dovetail taper
+            slide_dir,       # height param: channel runs this way
+            depth_dir,       # depth param: into the primary
+            narrow_w,        # narrow at entry face
+            wide_w,          # wide at back
+            slide_dist,      # channel length
+            depth,           # housing depth
         )
 
         return housing
@@ -251,20 +287,24 @@ class HousedDovetailDefinition(TimberJointDefinition):
     # -- secondary profile (dovetail tenon + shoulder) ----------------------
 
     def build_secondary_profile(self, params, primary, secondary, joint_cs):
-        """Build the dovetail tenon shape and shoulder cut."""
+        """Build the dovetail tenon shape and shoulder cut.
+
+        The tenon taper matches the housing: the dovetail spread is
+        perpendicular to both the primary axis and the approach
+        direction, so the tenon slides into the housing channel.
+        """
         narrow_w = params.get("tail_width_narrow")
         wide_w = params.get("tail_width_wide")
-        height = params.get("tail_height")
+        tail_h = params.get("tail_height")
         depth = params.get("housing_depth")
-        shoulder_d = params.get("shoulder_depth")
 
         sec_origin, sec_x, sec_y, sec_z = _member_local_cs(secondary)
         _pri_o, pri_x, _pri_y, _pri_z = _member_local_cs(primary)
         sec_w = float(secondary.Width)
         sec_h = float(secondary.Height)
 
-        sec_start = FreeCAD.Vector(secondary.StartPoint)
-        sec_end = FreeCAD.Vector(secondary.EndPoint)
+        sec_start = FreeCAD.Vector(secondary.A_StartPoint)
+        sec_end = FreeCAD.Vector(secondary.B_EndPoint)
 
         # Which end of the secondary is at the joint?
         dist_start = (joint_cs.origin - sec_start).Length
@@ -277,35 +317,27 @@ class HousedDovetailDefinition(TimberJointDefinition):
             tenon_direction = sec_x
             shoulder_origin = sec_end
 
-        # Width direction: along primary datum (the dovetail fans along it).
-        width_dir = pri_x
+        # Taper direction: matches the housing (perpendicular to both
+        # the primary axis and the tenon/approach direction).
+        taper_dir = tenon_direction.cross(pri_x)
+        taper_dir.normalize()
 
-        # Height direction: perpendicular to both width and tenon direction.
-        # This avoids degeneracy when tenon_direction is parallel to pri_z.
-        height_dir = tenon_direction.cross(width_dir)
-        height_dir.normalize()
-
-        # The tenon is wide at the base (shoulder) and narrow at the tip.
-        # _make_trapezoid_wire makes narrow at origin, wide at back,
-        # so we pass wide_w as "narrow" (at origin=shoulder) and
-        # narrow_w as "wide" (at back=tip).  This way the tenon is
-        # wider at the shoulder and narrower at the tip — correct
-        # dovetail orientation for withdrawal resistance.
+        # Build tenon: wide at base (shoulder), narrow at tip.
+        # _make_trapezoid_wire is narrow at origin, wide at back,
+        # so pass wide_w as "narrow" and narrow_w as "wide".
         tenon = _make_trapezoid_wire(
             shoulder_origin,
-            width_dir,
-            height_dir,
-            tenon_direction,
-            wide_w, narrow_w, height, depth,
+            taper_dir,           # dovetail taper direction
+            pri_x,               # constant dimension along primary
+            tenon_direction,     # extends toward primary
+            wide_w, narrow_w, tail_h, depth,
         )
 
-        # Shoulder cut: cuts INTO the secondary member at the joint end,
-        # removing the ring of material around the dovetail tenon.
+        # Shoulder cut: removes material around the dovetail tenon
+        # from the secondary member's end.
         inward_dir = tenon_direction * -1.0
 
-        # Full cross-section centred on datum.
         full_corner = shoulder_origin - sec_y * (sec_w / 2.0) - sec_z * (sec_h / 2.0)
-
         fp1 = full_corner
         fp2 = full_corner + sec_y * sec_w
         fp3 = full_corner + sec_y * sec_w + sec_z * sec_h
@@ -318,8 +350,8 @@ class HousedDovetailDefinition(TimberJointDefinition):
         # Dovetail-shaped box going inward (the portion to keep).
         tenon_inward = _make_trapezoid_wire(
             shoulder_origin,
-            width_dir, height_dir, inward_dir,
-            wide_w, narrow_w, height, depth,
+            taper_dir, pri_x, inward_dir,
+            wide_w, narrow_w, tail_h, depth,
         )
 
         try:

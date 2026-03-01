@@ -34,8 +34,8 @@ def _member_local_cs(obj):
     Duplicates the logic in ``TimberMember._build_solid`` so this module
     can remain independent of the objects package.
     """
-    start = FreeCAD.Vector(obj.StartPoint)
-    end = FreeCAD.Vector(obj.EndPoint)
+    start = FreeCAD.Vector(obj.A_StartPoint)
+    end = FreeCAD.Vector(obj.B_EndPoint)
     direction = end - start
     length = direction.Length
 
@@ -251,8 +251,8 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         sec_w = float(secondary.Width)
         sec_h = float(secondary.Height)
 
-        sec_start = FreeCAD.Vector(secondary.StartPoint)
-        sec_end = FreeCAD.Vector(secondary.EndPoint)
+        sec_start = FreeCAD.Vector(secondary.A_StartPoint)
+        sec_end = FreeCAD.Vector(secondary.B_EndPoint)
 
         # Determine which end of the secondary member is at the joint.
         dist_start = (joint_cs.origin - sec_start).Length
@@ -334,18 +334,22 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         pri_w = float(primary.Width)
         pri_h = float(primary.Height)
 
-        # Peg axis follows the mortise through-direction (secondary
-        # approach projected into the primary's cross-section).
+        # Peg axis: perpendicular to both the primary grain and the
+        # mortise through-direction.  The drawbore pin is driven across
+        # the grain, locking the tenon in place.
         sec_in_plane = sec_x - pri_x * sec_x.dot(pri_x)
         sec_len = sec_in_plane.Length
         if sec_len < 1e-6:
-            peg_axis = pri_y
-            through_extent = pri_w
+            sec_in_plane = pri_y
         else:
             sec_in_plane.normalize()
-            peg_axis = sec_in_plane
-            through_extent = (abs(sec_in_plane.dot(pri_y)) * pri_w
-                              + abs(sec_in_plane.dot(pri_z)) * pri_h)
+
+        peg_axis = pri_x.cross(sec_in_plane)
+        peg_axis.normalize()
+
+        # Peg length spans the primary member in the peg axis direction.
+        peg_extent = (abs(peg_axis.dot(pri_y)) * pri_w
+                      + abs(peg_axis.dot(pri_z)) * pri_h)
 
         # Pegs are spaced along the tenon height direction (sec_z).
         pegs = []
@@ -361,7 +365,7 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
             pegs.append(PegDefinition(
                 center=center,
                 diameter=diameter,
-                length=through_extent + 20.0,
+                length=peg_extent + 20.0,
                 axis=peg_axis,
                 offset=params.get("drawbore_offset"),
             ))
