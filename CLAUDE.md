@@ -41,7 +41,7 @@ BentWizard/
 │       ├── through_mortise_tenon.py
 │       ├── blind_mortise_tenon.py
 │       ├── half_lap.py
-│       ├── housed_dovetail.py
+│       ├── housed_dovetail.py       # Class is DovetailDefinition, ID is "dovetail"
 │       ├── birdsmouth.py
 │       └── scarf_bladed.py
 │
@@ -448,21 +448,21 @@ Opens from Bent context panel. 2D elevation view. Members shown as rectangles. D
 
 ## Development Phases
 
-### Phase 1 (current) — Skeleton and TimberMember
+### Phase 1 (complete) — Skeleton and TimberMember
 - Register workbench with FreeCAD
 - Init.py, InitGui.py, workbench class
 - TimberMember FeatureObject: datum line, section, solid geometry, properties panel
 - Basic 3D grid and datum endpoint snapping
 - Workbench installable and member placeable
 
-### Phase 2 — Joints
+### Phase 2 (complete) — Joints
 - Datum intersection detection
 - JointCoordinateSystem
 - Joint definition base class and loader
-- Through mortise & tenon, half lap, housed dovetail
+- Through mortise & tenon, half lap, dovetail
 - Boolean cuts parametrically updating
 
-### Phase 3 — Bent and Frame Composition
+### Phase 3 (next) — Bent and Frame Composition
 - Bent container object
 - Frame object with bent instancing and longitudinal members
 - Bent Designer 2D panel
@@ -536,6 +536,21 @@ Template:
 **Reason:** Why this direction was taken.
 **Alternatives considered:** What else was on the table and why it was rejected.
 -->
+
+### 2026-03-01 — Datum properties renamed with alphabetical prefixes
+**Decision:** `StartPoint` → `A_StartPoint`, `EndPoint` → `B_EndPoint`. Merged Datum 1/2/3 groups into single "Datum" group.
+**Reason:** FreeCAD's property panel sorts properties alphabetically within each group. Without prefixes, "End Point" sorted above "Start Point", confusing users. Prefixing with `A_`/`B_` forces correct visual order. Underscores instead of colons/spaces because FreeCAD property names are Python identifiers accessed via dot notation.
+**Alternatives considered:** `"A: Start Point"` / `"B: End Point"` — would require `getattr()` everywhere instead of dot notation, rejected. Separate numbered groups (Datum 1, Datum 2, Datum 3) — too many groups for three properties.
+
+### 2026-03-01 — Housed Dovetail renamed to Dovetail
+**Decision:** Class renamed `HousedDovetailDefinition` → `DovetailDefinition`, ID `"housed_dovetail"` → `"dovetail"`. File remains `housed_dovetail.py` on disk.
+**Reason:** The current joint geometry is a simple dovetail (trapezoidal slot + tenon), not a housed dovetail (which additionally has a rectangular housing pocket around the dovetail). Renaming avoids implying functionality that doesn't exist yet. File not renamed because the loader discovers by class inspection, not filename, and renaming files mid-development creates unnecessary merge friction.
+**Alternatives considered:** Adding housing geometry now — deferred, the basic dovetail is the correct starting point and housing can be added as a parameter later.
+
+### 2026-03-01 — Dovetail slot runs perpendicular to approach face, not along primary axis
+**Decision:** The dovetail slot in the primary member runs along `taper_dir` (perpendicular to both the primary axis and the approach direction), not along the primary member's length.
+**Reason:** A dovetail slides in from the side of the primary member, perpendicular to the approach face. Running the channel along the primary axis would require the secondary to slide lengthwise along the primary, which is not how dovetail joints are assembled.
+**Alternatives considered:** Channel along primary axis (original implementation) — incorrect assembly direction, rejected after user testing.
 
 ### 2026-02-26 — Collinear endpoint-to-endpoint datums rejected by intersection detector
 **Decision:** `compute_joint_cs` returns `None` (no joint formed) when two datum lines are co-linear (angle < 5°), even if their endpoints touch. This means a straight splice — two timbers laid end-to-end along the same axis — does not auto-create a joint.
