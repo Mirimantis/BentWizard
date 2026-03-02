@@ -20,11 +20,16 @@ class TimberFrameWorkbench(FreeCADGui.Workbench):
         """Called when the workbench is first activated."""
         from commands import AddMember  # noqa: F401
         from commands import AddJoint   # noqa: F401
+        from commands import AddBent    # noqa: F401
         from joints import loader
         loader.load_all()
 
-        self.appendToolbar("Timber Frame", ["TF_AddMember", "TF_AddJoint"])
-        self.appendMenu("Timber Frame", ["TF_AddMember", "TF_AddJoint"])
+        self.appendToolbar("Timber Frame", [
+            "TF_AddMember", "TF_AddJoint", "TF_AddBent",
+        ])
+        self.appendMenu("Timber Frame", [
+            "TF_AddMember", "TF_AddJoint", "TF_AddBent",
+        ])
 
     def Activated(self):
         """Called when switching to this workbench."""
