@@ -51,6 +51,53 @@ class JointPanel(QtWidgets.QWidget):
         self._populate()
 
     # ======================================================================
+    # Object validity
+    # ======================================================================
+
+    def _obj_valid(self):
+        """Return True if the wrapped FreeCAD object still exists.
+
+        When undo removes the object from the document, accessing
+        properties on the stale Python reference may raise RuntimeError,
+        ReferenceError, or OSError (Access Violation).  This guard
+        catches all of those and nulls the reference so subsequent
+        calls are cheap no-ops.
+
+        Note: even if this returns True, the object can become invalid
+        between the check and the next property access (zombie state).
+        All handlers must therefore also wrap property access in
+        try/except as a safety net.
+        """
+        if self._obj is None:
+            return False
+        try:
+            _ = self._obj.Name
+            return True
+        except Exception:
+            self._obj = None
+            return False
+
+    def _invalidate(self):
+        """Mark the object as gone and close the task dialog."""
+        self._obj = None
+        import FreeCAD
+        FreeCAD.Console.PrintWarning(
+            "JointPanel: object no longer valid, closing panel\n"
+        )
+        # Schedule dialog close on next event loop tick so we don't
+        # close from inside a callback that FreeCAD is still processing.
+        QtCore.QTimer.singleShot(0, self._close_dialog)
+
+    @staticmethod
+    def _close_dialog():
+        """Close the FreeCAD task dialog if one is open."""
+        try:
+            import FreeCADGui
+            FreeCADGui.Control.closeDialog()
+        except Exception:
+            pass
+
+    # ======================================================================
     # UI construction
     # ======================================================================
 
@@ -129,30 +176,34 @@ class JointPanel(QtWidgets.QWidget):
 
     def _populate(self):
         """Full refresh of every section from the current object."""
-        obj = self._obj
-        if obj is None:
+        if not self._obj_valid():
             return
 
-        # Header
-        self._label_edit.setText(obj.Label)
-        self._populate_type_combo()
+        try:
+            # Header
+            self._label_edit.setText(self._obj.Label)
+            self._populate_type_combo()
 
-        # Connection
-        pm = obj.PrimaryMember
-        sm = obj.SecondaryMember
-        self._primary_label.setText(pm.Label if pm else "—")
-        self._secondary_label.setText(sm.Label if sm else "—")
-        self._itype_label.setText(str(obj.IntersectionType))
-        self._angle_label.setText(f"{obj.IntersectionAngle:.1f}\u00b0")
+            # Connection
+            pm = self._obj.PrimaryMember
+            sm = self._obj.SecondaryMember
+            self._primary_label.setText(pm.Label if pm else "—")
+            self._secondary_label.setText(sm.Label if sm else "—")
+            self._itype_label.setText(str(self._obj.IntersectionType))
+            self._angle_label.setText(
+                f"{self._obj.IntersectionAngle:.1f}\u00b0"
+            )
 
-        # Parameters
-        self._rebuild_parameter_widgets()
+            # Parameters
+            self._rebuild_parameter_widgets()
 
-        # Validation
-        self._refresh_validation()
+            # Validation
+            self._refresh_validation()
 
-        # Structural
-        self._refresh_structural()
+            # Structural
+            self._refresh_structural()
+        except Exception:
+            self._invalidate()
 
     def _populate_type_combo(self):
         """Fill the joint type combo box with all registered definitions."""
@@ -190,14 +241,13 @@ class JointPanel(QtWidgets.QWidget):
             if widget:
                 widget.deleteLater()
 
-        obj = self._obj
-        if obj is None or not obj.Parameters:
+        if not self._obj_valid() or not self._obj.Parameters:
             lbl = QtWidgets.QLabel("Parameters not yet computed.")
             lbl.setStyleSheet("color: #888888; font-style: italic;")
             self._params_layout.addWidget(lbl)
             return
 
-        params = ParameterSet.from_json(obj.Parameters)
+        params = ParameterSet.from_json(self._obj.Parameters)
         if len(params) == 0:
             lbl = QtWidgets.QLabel("No parameters.")
             lbl.setStyleSheet("color: #888888; font-style: italic;")
@@ -236,15 +286,17 @@ class JointPanel(QtWidgets.QWidget):
 
         Used after an external recompute changes derived defaults.
         """
-        obj = self._obj
-        if obj is None or not obj.Parameters:
+        if not self._obj_valid() or not self._obj.Parameters:
             return
 
-        params = ParameterSet.from_json(obj.Parameters)
-        for name, p in params.items():
-            row = self._param_rows.get(name)
-            if row is not None:
-                row.refresh(p)
+        try:
+            params = ParameterSet.from_json(self._obj.Parameters)
+            for name, p in params.items():
+                row = self._param_rows.get(name)
+                if row is not None:
+                    row.refresh(p)
+        except Exception:
+            self._invalidate()
 
     # ======================================================================
     # Validation section
@@ -259,12 +311,13 @@ class JointPanel(QtWidgets.QWidget):
             if widget:
                 widget.deleteLater()
 
-        obj = self._obj
         results = []
-        if obj is not None and obj.ValidationResults:
+        if self._obj_valid():
             try:
-                results = json.loads(obj.ValidationResults)
-            except (json.JSONDecodeError, TypeError):
+                vr = self._obj.ValidationResults
+                if vr:
+                    results = json.loads(vr)
+            except Exception:
                 pass
 
         if not results:
@@ -299,14 +352,18 @@ class JointPanel(QtWidgets.QWidget):
 
     def _refresh_structural(self):
         """Update structural property labels; hide section if all zero."""
-        obj = self._obj
-        if obj is None:
+        if not self._obj_valid():
             self._structural_group.setVisible(False)
             return
 
-        moment = obj.AllowableMoment
-        shear = obj.AllowableShear
-        stiffness = obj.RotationalStiffness
+        try:
+            moment = self._obj.AllowableMoment
+            shear = self._obj.AllowableShear
+            stiffness = self._obj.RotationalStiffness
+        except Exception:
+            self._invalidate()
+            self._structural_group.setVisible(False)
+            return
 
         if moment == 0.0 and shear == 0.0 and stiffness == 0.0:
             self._structural_group.setVisible(False)
@@ -324,92 +381,99 @@ class JointPanel(QtWidgets.QWidget):
     # ======================================================================
 
     def _on_type_changed(self, index):
-        if self._updating_type or self._obj is None:
+        if self._updating_type or not self._obj_valid():
             return
         if index < 0 or index >= len(self._type_id_list):
             return
 
-        new_id = self._type_id_list[index]
-        if new_id == str(self._obj.JointType):
-            return  # no change
-
-        import FreeCAD
-        doc = self._obj.Document
-
-        doc.openTransaction("Change Joint Type")
         try:
-            self._obj.JointType = new_id
-        except Exception:
-            doc.abortTransaction()
-            return
-        doc.commitTransaction()
-        doc.recompute()
+            new_id = self._type_id_list[index]
+            if new_id == str(self._obj.JointType):
+                return  # no change
 
-        # Rebuild parameter widgets for the new joint type.
-        self._rebuild_parameter_widgets()
-        self._refresh_validation()
-        self._refresh_structural()
+            import FreeCAD
+            doc = self._obj.Document
+
+            doc.openTransaction("Change Joint Type")
+            try:
+                self._obj.JointType = new_id
+            except Exception:
+                doc.abortTransaction()
+                return
+            doc.recompute()
+            doc.commitTransaction()
+
+            # Rebuild parameter widgets for the new joint type.
+            self._rebuild_parameter_widgets()
+            self._refresh_validation()
+            self._refresh_structural()
+        except Exception:
+            self._invalidate()
 
     # ======================================================================
     # Slot: parameter value edited
     # ======================================================================
 
     def _on_param_value_changed(self, name, value):
-        obj = self._obj
-        if obj is None or not obj.Parameters:
+        if not self._obj_valid() or not self._obj.Parameters:
             return
 
-        display_name = format_param_name(name)
-
-        import FreeCAD
-        doc = obj.Document
-
-        doc.openTransaction(f"Edit Joint Parameter: {display_name}")
         try:
-            params = ParameterSet.from_json(obj.Parameters)
-            params.set_override(name, value)
-            obj.Parameters = params.to_json()
-            obj.touch()
-        except Exception:
-            doc.abortTransaction()
-            return
-        doc.commitTransaction()
-        doc.recompute()
+            display_name = format_param_name(name)
 
-        # Refresh to pick up any clamped values or recomputed defaults.
-        self._refresh_parameter_values()
-        self._refresh_validation()
-        self._refresh_structural()
+            import FreeCAD
+            doc = self._obj.Document
+
+            doc.openTransaction(f"Edit Joint Parameter: {display_name}")
+            try:
+                params = ParameterSet.from_json(self._obj.Parameters)
+                params.set_override(name, value)
+                self._obj.Parameters = params.to_json()
+                self._obj.touch()
+            except Exception:
+                doc.abortTransaction()
+                return
+            doc.recompute()
+            doc.commitTransaction()
+
+            # Refresh to pick up any clamped values or recomputed defaults.
+            self._refresh_parameter_values()
+            self._refresh_validation()
+            self._refresh_structural()
+        except Exception:
+            self._invalidate()
 
     # ======================================================================
     # Slot: parameter revert
     # ======================================================================
 
     def _on_param_revert(self, name):
-        obj = self._obj
-        if obj is None or not obj.Parameters:
+        if not self._obj_valid() or not self._obj.Parameters:
             return
 
-        display_name = format_param_name(name)
-
-        import FreeCAD
-        doc = obj.Document
-
-        doc.openTransaction(f"Revert Joint Parameter: {display_name}")
         try:
-            params = ParameterSet.from_json(obj.Parameters)
-            params.clear_override(name)
-            obj.Parameters = params.to_json()
-            obj.touch()
-        except Exception:
-            doc.abortTransaction()
-            return
-        doc.commitTransaction()
-        doc.recompute()
+            display_name = format_param_name(name)
 
-        self._refresh_parameter_values()
-        self._refresh_validation()
-        self._refresh_structural()
+            import FreeCAD
+            doc = self._obj.Document
+
+            doc.openTransaction(f"Revert Joint Parameter: {display_name}")
+            try:
+                params = ParameterSet.from_json(self._obj.Parameters)
+                params.clear_override(name)
+                self._obj.Parameters = params.to_json()
+                self._obj.touch()
+            except Exception:
+                doc.abortTransaction()
+                return
+            doc.recompute()
+            doc.commitTransaction()
+
+            self._refresh_parameter_values()
+            self._refresh_validation()
+            self._refresh_structural()
+        except Exception:
+            self._invalidate()
 
     # ======================================================================
     # External notification
@@ -418,27 +482,52 @@ class JointPanel(QtWidgets.QWidget):
     def notify_property_changed(self, prop):
         """Called by the ViewProvider when the joint recomputes externally.
 
+        Uses a deferred refresh so that when undo restores multiple
+        properties (Parameters, Shape, cut tools), all restorations
+        complete before we re-read the data and trigger any recompute.
+
         Parameters
         ----------
         prop : str
             The name of the property that changed.
         """
-        if self._obj is None:
+        if not self._obj_valid():
             return
 
-        if prop in ("Parameters", "Shape"):
-            self._refresh_parameter_values()
-        if prop in ("ValidationResults", "Shape"):
-            self._refresh_validation()
-        if prop in ("AllowableMoment", "AllowableShear",
-                     "RotationalStiffness", "Shape"):
-            self._refresh_structural()
-        if prop in ("IntersectionAngle", "IntersectionPoint"):
-            self._angle_label.setText(
-                f"{self._obj.IntersectionAngle:.1f}\u00b0"
-            )
-        if prop == "Label":
-            self._label_edit.setText(self._obj.Label)
+        try:
+            if prop in ("Parameters", "Shape"):
+                # Defer so all undo restorations complete first, then
+                # refresh values and trigger recompute if geometry is stale.
+                QtCore.QTimer.singleShot(0, self._deferred_refresh)
+            if prop in ("ValidationResults", "Shape"):
+                self._refresh_validation()
+            if prop in ("AllowableMoment", "AllowableShear",
+                         "RotationalStiffness", "Shape"):
+                self._refresh_structural()
+            if prop in ("IntersectionAngle", "IntersectionPoint"):
+                self._angle_label.setText(
+                    f"{self._obj.IntersectionAngle:.1f}\u00b0"
+                )
+            if prop == "Label":
+                self._label_edit.setText(self._obj.Label)
+        except Exception:
+            self._invalidate()
+
+    def _deferred_refresh(self):
+        """Refresh parameter values and sync geometry after undo.
+
+        Called via QTimer.singleShot(0, ...) so all undo property
+        restorations complete before we read back.
+        """
+        if not self._obj_valid():
+            return
+        self._refresh_parameter_values()
+        # After undo, geometry may be stale if the original transaction
+        # didn't capture computed shapes.  Recompute to sync.
+        try:
+            self._obj.Document.recompute()
+        except Exception:
+            pass
 
     # ======================================================================
     # Cleanup
