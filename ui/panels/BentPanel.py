@@ -28,6 +28,53 @@ class BentPanel(QtWidgets.QWidget):
         self._populate()
 
     # ======================================================================
+    # Object validity
+    # ======================================================================
+
+    def _obj_valid(self):
+        """Return True if the wrapped FreeCAD object still exists.
+
+        When undo removes the object from the document, accessing
+        properties on the stale Python reference may raise RuntimeError,
+        ReferenceError, or OSError (Access Violation).  This guard
+        catches all of those and nulls the reference so subsequent
+        calls are cheap no-ops.
+
+        Note: even if this returns True, the object can become invalid
+        between the check and the next property access (zombie state).
+        All handlers must therefore also wrap property access in
+        try/except as a safety net.
+        """
+        if self._obj is None:
+            return False
+        try:
+            _ = self._obj.Name
+            return True
+        except Exception:
+            self._obj = None
+            return False
+
+    def _invalidate(self):
+        """Mark the object as gone and close the task dialog."""
+        self._obj = None
+        import FreeCAD
+        FreeCAD.Console.PrintWarning(
+            "BentPanel: object no longer valid, closing panel\n"
+        )
+        # Schedule dialog close on next event loop tick so we don't
+        # close from inside a callback that FreeCAD is still processing.
+        QtCore.QTimer.singleShot(0, self._close_dialog)
+
+    @staticmethod
+    def _close_dialog():
+        """Close the FreeCAD task dialog if one is open."""
+        try:
+            import FreeCADGui
+            FreeCADGui.Control.closeDialog()
+        except Exception:
+            pass
+
+    # ======================================================================
     # UI construction
     # ======================================================================
 
@@ -99,15 +146,17 @@ class BentPanel(QtWidgets.QWidget):
 
     def _populate(self):
         """Full refresh of every section from the current object."""
-        obj = self._obj
-        if obj is None:
+        if not self._obj_valid():
             return
 
-        self._refreshing = True
         try:
-            self._name_edit.setText(obj.BentName)
-            self._number_spin.setValue(obj.BentNumber)
-            self._template_label.setText(obj.BentTemplate or "None")
+            self._refreshing = True
+            self._name_edit.setText(self._obj.BentName)
+            self._number_spin.setValue(self._obj.BentNumber)
+            self._template_label.setText(self._obj.BentTemplate or "None")
+        except Exception:
+            self._invalidate()
+            return
         finally:
             self._refreshing = False
 
@@ -116,16 +165,24 @@ class BentPanel(QtWidgets.QWidget):
     def _refresh_member_list(self):
         """Rebuild the member list widget from current Members property."""
         self._member_list.clear()
-        obj = self._obj
-        if obj is None:
+        if not self._obj_valid():
             return
 
-        members = obj.Members or []
+        try:
+            members = self._obj.Members or []
+        except Exception:
+            self._invalidate()
+            return
+
         self._member_count_label.setText(f"{len(members)} member(s)")
 
         for m in members:
-            role = str(getattr(m, "Role", "?"))
-            mid = getattr(m, "MemberID", "") or m.Label
+            try:
+                role = str(getattr(m, "Role", "?"))
+                mid = getattr(m, "MemberID", "") or m.Label
+            except Exception:
+                role = "?"
+                mid = "???"
             self._member_list.addItem(f"{mid}  ({role})")
 
     # ======================================================================
@@ -133,39 +190,45 @@ class BentPanel(QtWidgets.QWidget):
     # ======================================================================
 
     def _on_name_changed(self):
-        if self._refreshing or self._obj is None:
+        if self._refreshing or not self._obj_valid():
             return
-        new_name = self._name_edit.text()
-        if new_name == self._obj.BentName:
-            return
+        try:
+            new_name = self._name_edit.text()
+            if new_name == self._obj.BentName:
+                return
 
-        import FreeCAD
-        doc = self._obj.Document
-        doc.openTransaction("Rename Bent")
-        self._obj.BentName = new_name
-        doc.commitTransaction()
+            import FreeCAD
+            doc = self._obj.Document
+            doc.openTransaction("Rename Bent")
+            self._obj.BentName = new_name
+            doc.commitTransaction()
+        except Exception:
+            self._invalidate()
 
     # ======================================================================
     # Slot: bent number changed
     # ======================================================================
 
     def _on_number_changed(self):
-        if self._refreshing or self._obj is None:
+        if self._refreshing or not self._obj_valid():
             return
-        new_num = self._number_spin.value()
-        if new_num == self._obj.BentNumber:
-            return
+        try:
+            new_num = self._number_spin.value()
+            if new_num == self._obj.BentNumber:
+                return
 
-        import FreeCAD
-        from objects.Bent import Bent
+            import FreeCAD
+            from objects.Bent import Bent
 
-        doc = self._obj.Document
-        doc.openTransaction("Change Bent Number")
-        self._obj.BentNumber = new_num
-        Bent.assign_member_ids(self._obj)
-        doc.commitTransaction()
-        doc.recompute()
-        self._refresh_member_list()
+            doc = self._obj.Document
+            doc.openTransaction("Change Bent Number")
+            self._obj.BentNumber = new_num
+            Bent.assign_member_ids(self._obj)
+            doc.recompute()
+            doc.commitTransaction()
+            self._refresh_member_list()
+        except Exception:
+            self._invalidate()
 
     # ======================================================================
     # Slot: member list double-click
@@ -173,14 +236,17 @@ class BentPanel(QtWidgets.QWidget):
 
     def _on_member_double_clicked(self, item):
         """Select the member in the 3D viewport."""
-        if self._obj is None:
+        if not self._obj_valid():
             return
-        row = self._member_list.row(item)
-        members = self._obj.Members or []
-        if 0 <= row < len(members):
-            import FreeCADGui
-            FreeCADGui.Selection.clearSelection()
-            FreeCADGui.Selection.addSelection(members[row])
+        try:
+            row = self._member_list.row(item)
+            members = self._obj.Members or []
+            if 0 <= row < len(members):
+                import FreeCADGui
+                FreeCADGui.Selection.clearSelection()
+                FreeCADGui.Selection.addSelection(members[row])
+        except Exception:
+            self._invalidate()
 
     # ======================================================================
     # Slot: add selected members
@@ -188,37 +254,40 @@ class BentPanel(QtWidgets.QWidget):
 
     def _on_add_members(self):
         """Add currently-selected TimberMember objects to this bent."""
-        if self._obj is None:
+        if not self._obj_valid():
             return
 
-        import FreeCAD
-        import FreeCADGui
-        from objects.Bent import Bent
-
-        sel = FreeCADGui.Selection.getSelection()
-        members_to_add = []
-        current = self._obj.Members or []
-        for s in sel:
-            if (hasattr(s, "Proxy") and s.Proxy is not None
-                    and type(s.Proxy).__name__ == "TimberMember"
-                    and s not in current):
-                members_to_add.append(s)
-
-        if not members_to_add:
-            return
-
-        doc = self._obj.Document
-        doc.openTransaction("Add Members to Bent")
         try:
-            for m in members_to_add:
-                Bent.add_member(self._obj, m)
-        except Exception as e:
-            FreeCAD.Console.PrintError(f"Failed to add members: {e}\n")
-        finally:
-            doc.commitTransaction()
-            doc.recompute()
+            import FreeCAD
+            import FreeCADGui
+            from objects.Bent import Bent
 
-        self._refresh_member_list()
+            sel = FreeCADGui.Selection.getSelection()
+            members_to_add = []
+            current = self._obj.Members or []
+            for s in sel:
+                if (hasattr(s, "Proxy") and s.Proxy is not None
+                        and type(s.Proxy).__name__ == "TimberMember"
+                        and s not in current):
+                    members_to_add.append(s)
+
+            if not members_to_add:
+                return
+
+            doc = self._obj.Document
+            doc.openTransaction("Add Members to Bent")
+            try:
+                for m in members_to_add:
+                    Bent.add_member(self._obj, m)
+                doc.recompute()
+            except Exception as e:
+                FreeCAD.Console.PrintError(f"Failed to add members: {e}\n")
+            finally:
+                doc.commitTransaction()
+
+            self._refresh_member_list()
+        except Exception:
+            self._invalidate()
 
     # ======================================================================
     # Slot: remove selected member
@@ -226,28 +295,33 @@ class BentPanel(QtWidgets.QWidget):
 
     def _on_remove_member(self):
         """Remove the highlighted member from this bent."""
-        if self._obj is None:
+        if not self._obj_valid():
             return
 
-        row = self._member_list.currentRow()
-        members = self._obj.Members or []
-        if row < 0 or row >= len(members):
-            return
-
-        import FreeCAD
-        from objects.Bent import Bent
-
-        doc = self._obj.Document
-        doc.openTransaction("Remove Member from Bent")
         try:
-            Bent.remove_member(self._obj, members[row])
-        except Exception as e:
-            FreeCAD.Console.PrintError(f"Failed to remove member: {e}\n")
-        finally:
-            doc.commitTransaction()
-            doc.recompute()
+            row = self._member_list.currentRow()
+            members = self._obj.Members or []
+            if row < 0 or row >= len(members):
+                return
 
-        self._refresh_member_list()
+            import FreeCAD
+            from objects.Bent import Bent
+
+            doc = self._obj.Document
+            doc.openTransaction("Remove Member from Bent")
+            try:
+                Bent.remove_member(self._obj, members[row])
+                doc.recompute()
+            except Exception as e:
+                FreeCAD.Console.PrintError(
+                    f"Failed to remove member: {e}\n"
+                )
+            finally:
+                doc.commitTransaction()
+
+            self._refresh_member_list()
+        except Exception:
+            self._invalidate()
 
     # ======================================================================
     # External notification
@@ -256,24 +330,48 @@ class BentPanel(QtWidgets.QWidget):
     def notify_property_changed(self, prop):
         """Called by the ViewProvider when the bent recomputes externally.
 
+        Uses a deferred refresh for the member list so that when undo
+        restores multiple properties (Members + child MemberIDs), all
+        restorations complete before we re-read the data.
+
         Parameters
         ----------
         prop : str
             The name of the property that changed.
         """
-        if self._obj is None:
+        if not self._obj_valid():
             return
 
-        if prop in ("Members", "MemberCount", "Shape"):
-            self._refresh_member_list()
-        if prop == "BentName":
-            self._refreshing = True
-            self._name_edit.setText(self._obj.BentName)
-            self._refreshing = False
-        if prop == "BentNumber":
-            self._refreshing = True
-            self._number_spin.setValue(self._obj.BentNumber)
-            self._refreshing = False
+        try:
+            if prop in ("Members", "MemberCount", "Shape"):
+                # Defer so all undo property restorations complete first.
+                QtCore.QTimer.singleShot(0, self._deferred_refresh)
+            if prop == "BentName":
+                self._refreshing = True
+                self._name_edit.setText(self._obj.BentName)
+                self._refreshing = False
+            if prop == "BentNumber":
+                self._refreshing = True
+                self._number_spin.setValue(self._obj.BentNumber)
+                self._refreshing = False
+        except Exception:
+            self._invalidate()
+
+    def _deferred_refresh(self):
+        """Refresh member list and trigger recompute if Shape is stale.
+
+        Called via QTimer.singleShot(0, ...) so all undo property
+        restorations complete before we read back.
+        """
+        if not self._obj_valid():
+            return
+        self._refresh_member_list()
+        # After undo, the Shape may be stale if it wasn't captured in the
+        # original transaction.  Recompute to sync wireframe to Members.
+        try:
+            self._obj.Document.recompute()
+        except Exception:
+            pass
 
     # ======================================================================
     # Cleanup

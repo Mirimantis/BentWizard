@@ -295,6 +295,15 @@ if FreeCAD.GuiUp:
             return mode
 
         def onDelete(self, vobj, subelements):
+            """Clean up active panel before the object is deleted."""
+            panel = getattr(self, "_active_panel", None)
+            if panel is not None:
+                panel._disconnect()
+                self._active_panel = None
+                try:
+                    FreeCADGui.Control.closeDialog()
+                except Exception:
+                    pass
             return True
 
         def doubleClicked(self, vobj):
@@ -323,13 +332,13 @@ if FreeCAD.GuiUp:
             FreeCAD.ActiveDocument.openTransaction("Add Member to Bent")
             try:
                 Bent.add_member(self.Object, dropped)
+                FreeCAD.ActiveDocument.recompute()
             except Exception as e:
                 FreeCAD.Console.PrintError(
                     f"Bent drop failed: {e}\n"
                 )
             finally:
                 FreeCAD.ActiveDocument.commitTransaction()
-                FreeCAD.ActiveDocument.recompute()
 
         def dumps(self):
             return None

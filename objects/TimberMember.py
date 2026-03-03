@@ -414,9 +414,8 @@ def create_timber_member(name="TimberMember", start=None, end=None, role="Post")
     if role in ROLES:
         obj.Role = role
 
-    prefix = ROLE_PREFIX.get(role, "M")
-    if not obj.MemberID:
-        obj.MemberID = prefix
+    # MemberID is left empty at creation.  It is assigned automatically
+    # when the member is added to a Bent (via Bent.assign_member_ids).
 
     if FreeCAD.GuiUp:
         TimberMemberViewProvider(obj.ViewObject)
