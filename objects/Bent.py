@@ -323,13 +323,13 @@ if FreeCAD.GuiUp:
             FreeCAD.ActiveDocument.openTransaction("Add Member to Bent")
             try:
                 Bent.add_member(self.Object, dropped)
+                FreeCAD.ActiveDocument.recompute()
             except Exception as e:
                 FreeCAD.Console.PrintError(
                     f"Bent drop failed: {e}\n"
                 )
             finally:
                 FreeCAD.ActiveDocument.commitTransaction()
-                FreeCAD.ActiveDocument.recompute()
 
         def dumps(self):
             return None

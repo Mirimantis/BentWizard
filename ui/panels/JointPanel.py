@@ -342,8 +342,8 @@ class JointPanel(QtWidgets.QWidget):
         except Exception:
             doc.abortTransaction()
             return
-        doc.commitTransaction()
         doc.recompute()
+        doc.commitTransaction()
 
         # Rebuild parameter widgets for the new joint type.
         self._rebuild_parameter_widgets()
@@ -373,8 +373,8 @@ class JointPanel(QtWidgets.QWidget):
         except Exception:
             doc.abortTransaction()
             return
-        doc.commitTransaction()
         doc.recompute()
+        doc.commitTransaction()
 
         # Refresh to pick up any clamped values or recomputed defaults.
         self._refresh_parameter_values()
@@ -404,8 +404,8 @@ class JointPanel(QtWidgets.QWidget):
         except Exception:
             doc.abortTransaction()
             return
-        doc.commitTransaction()
         doc.recompute()
+        doc.commitTransaction()
 
         self._refresh_parameter_values()
         self._refresh_validation()
@@ -418,6 +418,10 @@ class JointPanel(QtWidgets.QWidget):
     def notify_property_changed(self, prop):
         """Called by the ViewProvider when the joint recomputes externally.
 
+        Uses a deferred refresh so that when undo restores multiple
+        properties (Parameters, Shape, cut tools), all restorations
+        complete before we re-read the data and trigger any recompute.
+
         Parameters
         ----------
         prop : str
@@ -427,7 +431,9 @@ class JointPanel(QtWidgets.QWidget):
             return
 
         if prop in ("Parameters", "Shape"):
-            self._refresh_parameter_values()
+            # Defer so all undo restorations complete first, then
+            # refresh values and trigger recompute if geometry is stale.
+            QtCore.QTimer.singleShot(0, self._deferred_refresh)
         if prop in ("ValidationResults", "Shape"):
             self._refresh_validation()
         if prop in ("AllowableMoment", "AllowableShear",
@@ -439,6 +445,22 @@ class JointPanel(QtWidgets.QWidget):
             )
         if prop == "Label":
             self._label_edit.setText(self._obj.Label)
+
+    def _deferred_refresh(self):
+        """Refresh parameter values and sync geometry after undo.
+
+        Called via QTimer.singleShot(0, ...) so all undo property
+        restorations complete before we read back.
+        """
+        if self._obj is None:
+            return
+        self._refresh_parameter_values()
+        # After undo, geometry may be stale if the original transaction
+        # didn't capture computed shapes.  Recompute to sync.
+        try:
+            self._obj.Document.recompute()
+        except Exception:
+            pass
 
     # ======================================================================
     # Cleanup

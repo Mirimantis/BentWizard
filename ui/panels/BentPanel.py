@@ -163,8 +163,8 @@ class BentPanel(QtWidgets.QWidget):
         doc.openTransaction("Change Bent Number")
         self._obj.BentNumber = new_num
         Bent.assign_member_ids(self._obj)
-        doc.commitTransaction()
         doc.recompute()
+        doc.commitTransaction()
         self._refresh_member_list()
 
     # ======================================================================
@@ -212,11 +212,11 @@ class BentPanel(QtWidgets.QWidget):
         try:
             for m in members_to_add:
                 Bent.add_member(self._obj, m)
+            doc.recompute()
         except Exception as e:
             FreeCAD.Console.PrintError(f"Failed to add members: {e}\n")
         finally:
             doc.commitTransaction()
-            doc.recompute()
 
         self._refresh_member_list()
 
@@ -241,11 +241,11 @@ class BentPanel(QtWidgets.QWidget):
         doc.openTransaction("Remove Member from Bent")
         try:
             Bent.remove_member(self._obj, members[row])
+            doc.recompute()
         except Exception as e:
             FreeCAD.Console.PrintError(f"Failed to remove member: {e}\n")
         finally:
             doc.commitTransaction()
-            doc.recompute()
 
         self._refresh_member_list()
 
@@ -256,6 +256,10 @@ class BentPanel(QtWidgets.QWidget):
     def notify_property_changed(self, prop):
         """Called by the ViewProvider when the bent recomputes externally.
 
+        Uses a deferred refresh for the member list so that when undo
+        restores multiple properties (Members + child MemberIDs), all
+        restorations complete before we re-read the data.
+
         Parameters
         ----------
         prop : str
@@ -265,7 +269,8 @@ class BentPanel(QtWidgets.QWidget):
             return
 
         if prop in ("Members", "MemberCount", "Shape"):
-            self._refresh_member_list()
+            # Defer so all undo property restorations complete first.
+            QtCore.QTimer.singleShot(0, self._deferred_refresh)
         if prop == "BentName":
             self._refreshing = True
             self._name_edit.setText(self._obj.BentName)
@@ -274,6 +279,22 @@ class BentPanel(QtWidgets.QWidget):
             self._refreshing = True
             self._number_spin.setValue(self._obj.BentNumber)
             self._refreshing = False
+
+    def _deferred_refresh(self):
+        """Refresh member list and trigger recompute if Shape is stale.
+
+        Called via QTimer.singleShot(0, ...) so all undo property
+        restorations complete before we read back.
+        """
+        if self._obj is None:
+            return
+        self._refresh_member_list()
+        # After undo, the Shape may be stale if it wasn't captured in the
+        # original transaction.  Recompute to sync wireframe to Members.
+        try:
+            self._obj.Document.recompute()
+        except Exception:
+            pass
 
     # ======================================================================
     # Cleanup
