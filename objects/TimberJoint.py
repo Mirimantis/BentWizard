@@ -338,12 +338,19 @@ if FreeCAD.GuiUp:
 
         def attach(self, vobj):
             self.Object = vobj.Object
+            self._active_panel = None
 
         def getIcon(self):
             return os.path.join(_ICON_DIR, "timber_joint.svg")
 
         def updateData(self, obj, prop):
-            pass
+            panel = getattr(self, '_active_panel', None)
+            if panel is not None:
+                try:
+                    panel.notify_property_changed(prop)
+                except (RuntimeError, AttributeError):
+                    # Panel widget was deleted (dialog closed).
+                    self._active_panel = None
 
         def onChanged(self, vobj, prop):
             pass
@@ -358,6 +365,15 @@ if FreeCAD.GuiUp:
             return mode
 
         def onDelete(self, vobj, subelements):
+            return True
+
+        def doubleClicked(self, vobj):
+            """Open the JointPanel task panel for editing."""
+            from ui.JointTaskPanel import JointTaskPanel
+
+            panel = JointTaskPanel(vobj.Object)
+            FreeCADGui.Control.showDialog(panel)
+            self._active_panel = panel.panel
             return True
 
         def dumps(self):

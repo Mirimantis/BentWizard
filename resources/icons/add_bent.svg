@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Left post -->
+  <rect x="6" y="22" width="7" height="32" rx="1" fill="#A0724A" stroke="#6B4226" stroke-width="1.2"/>
+  <!-- Right post -->
+  <rect x="38" y="22" width="7" height="32" rx="1" fill="#A0724A" stroke="#6B4226" stroke-width="1.2"/>
+  <!-- Tie beam -->
+  <rect x="6" y="22" width="39" height="5" rx="1" fill="#B8865A" stroke="#6B4226" stroke-width="1.2"/>
+  <!-- Left rafter -->
+  <line x1="6" y1="22" x2="26" y2="6" stroke="#6B4226" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="6" y1="22" x2="26" y2="6" stroke="#A0724A" stroke-width="2" stroke-linecap="round"/>
+  <!-- Right rafter -->
+  <line x1="45" y1="22" x2="26" y2="6" stroke="#6B4226" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="45" y1="22" x2="26" y2="6" stroke="#A0724A" stroke-width="2" stroke-linecap="round"/>
+  <!-- Plus badge -->
+  <circle cx="52" cy="52" r="10" fill="#27ae60" stroke="#1e8449" stroke-width="1.5"/>
+  <line x1="52" y1="46" x2="52" y2="58" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="46" y1="52" x2="58" y2="52" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
