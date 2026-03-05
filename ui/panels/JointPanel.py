@@ -447,20 +447,19 @@ class JointPanel(QtWidgets.QWidget):
             self._label_edit.setText(self._obj.Label)
 
     def _deferred_refresh(self):
-        """Refresh parameter values and sync geometry after undo.
+        """Refresh parameter values after undo.
 
         Called via QTimer.singleShot(0, ...) so all undo property
         restorations complete before we read back.
+
+        Does NOT call doc.recompute() — the original transaction already
+        captured the recompute, so undo restores both properties and
+        geometry.  An extra recompute here would create a second undo
+        entry (requiring the user to undo twice).
         """
         if self._obj is None:
             return
         self._refresh_parameter_values()
-        # After undo, geometry may be stale if the original transaction
-        # didn't capture computed shapes.  Recompute to sync.
-        try:
-            self._obj.Document.recompute()
-        except Exception:
-            pass
 
     # ======================================================================
     # Cleanup

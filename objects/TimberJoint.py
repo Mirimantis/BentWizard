@@ -106,6 +106,13 @@ class TimberJoint:
         _ensure("Part::PropertyPartShape", "SecondaryCutTool", "Internal",
                 "Boolean tool for secondary member")
 
+        # Extension distances — how much the secondary member must extend
+        # past each datum endpoint to form the complete joint geometry.
+        _ensure("App::PropertyFloat", "SecondaryStartExtension", "Internal",
+                "Extension at secondary start endpoint (mm)", 0.0)
+        _ensure("App::PropertyFloat", "SecondaryEndExtension", "Internal",
+                "Extension at secondary end endpoint (mm)", 0.0)
+
         # Make computed/internal properties read-only or hidden.
         obj.setEditorMode("IntersectionPoint", 1)   # read-only
         obj.setEditorMode("IntersectionAngle", 1)
@@ -115,6 +122,8 @@ class TimberJoint:
         obj.setEditorMode("ValidationResults", 1)
         obj.setEditorMode("PrimaryCutTool", 2)       # hidden
         obj.setEditorMode("SecondaryCutTool", 2)
+        obj.setEditorMode("SecondaryStartExtension", 2)
+        obj.setEditorMode("SecondaryEndExtension", 2)
 
     # -- recompute ----------------------------------------------------------
 
@@ -131,6 +140,26 @@ class TimberJoint:
             obj.PrimaryCutTool = Part.Shape()
             obj.SecondaryCutTool = Part.Shape()
 
+    @staticmethod
+    def _bb_key(shape):
+        """Return a hashable key for a shape's bounding box, or None."""
+        if shape is None or shape.isNull():
+            return None
+        bb = shape.BoundBox
+        return (round(bb.XMin, 2), round(bb.YMin, 2), round(bb.ZMin, 2),
+                round(bb.XMax, 2), round(bb.YMax, 2), round(bb.ZMax, 2))
+
+    def _cuts_changed(self, obj):
+        """Return True if cut tools differ from last recompute."""
+        pri_key = self._bb_key(obj.PrimaryCutTool)
+        sec_key = self._bb_key(obj.SecondaryCutTool)
+        old_pri = getattr(self, '_last_pri_bb', None)
+        old_sec = getattr(self, '_last_sec_bb', None)
+        changed = (pri_key != old_pri) or (sec_key != old_sec)
+        self._last_pri_bb = pri_key
+        self._last_sec_bb = sec_key
+        return changed
+
     def _recompute_joint(self, obj):
         """Core recompute logic."""
         primary = obj.PrimaryMember
@@ -140,6 +169,8 @@ class TimberJoint:
             obj.Shape = Part.makeBox(1, 1, 1)
             obj.PrimaryCutTool = Part.Shape()
             obj.SecondaryCutTool = Part.Shape()
+            obj.SecondaryStartExtension = 0.0
+            obj.SecondaryEndExtension = 0.0
             return
 
         # 1. Recompute intersection geometry from current member positions.
@@ -160,6 +191,8 @@ class TimberJoint:
             obj.Shape = Part.makeBox(1, 1, 1)
             obj.PrimaryCutTool = Part.Shape()
             obj.SecondaryCutTool = Part.Shape()
+            obj.SecondaryStartExtension = 0.0
+            obj.SecondaryEndExtension = 0.0
             obj.ValidationResults = json.dumps([{
                 "level": "error",
                 "message": f"Members too far apart ({dist:.1f}mm)",
@@ -177,18 +210,17 @@ class TimberJoint:
             obj.Shape = Part.makeBox(1, 1, 1)
             obj.PrimaryCutTool = Part.Shape()
             obj.SecondaryCutTool = Part.Shape()
+            obj.SecondaryStartExtension = 0.0
+            obj.SecondaryEndExtension = 0.0
             obj.ValidationResults = json.dumps([{
                 "level": "error",
                 "message": "Members no longer intersect at a valid angle",
                 "code": "NO_INTERSECTION",
             }])
-            # Touch members to clear old cuts (with same guard).
-            if not getattr(self, '_skip_touch', False):
-                self._skip_touch = True
+            # Touch members to clear old cuts if they changed.
+            if self._cuts_changed(obj):
                 primary.touch()
                 secondary.touch()
-            else:
-                self._skip_touch = False
             return
 
         # Update intersection display properties.
@@ -215,6 +247,8 @@ class TimberJoint:
             obj.Shape = Part.makeBox(1, 1, 1)
             obj.PrimaryCutTool = Part.Shape()
             obj.SecondaryCutTool = Part.Shape()
+            obj.SecondaryStartExtension = 0.0
+            obj.SecondaryEndExtension = 0.0
             return
 
         # 3. Deserialize or create ParameterSet.
@@ -251,6 +285,21 @@ class TimberJoint:
 
         obj.PrimaryCutTool = primary_tool
         obj.SecondaryCutTool = secondary_profile.shoulder_cut
+
+        # 4b. Compute secondary member extension distance.
+        ext = definition.secondary_extension(
+            params, primary, secondary, joint_cs
+        )
+        s_start = FreeCAD.Vector(secondary.A_StartPoint)
+        s_end_pt = FreeCAD.Vector(secondary.B_EndPoint)
+        dist_start = (joint_cs.origin - s_start).Length
+        dist_end = (joint_cs.origin - s_end_pt).Length
+        if dist_start <= dist_end:
+            obj.SecondaryStartExtension = ext
+            obj.SecondaryEndExtension = 0.0
+        else:
+            obj.SecondaryStartExtension = 0.0
+            obj.SecondaryEndExtension = ext
 
         # 5. Build visual shape (tenon + pegs).
         visual_parts = []
@@ -290,21 +339,17 @@ class TimberJoint:
 
         # 8. Touch both members so they recompute with new cut shapes.
         #
-        # Guard against infinite recompute: Joint depends on Members via
-        # Link, so FreeCAD recomputes Joint after Members.  If we always
-        # touch(), Members recompute → Joint recomputes → touch() → loop.
+        # Guard against infinite recompute: only touch members when the
+        # cut tools actually changed.  This avoids the cycle:
+        #   Joint writes same cuts → touch → member recomputes →
+        #   joint recomputes → same cuts → no touch → stable.
         #
-        # The alternating flag breaks the cycle:
-        #   Pass 1: _skip_touch is False → touch members, set True
-        #   Pass 2: members recompute, joint recomputes again via Link dep,
-        #           _skip_touch is True → skip touch, set False
-        #   No pass 3 needed.
-        if not getattr(self, '_skip_touch', False):
-            self._skip_touch = True
+        # Also handles multiple joints on the same member gracefully —
+        # each joint independently decides whether its cuts changed,
+        # and only touches if they did.
+        if self._cuts_changed(obj):
             primary.touch()
             secondary.touch()
-        else:
-            self._skip_touch = False
 
     # -- serialization ------------------------------------------------------
 

@@ -195,6 +195,11 @@ class TimberMember:
         cross-section.  ``ReferenceFace`` is stored for future use
         (layout marks, positioning offsets) but does not affect the
         solid's position relative to the datum.
+
+        Joint-driven extensions: if connected joints request extra length
+        at either endpoint (e.g. a tenon protruding past the datum), the
+        solid is lengthened accordingly.  The joint's shoulder cut then
+        shapes the extension into the correct tenon profile.
         """
         start = FreeCAD.Vector(obj.A_StartPoint)
         end = FreeCAD.Vector(obj.B_EndPoint)
@@ -226,8 +231,13 @@ class TimberMember:
         z_axis = y_axis.cross(datum_axis)
         z_axis.normalize()
 
-        # Centre the cross-section on the datum line.
-        origin = start + z_axis * (-h / 2.0) + y_axis * (-w / 2.0)
+        # Query joint-driven extensions at each endpoint.
+        start_ext, end_ext = TimberMember._collect_extensions(obj)
+        effective_start = start - datum_axis * start_ext
+        effective_length = length + start_ext + end_ext
+
+        # Centre the cross-section on the datum line at the effective start.
+        origin = effective_start + z_axis * (-h / 2.0) + y_axis * (-w / 2.0)
 
         # Create a rectangular cross-section wire.
         p1 = origin
@@ -237,9 +247,37 @@ class TimberMember:
 
         wire = Part.makePolygon([p1, p2, p3, p4, p1])
         face = Part.Face(wire)
-        solid = face.extrude(datum_axis * length)
+        solid = face.extrude(datum_axis * effective_length)
 
         return solid
+
+    # -- joint extension collection -----------------------------------------
+
+    @staticmethod
+    def _collect_extensions(obj):
+        """Query connected joints for datum endpoint extensions.
+
+        Scans the document for :class:`TimberJoint` objects that reference
+        this member as ``SecondaryMember`` and reads their hidden
+        ``SecondaryStartExtension`` / ``SecondaryEndExtension`` properties.
+
+        Returns ``(start_ext, end_ext)`` in mm.  When multiple joints
+        request extensions at the same endpoint, the maximum is used.
+        """
+        doc = obj.Document
+        if doc is None:
+            return 0.0, 0.0
+
+        start_ext = 0.0
+        end_ext = 0.0
+        for doc_obj in doc.Objects:
+            if getattr(doc_obj, "SecondaryMember", None) != obj:
+                continue
+            se = getattr(doc_obj, "SecondaryStartExtension", 0.0)
+            ee = getattr(doc_obj, "SecondaryEndExtension", 0.0)
+            start_ext = max(start_ext, se)
+            end_ext = max(end_ext, ee)
+        return start_ext, end_ext
 
     # -- joint cut collection -----------------------------------------------
 

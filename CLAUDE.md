@@ -537,6 +537,21 @@ Template:
 **Alternatives considered:** What else was on the table and why it was rejected.
 -->
 
+### 2026-03-04 — Joint-driven member extensions for tenon/dovetail geometry
+**Decision:** Joints declare how much extra length they need at the secondary member's endpoint via `secondary_extension()`. The member queries all connected joints and extends its solid by the max requested amount. The joint's shoulder cut then shapes the extension into the correct profile.
+**Reason:** The datum endpoint snaps to the primary member's centerline, but through mortise & tenon tenons must protrude past the centerline to reach the far face. A dual-datum system (snap datum + cut datum) was considered but rejected — it would add complexity to every member and confuse the snap system. Joint-driven extensions keep the datum as the single source of truth while letting joints parametrically control the solid length.
+**Alternatives considered:** (1) Dual-datum with separate snap and cut datums per member — rejected, too much complexity for a problem that only affects certain joint types. (2) Additive boolean (fuse tenon onto member) — rejected, doesn't interact cleanly with the shoulder cut subtraction pipeline.
+
+### 2026-03-04 — BoundBox comparison replaces _skip_touch alternating flag
+**Decision:** The `_skip_touch` boolean flag in `TimberJoint._recompute_joint()` was replaced with `_cuts_changed()`, which compares the bounding box of the current cut tools against the previous recompute. Members are only touched when cuts actually change.
+**Reason:** The alternating flag worked for a single joint but failed when multiple joints shared a member — each joint independently touched the member, causing cascading "still touched after recompute" warnings. The BoundBox approach is idempotent: same geometry in → no touch → stable, regardless of how many joints share a member.
+**Alternatives considered:** (1) Checking `'Touched' in obj.State` before touching — doesn't help because the issue is touching objects that were already processed in the current recompute cycle, not double-touching. (2) Moving touch() out of execute() into a document observer — too complex and fragile for a cosmetic warning.
+
+### 2026-03-04 — Dovetail tail_height renamed to tail_width
+**Decision:** The `tail_height` parameter was renamed to `tail_width` with default changed from `sec_h * 0.5` to `sec_w` (full secondary member width).
+**Reason:** The parameter controls the dovetail's extent along `taper_dir`, which runs along the secondary member's width direction — not its height. The old name was misleading and the old default (half the height) was dimensionally wrong. Defaulting to full width eliminates the inset in Through channel mode.
+**Alternatives considered:** Keeping `tail_height` name with corrected default — rejected, the name was actively confusing given the geometric reality.
+
 ### 2026-03-01 — Datum properties renamed with alphabetical prefixes
 **Decision:** `StartPoint` → `A_StartPoint`, `EndPoint` → `B_EndPoint`. Merged Datum 1/2/3 groups into single "Datum" group.
 **Reason:** FreeCAD's property panel sorts properties alphabetically within each group. Without prefixes, "End Point" sorted above "Start Point", confusing users. Prefixing with `A_`/`B_` forces correct visual order. Underscores instead of colons/spaces because FreeCAD property names are Python identifiers accessed via dot notation.

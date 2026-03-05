@@ -381,6 +381,22 @@ class TimberJointDefinition:
         """
         return {}
 
+    def secondary_extension(self, params: ParameterSet, primary, secondary,
+                             joint_cs: JointCoordinateSystem) -> float:
+        """Return the distance (mm) the secondary member must extend past
+        its datum endpoint to form the complete joint geometry.
+
+        The member solid will be lengthened by this amount at the joint
+        end.  The shoulder cut returned by :meth:`build_secondary_profile`
+        must cover the full zone (inward shoulder + outward extension) so
+        that subtracting it from the extended solid produces the correct
+        tenon profile.
+
+        Returns ``0.0`` if the joint does not require any extension
+        (e.g. half lap, midpoint-to-midpoint joints).
+        """
+        return 0.0
+
     def structural_properties(self, params: ParameterSet,
                               primary, secondary) -> JointStructuralProperties:
         """Return the structural capacity of this joint configuration."""

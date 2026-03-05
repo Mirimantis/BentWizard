@@ -238,14 +238,32 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
 
         return mortise
 
+    # -- secondary extension ------------------------------------------------
+
+    def secondary_extension(self, params, primary, secondary, joint_cs):
+        """Half the tenon protrudes past the datum endpoint.
+
+        The endpoint snaps to the primary's centerline, so the tenon
+        extends ``tl/2`` past it to reach the far face of the primary.
+        The other ``tl/2`` is inside the member body (shoulder to
+        centerline).
+        """
+        return params.get("tenon_length") / 2.0
+
     # -- secondary profile (tenon + shoulder) -------------------------------
 
     def build_secondary_profile(self, params, primary, secondary, joint_cs):
-        """Build the tenon shape and shoulder cut for the secondary member."""
+        """Build the tenon shape and shoulder cut for the secondary member.
+
+        The shoulder cut spans the full joint zone — both inward (into the
+        member body) and outward (into the extension region).  When the
+        member solid is extended by ``secondary_extension()`` mm, subtracting
+        this cut removes the ring of material around the tenon on both sides
+        of the datum endpoint, leaving the correctly-shaped tenon protruding.
+        """
         tw = params.get("tenon_width")
         th = params.get("tenon_height")
         tl = params.get("tenon_length")
-        shoulder_d = params.get("shoulder_depth")
 
         sec_origin, sec_x, sec_y, sec_z = _member_local_cs(secondary)
         sec_w = float(secondary.Width)
@@ -259,22 +277,22 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         dist_end = (joint_cs.origin - sec_end).Length
 
         if dist_start <= dist_end:
-            # Joint is at the start end.
             tenon_direction = sec_x * -1.0   # tenon extends beyond start
             shoulder_origin = sec_start
         else:
-            # Joint is at the end end.
             tenon_direction = sec_x          # tenon extends beyond end
             shoulder_origin = sec_end
 
-        # Tenon is centred on the secondary member's datum line.
-        # The datum runs through the cross-section centre, so the
-        # tenon is centred in both width (sec_y) and height (sec_z).
-        tenon_corner = (shoulder_origin
+        inward_dir = tenon_direction * -1.0
+        half_tl = tl / 2.0
+
+        # Tenon visualization shape — centered on the endpoint so it
+        # spans from the primary's near face to its far face.
+        tenon_vis_start = shoulder_origin + inward_dir * half_tl
+        tenon_corner = (tenon_vis_start
                         - sec_y * (tw / 2.0)
                         - sec_z * (th / 2.0))
 
-        # Build tenon solid.
         tp1 = tenon_corner
         tp2 = tenon_corner + sec_y * tw
         tp3 = tenon_corner + sec_y * tw + sec_z * th
@@ -284,14 +302,16 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         tenon_face = Part.Face(tenon_wire)
         tenon_shape = tenon_face.extrude(tenon_direction * tl)
 
-        # Build shoulder cut.
-        # The shoulder cuts INTO the secondary member at the joint end,
-        # removing the ring of material around the tenon so the tenon
-        # protrudes from the reduced cross-section.
-        inward_dir = tenon_direction * -1.0
+        # Shoulder cut — spans the full joint zone centered on the endpoint.
+        # The endpoint is at the primary's centerline, so the tenon
+        # extends tl/2 in each direction (inward = shoulder, outward =
+        # extension).  Total span = tl.
+        half_tl = tl / 2.0
+        zone_start = shoulder_origin + inward_dir * half_tl  # inward edge
 
-        # Full cross-section centred on datum.
-        full_corner = shoulder_origin - sec_y * (sec_w / 2.0) - sec_z * (sec_h / 2.0)
+        full_corner = (zone_start
+                       - sec_y * (sec_w / 2.0)
+                       - sec_z * (sec_h / 2.0))
 
         fp1 = full_corner
         fp2 = full_corner + sec_y * sec_w
@@ -300,14 +320,24 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
 
         full_wire = Part.makePolygon([fp1, fp2, fp3, fp4, fp1])
         full_face = Part.Face(full_wire)
-        full_box = full_face.extrude(inward_dir * tl)
+        full_box = full_face.extrude(tenon_direction * tl)
 
-        # Tenon-shaped box going inward (the portion to keep).
-        tenon_inward = tenon_face.extrude(inward_dir * tl)
+        # Tenon-shaped box spanning the same zone (the portion to keep).
+        tenon_zone_corner = (zone_start
+                             - sec_y * (tw / 2.0)
+                             - sec_z * (th / 2.0))
 
-        # Subtract tenon from full box to get the shoulder material.
+        tz1 = tenon_zone_corner
+        tz2 = tenon_zone_corner + sec_y * tw
+        tz3 = tenon_zone_corner + sec_y * tw + sec_z * th
+        tz4 = tenon_zone_corner + sec_z * th
+
+        tenon_zone_wire = Part.makePolygon([tz1, tz2, tz3, tz4, tz1])
+        tenon_zone_face = Part.Face(tenon_zone_wire)
+        tenon_zone = tenon_zone_face.extrude(tenon_direction * tl)
+
         try:
-            shoulder_cut = full_box.cut(tenon_inward)
+            shoulder_cut = full_box.cut(tenon_zone)
         except Exception:
             shoulder_cut = full_box
 
