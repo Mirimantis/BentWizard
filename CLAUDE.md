@@ -571,3 +571,60 @@ Template:
 **Decision:** `compute_joint_cs` returns `None` (no joint formed) when two datum lines are co-linear (angle < 5°), even if their endpoints touch. This means a straight splice — two timbers laid end-to-end along the same axis — does not auto-create a joint.
 **Reason:** A co-linear pair produces a degenerate joint coordinate system (zero cross product → no well-defined normal or secondary axis). All joint geometry is defined in the local JCS, so without a valid JCS the joint definition machinery cannot function. The 5° floor (`MIN_ANGLE_DEGREES`) guards against this.
 **Alternatives considered:** Special-casing the scarf/splice scenario with a hard-coded "along-axis" JCS. Deferred: `scarf_bladed` is not yet implemented, and the correct UX for a straight splice (select two members + explicit Scarf command) is cleaner than relying on auto-detection for a joint family that needs explicit user intent anyway.
+
+---
+
+## Handoff Notes (2026-03-04)
+
+### What was just completed
+
+**Joint-driven member extensions** — the core architectural feature allowing joints to extend the secondary member's solid past its datum endpoint. This was a multi-session iterative effort with extensive user testing. The final implementation:
+
+- `TimberJointDefinition.secondary_extension()` base method (returns 0.0 by default)
+- `TimberJoint` stores `SecondaryStartExtension` / `SecondaryEndExtension` (hidden properties)
+- `TimberMember._collect_extensions()` scans document for max extensions at each endpoint
+- `TimberMember._build_solid()` shifts extrusion start and increases length accordingly
+- Through M&T: extension = `tenon_length / 2`, shoulder cut spans `tl` centered on endpoint
+- Dovetail: extension = `max(0, slot_depth - approach_face_distance)`, shoulder starts at approach face
+
+**Bug fixes in this session:**
+1. **Double-undo for joint params** — removed extra `doc.recompute()` from `JointPanel._deferred_refresh()`
+2. **Bent drag-drop** — added `canDropObjects()` gate method to `BentViewProvider`
+3. **"Still touched after recompute"** — replaced `_skip_touch` alternating flag with BoundBox comparison (`_cuts_changed()`)
+4. **Dovetail tail inverted** — swapped `narrow_w`/`wide_w` arguments in `_make_trapezoid_wire` calls
+5. **tail_height → tail_width** — renamed parameter, default now `sec_w` (full timber width, no inset in Through mode)
+6. **Half channel tail offset** — tail center now shifted to match slot position in Half mode
+
+### What needs testing
+
+The user has been doing hands-on testing after each round of changes. The following fixes from this session have **NOT yet been tested by the user**:
+
+1. The `_cuts_changed()` BoundBox approach — should eliminate "still touched after recompute" warnings when adding a second joint to the same timber
+2. Dovetail tail direction fix (narrow→wide from entry to back)
+3. `tail_width` parameter rename and default change to `sec_w`
+4. Half channel mode tail offset matching slot position
+5. Spread formula now uses `slot_depth` instead of the old `tail_height`
+
+### Known issues and edge cases to watch
+
+- **TimberJoint visualization offset**: User reported in previous round that the TimberJoint object's visual shape (tenon + pegs) is offset from the actual cut geometry. The cuts work correctly but the visualization sticks out of the primary. This was noted but not fixed — the tenon viz start position may need adjustment.
+- **Half channel mode geometry**: The tail offset uses `tail_w / 4.0` which centers the tail within the half-slot region. This is a heuristic — if the tail width doesn't match the half-slot width, the tail may not align perfectly. May need refinement after user testing.
+- **Multiple joints sharing a member**: The `_cuts_changed()` approach should work but creates one unavoidable warning on the first recompute pass when creating a NEW joint (the cut tools go from empty to non-empty, which always triggers a touch). The second pass is clean.
+- **Dovetail `shoulder_depth` parameter**: Currently defaults to 0.0 (since `tail_width = sec_w`). The parameter is informational — it's not used in geometry computation. May need to be removed or repurposed.
+
+### Current phase status
+
+**Phase 2 (Joints)** — complete. All three joint types (through M&T, half lap, dovetail) are functional with correct geometry, shoulder cuts, and joint-driven extensions.
+
+**Phase 3 (Bent and Frame Composition)** — in progress. The Bent container object exists with:
+- Add/remove members, drag-drop in model tree, MemberID auto-assignment
+- BentPanel UI with member list and reorder
+- Bent templates and Frame object are NOT yet implemented
+
+### Key files to read first
+
+For the next session, the most important files to understand are:
+- `CLAUDE.md` — architecture, conventions, decisions log (this file)
+- `objects/TimberJoint.py` — the recompute pipeline (steps 1-8) and `_cuts_changed()` mechanism
+- `joints/builtin/housed_dovetail.py` — most complex joint, recently rewritten
+- `objects/TimberMember.py` — `_build_solid()` with extensions, `_collect_joint_cuts()` boolean pipeline
