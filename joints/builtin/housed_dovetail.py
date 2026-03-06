@@ -190,18 +190,20 @@ class DovetailDefinition(TimberJointDefinition):
 
         # Dovetail geometry.
         dovetail_angle = 14.0      # degrees — standard 1:4 slope
-        tail_height = sec_h * 0.5
-        tail_width_narrow = sec_w * 0.6
-
-        # Calculate wide end from narrow end and dovetail angle.
-        spread = 2.0 * tail_height * math.tan(math.radians(dovetail_angle))
-        tail_width_wide = tail_width_narrow + spread
+        tail_width = sec_w          # full timber width for Through mode
 
         # Slot depth: half the primary member width.
         slot_depth = pri_w * 0.5
 
-        # Shoulder: material above/below the dovetail on the secondary.
-        shoulder_depth = (sec_h - tail_height) / 2.0
+        # Taper widths along the primary axis.  The spread is driven by
+        # slot depth and dovetail angle.
+        tail_width_narrow = sec_w * 0.6
+        spread = 2.0 * slot_depth * math.tan(math.radians(dovetail_angle))
+        tail_width_wide = tail_width_narrow + spread
+
+        # Shoulder: material to the sides of the dovetail on the secondary.
+        # Zero when tail_width fills the full timber width (Through mode).
+        shoulder_depth = max(0.0, (sec_w - tail_width) / 2.0)
 
         clearance = 1.6  # 1/16 inch
 
@@ -221,11 +223,12 @@ class DovetailDefinition(TimberJointDefinition):
                            min_value=tail_width_narrow,
                            group="Dovetail",
                            description="Width at the wide (back) end"),
-            JointParameter("tail_height", "length",
-                           tail_height, tail_height,
-                           min_value=20.0, max_value=sec_h * 0.8,
+            JointParameter("tail_width", "length",
+                           tail_width, tail_width,
+                           min_value=20.0, max_value=sec_w,
                            group="Dovetail",
-                           description="Height of the dovetail"),
+                           description="Width of the dovetail along the "
+                                       "timber width"),
             JointParameter("slot_depth", "length",
                            slot_depth, slot_depth,
                            min_value=pri_w * 0.25, max_value=pri_w * 0.75,
@@ -334,22 +337,64 @@ class DovetailDefinition(TimberJointDefinition):
 
         return slot
 
+    # -- secondary extension ------------------------------------------------
+
+    def secondary_extension(self, params, primary, secondary, joint_cs):
+        """Extension past the datum endpoint for the dovetail tenon.
+
+        Unlike the through mortise & tenon, the dovetail slot starts at
+        the primary's approach face and goes ``slot_depth`` inward — it
+        does NOT pass all the way through.  The extension is only the
+        portion of the slot that reaches past the primary's centerline
+        (where the datum endpoint snaps).
+        """
+        slot_depth = params.get("slot_depth")
+        approach_dist = self._approach_face_distance(
+            primary, secondary, joint_cs
+        )
+        return max(0.0, slot_depth - approach_dist)
+
+    @staticmethod
+    def _approach_face_distance(primary, secondary, joint_cs):
+        """Distance from the primary centerline to its approach face.
+
+        This is the distance along the secondary's approach direction
+        from the intersection point (centerline) to the near surface
+        of the primary member.
+        """
+        _pri_o, pri_x, pri_y, pri_z = _member_local_cs(primary)
+        depth_dir = _approach_depth_dir(primary, secondary, joint_cs)
+        pri_w = float(primary.Width)
+        pri_h = float(primary.Height)
+        through_extent = (abs(depth_dir.dot(pri_y)) * pri_w
+                          + abs(depth_dir.dot(pri_z)) * pri_h)
+        return through_extent / 2.0
+
     # -- secondary profile (dovetail tenon + shoulder) ----------------------
 
     def build_secondary_profile(self, params, primary, secondary, joint_cs):
         """Build the dovetail tenon shape and shoulder cut.
 
-        The tenon taper matches the slot: wider at the base (shoulder),
-        narrower at the tip, so it locks against the dovetail profile
+        The tenon taper matches the slot: narrow at the entry (shoulder
+        face), wide at the back, so it locks against the dovetail profile
         and cannot be withdrawn.
+
+        The shoulder face is at the primary's approach surface — not at
+        the datum endpoint (centerline).  The shoulder cut runs a single
+        dovetail trapezoid from the approach face inward by ``slot_depth``.
+
+        In Half channel mode, the tenon is offset to one side to match
+        the half-slot position in the primary.
         """
         narrow_w = params.get("tail_width_narrow")
         wide_w = params.get("tail_width_wide")
-        tail_h = params.get("tail_height")
+        tail_w = params.get("tail_width")
         slot_depth = params.get("slot_depth")
+        channel_mode = params.get("channel_mode")
+        flip = params.get("flip_channel")
 
         sec_origin, sec_x, sec_y, sec_z = _member_local_cs(secondary)
-        _pri_o, pri_x, _pri_y, _pri_z = _member_local_cs(primary)
+        _pri_o, pri_x, pri_y, pri_z = _member_local_cs(primary)
         sec_w = float(secondary.Width)
         sec_h = float(secondary.Height)
 
@@ -367,28 +412,45 @@ class DovetailDefinition(TimberJointDefinition):
             tenon_direction = sec_x
             shoulder_origin = sec_end
 
+        inward_dir = tenon_direction * -1.0
+
         # Taper direction: matches the slot (perpendicular to both
         # the primary axis and the approach direction).
         depth_dir = _approach_depth_dir(primary, secondary, joint_cs)
         taper_dir = depth_dir.cross(pri_x)
         taper_dir.normalize()
 
-        # Build tenon: wide at base (shoulder), narrow at tip.
-        # _make_trapezoid_wire is narrow at origin, wide at back,
-        # so pass wide_w as "narrow" and narrow_w as "wide".
+        # The shoulder face is at the primary's approach surface,
+        # NOT at the datum endpoint (which is the primary centerline).
+        approach_dist = self._approach_face_distance(
+            primary, secondary, joint_cs
+        )
+        shoulder_face = shoulder_origin + inward_dir * approach_dist
+
+        # In Half mode, offset the tenon center to match the slot.
+        if channel_mode == CHANNEL_HALF:
+            open_sign = -1.0 if flip else 1.0
+            open_dir = taper_dir * open_sign
+            tenon_center = shoulder_face + open_dir * (tail_w / 4.0)
+        else:
+            tenon_center = shoulder_face
+
+        # Build tenon: starts at shoulder face, extends slot_depth
+        # into the primary.  Narrow at entry (shoulder face, matching the
+        # slot mouth), wide at back (deep in primary, matching slot back).
         tenon = _make_trapezoid_wire(
-            shoulder_origin,
+            tenon_center,
             pri_x,               # dovetail taper along primary axis
             taper_dir,           # constant dimension
             tenon_direction,     # extends toward primary
-            wide_w, narrow_w, tail_h, slot_depth,
+            narrow_w, wide_w, tail_w, slot_depth,
         )
 
-        # Shoulder cut: removes material around the dovetail tenon
-        # from the secondary member's end.
-        inward_dir = tenon_direction * -1.0
-
-        full_corner = shoulder_origin - sec_y * (sec_w / 2.0) - sec_z * (sec_h / 2.0)
+        # Shoulder cut — single box from shoulder face, spanning slot_depth.
+        # No split at the centerline (avoids diamond-shaped artifact).
+        full_corner = (shoulder_face
+                       - sec_y * (sec_w / 2.0)
+                       - sec_z * (sec_h / 2.0))
         fp1 = full_corner
         fp2 = full_corner + sec_y * sec_w
         fp3 = full_corner + sec_y * sec_w + sec_z * sec_h
@@ -396,17 +458,17 @@ class DovetailDefinition(TimberJointDefinition):
 
         full_wire = Part.makePolygon([fp1, fp2, fp3, fp4, fp1])
         full_face = Part.Face(full_wire)
-        full_box = full_face.extrude(inward_dir * slot_depth)
+        full_box = full_face.extrude(tenon_direction * slot_depth)
 
-        # Dovetail-shaped box going inward (the portion to keep).
-        tenon_inward = _make_trapezoid_wire(
-            shoulder_origin,
-            pri_x, taper_dir, inward_dir,
-            wide_w, narrow_w, tail_h, slot_depth,
+        # Dovetail-shaped box spanning the same zone (the portion to keep).
+        dovetail_keep = _make_trapezoid_wire(
+            tenon_center,
+            pri_x, taper_dir, tenon_direction,
+            narrow_w, wide_w, tail_w, slot_depth,
         )
 
         try:
-            shoulder_cut = full_box.cut(tenon_inward)
+            shoulder_cut = full_box.cut(dovetail_keep)
         except Exception:
             shoulder_cut = full_box
 
@@ -422,16 +484,16 @@ class DovetailDefinition(TimberJointDefinition):
         sec_h = float(secondary.Height)
         sec_w = float(secondary.Width)
         pri_w = float(primary.Width)
-        tail_h = params.get("tail_height")
+        tail_w = params.get("tail_width")
         narrow_w = params.get("tail_width_narrow")
         slot_d = params.get("slot_depth")
 
-        if tail_h > sec_h * 0.7:
+        if tail_w > sec_w:
             results.append(ValidationResult(
                 "warning",
-                f"Dovetail height ({tail_h:.1f}mm) exceeds 70% of secondary "
-                f"member height ({sec_h:.1f}mm).",
-                "DOVETAIL_TOO_TALL",
+                f"Dovetail width ({tail_w:.1f}mm) exceeds secondary "
+                f"member width ({sec_w:.1f}mm).",
+                "DOVETAIL_TOO_WIDE_TAIL",
             ))
 
         if narrow_w > sec_w * 0.8:
@@ -467,7 +529,7 @@ class DovetailDefinition(TimberJointDefinition):
             "joint_type": self.ID,
             "tail_width_narrow": params.get("tail_width_narrow"),
             "tail_width_wide": params.get("tail_width_wide"),
-            "tail_height": params.get("tail_height"),
+            "tail_width": params.get("tail_width"),
             "slot_depth": params.get("slot_depth"),
             "dovetail_angle": params.get("dovetail_angle"),
             "angle": round(joint_cs.angle, 1),

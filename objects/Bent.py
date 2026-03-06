@@ -319,6 +319,10 @@ if FreeCAD.GuiUp:
             """Tell the model tree which objects nest under this Bent."""
             return self.Object.Members or []
 
+        def canDropObjects(self):
+            """Allow objects to be dropped directly onto this Bent."""
+            return True
+
         def canDropObject(self, obj):
             """Accept TimberMember drops from the model tree."""
             if not hasattr(obj, "Proxy"):
