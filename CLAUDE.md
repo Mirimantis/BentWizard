@@ -537,6 +537,11 @@ Template:
 **Alternatives considered:** What else was on the table and why it was rejected.
 -->
 
+### 2026-03-05 — Shoulder-anchored mortise & tenon geometry
+**Decision:** The M&T shoulder is anchored at the primary member's approach face. `tenon_length` is measured from the shoulder to the tenon tip. `shoulder_depth` (default 0) recesses the shoulder into the primary, creating a housing pocket. Changing `tenon_length` only moves the tenon tip; the shoulder stays fixed. This unifies through and blind mortise into one joint type — a shorter `tenon_length` naturally creates a blind mortise.
+**Reason:** The previous implementation centered the tenon on the datum endpoint (primary centerline). When the user edited `tenon_length`, both the shoulder and tenon tip moved equally — this was incorrect. The shoulder must always sit against the primary's face (or housing bottom). The approach-face-anchored model matches how the joint is physically constructed and makes parameter editing intuitive.
+**Alternatives considered:** (1) Keep centered-on-endpoint model with asymmetric scaling — rejected, doesn't match physical reality and confuses the extension calculation. (2) Separate blind mortise joint type — rejected, the geometry is identical except for tenon length; a single parameterized joint is simpler and more flexible.
+
 ### 2026-03-04 — Joint-driven member extensions for tenon/dovetail geometry
 **Decision:** Joints declare how much extra length they need at the secondary member's endpoint via `secondary_extension()`. The member queries all connected joints and extends its solid by the max requested amount. The joint's shoulder cut then shapes the extension into the correct profile.
 **Reason:** The datum endpoint snaps to the primary member's centerline, but through mortise & tenon tenons must protrude past the centerline to reach the far face. A dual-datum system (snap datum + cut datum) was considered but rejected — it would add complexity to every member and confuse the snap system. Joint-driven extensions keep the datum as the single source of truth while letting joints parametrically control the solid length.
