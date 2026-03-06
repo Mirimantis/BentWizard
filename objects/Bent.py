@@ -295,6 +295,15 @@ if FreeCAD.GuiUp:
             return mode
 
         def onDelete(self, vobj, subelements):
+            """Clean up active panel before the object is deleted."""
+            panel = getattr(self, "_active_panel", None)
+            if panel is not None:
+                panel._disconnect()
+                self._active_panel = None
+                try:
+                    FreeCADGui.Control.closeDialog()
+                except Exception:
+                    pass
             return True
 
         def doubleClicked(self, vobj):
