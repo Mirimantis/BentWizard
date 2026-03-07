@@ -31,6 +31,24 @@ def format_param_name(name):
 
 _DERIVED_STYLE = "color: #888888; font-style: italic;"
 _OVERRIDE_STYLE = ""
+_READ_ONLY_STYLE = "color: #888888;"
+
+
+# ---------------------------------------------------------------------------
+# Value formatting for read-only labels
+# ---------------------------------------------------------------------------
+
+def _format_value(param):
+    """Return a human-readable string for a parameter value."""
+    if param.param_type == "length":
+        return f"{param.value:.1f} mm"
+    if param.param_type == "angle":
+        return f"{param.value:.1f}\u00b0"
+    if param.param_type == "integer":
+        return str(int(param.value))
+    if param.param_type == "boolean":
+        return "Yes" if param.value else "No"
+    return str(param.value)
 
 
 # ---------------------------------------------------------------------------
@@ -48,13 +66,21 @@ def create_input_widget(param):
     Returns
     -------
     QWidget
-        A QDoubleSpinBox, QSpinBox, QCheckBox, or QComboBox.
+        A QDoubleSpinBox, QSpinBox, QCheckBox, QComboBox, or QLabel
+        (for read-only parameters).
     """
+    # Read-only parameters get a non-editable label.
+    if param.read_only:
+        w = QtWidgets.QLabel(_format_value(param))
+        w.setStyleSheet(_READ_ONLY_STYLE)
+        return w
+
     if param.param_type == "length":
         w = QtWidgets.QDoubleSpinBox()
         w.setSuffix(" mm")
         w.setDecimals(1)
         w.setSingleStep(1.0)
+        w.setKeyboardTracking(False)  # only emit valueChanged on commit
         w.setMinimum(param.min_value if param.min_value is not None else 0.0)
         w.setMaximum(param.max_value if param.max_value is not None else 9999.0)
         w.setValue(param.value)
@@ -65,6 +91,7 @@ def create_input_widget(param):
         w.setSuffix(" deg")
         w.setDecimals(1)
         w.setSingleStep(0.5)
+        w.setKeyboardTracking(False)
         w.setMinimum(param.min_value if param.min_value is not None else 0.0)
         w.setMaximum(param.max_value if param.max_value is not None else 180.0)
         w.setValue(param.value)
@@ -72,6 +99,7 @@ def create_input_widget(param):
 
     if param.param_type == "integer":
         w = QtWidgets.QSpinBox()
+        w.setKeyboardTracking(False)
         w.setMinimum(int(param.min_value) if param.min_value is not None else 0)
         w.setMaximum(int(param.max_value) if param.max_value is not None else 999)
         w.setValue(int(param.value))
@@ -102,7 +130,15 @@ def create_input_widget(param):
 # ---------------------------------------------------------------------------
 
 class ParameterRow(QtWidgets.QWidget):
-    """A single row showing label + input widget + revert button.
+    """A single row showing revert button + label + input widget.
+
+    The revert button is always visible to the left of the label.  When
+    the parameter is at its derived default the button is disabled and
+    dimmed; when overridden it becomes active.  This avoids layout
+    shifts that could cause mis-clicks on the spinbox arrows.
+
+    Read-only parameters display a non-editable QLabel instead of a
+    spinbox and the revert button is permanently hidden.
 
     Signals
     -------
@@ -121,44 +157,57 @@ class ParameterRow(QtWidgets.QWidget):
         super().__init__(parent)
         self._name = param.name
         self._param_type = param.param_type
+        self._read_only = param.read_only
         self._refreshing = False
 
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(0, 2, 0, 2)
+
+        # Revert button — to the LEFT of the label so it never displaces
+        # the spinbox arrows.  Always present but disabled when not
+        # overridden.  Hidden entirely for read-only params.
+        self._revert_btn = QtWidgets.QToolButton()
+        self._revert_btn.setText("\u21A9")  # ↩ arrow
+        self._revert_btn.setToolTip("Revert to derived value")
+        self._revert_btn.setFixedSize(22, 22)
+        self._revert_btn.clicked.connect(self._on_revert_clicked)
+        if self._read_only:
+            self._revert_btn.setVisible(False)
+        layout.addWidget(self._revert_btn)
 
         # Label
         self._label = QtWidgets.QLabel(format_param_name(param.name))
         self._label.setMinimumWidth(110)
         layout.addWidget(self._label)
 
-        # Input widget
+        # Input widget (or read-only label)
         self._input = create_input_widget(param)
         self._input.setToolTip(param.description)
         layout.addWidget(self._input, 1)
 
-        # Revert button
-        self._revert_btn = QtWidgets.QToolButton()
-        self._revert_btn.setText("\u21A9")  # ↩ arrow
-        self._revert_btn.setToolTip("Revert to derived value")
-        self._revert_btn.setFixedSize(22, 22)
-        self._revert_btn.clicked.connect(self._on_revert_clicked)
-        layout.addWidget(self._revert_btn)
-
         # Apply initial visual state.
         self._apply_override_style(param.is_overridden)
 
-        # Connect input signals.
-        self._connect_input_signals()
+        # Connect input signals (skipped for read-only params).
+        if not self._read_only:
+            self._connect_input_signals()
 
     # -- signal connections -------------------------------------------------
 
     def _connect_input_signals(self):
-        """Connect the input widget's commit signal to our handler."""
+        """Connect the input widget's commit signal to our handler.
+
+        Spinboxes use ``valueChanged`` (with ``keyboardTracking=False``)
+        instead of ``editingFinished`` so that arrow-button clicks
+        immediately update the model — ``editingFinished`` only fires on
+        Enter / focus-loss, which caused values to appear changed in the
+        field without the model updating.
+        """
         w = self._input
         if isinstance(w, QtWidgets.QDoubleSpinBox):
-            w.editingFinished.connect(self._on_spinbox_finished)
+            w.valueChanged.connect(self._on_spinbox_changed)
         elif isinstance(w, QtWidgets.QSpinBox):
-            w.editingFinished.connect(self._on_spinbox_finished)
+            w.valueChanged.connect(self._on_spinbox_changed)
         elif isinstance(w, QtWidgets.QCheckBox):
             w.stateChanged.connect(self._on_checkbox_changed)
         elif isinstance(w, QtWidgets.QComboBox):
@@ -166,10 +215,10 @@ class ParameterRow(QtWidgets.QWidget):
         elif isinstance(w, QtWidgets.QLineEdit):
             w.editingFinished.connect(self._on_lineedit_finished)
 
-    def _on_spinbox_finished(self):
+    def _on_spinbox_changed(self, value):
         if self._refreshing:
             return
-        self.value_changed.emit(self._name, self._input.value())
+        self.value_changed.emit(self._name, value)
 
     def _on_checkbox_changed(self, state):
         if self._refreshing:
@@ -192,15 +241,27 @@ class ParameterRow(QtWidgets.QWidget):
     # -- visual state -------------------------------------------------------
 
     def _apply_override_style(self, is_overridden):
-        """Update visual styling to reflect derived vs. overridden state."""
+        """Update visual styling to reflect derived vs. overridden state.
+
+        The revert button is always present (stable layout) but disabled
+        and dimmed when the parameter is at its derived default.
+        """
+        if self._read_only:
+            # Read-only params: always derived style, button hidden.
+            self._input.setStyleSheet(_READ_ONLY_STYLE)
+            self._label.setStyleSheet(_READ_ONLY_STYLE)
+            return
+
         if is_overridden:
             self._input.setStyleSheet(_OVERRIDE_STYLE)
             self._label.setStyleSheet("")
-            self._revert_btn.setVisible(True)
+            self._revert_btn.setEnabled(True)
+            self._revert_btn.setStyleSheet("")
         else:
             self._input.setStyleSheet(_DERIVED_STYLE)
             self._label.setStyleSheet(_DERIVED_STYLE)
-            self._revert_btn.setVisible(False)
+            self._revert_btn.setEnabled(False)
+            self._revert_btn.setStyleSheet("color: #cccccc;")
 
     # -- public refresh -----------------------------------------------------
 
@@ -208,13 +269,30 @@ class ParameterRow(QtWidgets.QWidget):
         """Update widget value and style from a :class:`JointParameter`.
 
         Uses a flag to suppress signal emission during programmatic updates.
+        Min/max bounds are updated BEFORE the value to avoid clamping a
+        valid value to stale limits.
         """
         self._refreshing = True
         try:
             w = self._input
-            if isinstance(w, QtWidgets.QDoubleSpinBox):
+
+            if self._read_only:
+                # Read-only: just update the label text.
+                if isinstance(w, QtWidgets.QLabel):
+                    w.setText(_format_value(param))
+            elif isinstance(w, QtWidgets.QDoubleSpinBox):
+                # Update min/max FIRST so the new value isn't clamped by
+                # stale limits.
+                if param.min_value is not None:
+                    w.setMinimum(param.min_value)
+                if param.max_value is not None:
+                    w.setMaximum(param.max_value)
                 w.setValue(param.value)
             elif isinstance(w, QtWidgets.QSpinBox):
+                if param.min_value is not None:
+                    w.setMinimum(int(param.min_value))
+                if param.max_value is not None:
+                    w.setMaximum(int(param.max_value))
                 w.setValue(int(param.value))
             elif isinstance(w, QtWidgets.QCheckBox):
                 w.setChecked(bool(param.value))
@@ -225,18 +303,6 @@ class ParameterRow(QtWidgets.QWidget):
                 w.setCurrentIndex(idx)
             elif isinstance(w, QtWidgets.QLineEdit):
                 w.setText(str(param.value))
-
-            # Update min/max in case they changed with new defaults.
-            if isinstance(w, QtWidgets.QDoubleSpinBox):
-                if param.min_value is not None:
-                    w.setMinimum(param.min_value)
-                if param.max_value is not None:
-                    w.setMaximum(param.max_value)
-            elif isinstance(w, QtWidgets.QSpinBox):
-                if param.min_value is not None:
-                    w.setMinimum(int(param.min_value))
-                if param.max_value is not None:
-                    w.setMaximum(int(param.max_value))
 
             self._apply_override_style(param.is_overridden)
         finally:

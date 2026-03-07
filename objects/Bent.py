@@ -40,6 +40,8 @@ class Bent:
 
         _ensure("App::PropertyLinkList", "Members", "Bent",
                 "Child TimberMember objects in this bent")
+        _ensure("App::PropertyLinkList", "Joints", "Bent",
+                "TimberJoint objects belonging to this bent")
         _ensure("App::PropertyString", "BentName", "Bent",
                 "User name for this bent (e.g. 'King Post')")
         _ensure("App::PropertyInteger", "BentNumber", "Bent",
@@ -177,6 +179,9 @@ class Bent:
         property writes (including child MemberID changes) are captured
         by undo.
 
+        After adding the member, auto-adopts any joints whose primary
+        AND secondary members now both belong to this Bent.
+
         Touches the Bent so it recomputes (bounding box update).
         """
         current = list(obj.Members) if obj.Members else []
@@ -193,6 +198,7 @@ class Bent:
         current.append(member)
         obj.Members = current
         Bent.assign_member_ids(obj)
+        Bent.adopt_qualifying_joints(obj)
         obj.touch()
 
     @staticmethod
@@ -203,6 +209,9 @@ class Bent:
         Clears the member's MemberID and reassigns IDs for remaining
         members.  The caller must wrap this in an open transaction.
 
+        Also removes any joints that reference this member from the
+        Bent's Joints list.
+
         Touches the Bent so it recomputes.
         """
         current = list(obj.Members) if obj.Members else []
@@ -212,7 +221,90 @@ class Bent:
         obj.Members = current
         Bent.clear_member_id(member)
         Bent.assign_member_ids(obj)
+
+        # Remove joints that reference the departing member.
+        joints = list(obj.Joints) if obj.Joints else []
+        remaining = []
+        for j in joints:
+            try:
+                pri = getattr(j, "PrimaryMember", None)
+                sec = getattr(j, "SecondaryMember", None)
+                if pri == member or sec == member:
+                    continue  # drop this joint from the bent
+            except Exception:
+                continue
+            remaining.append(j)
+        if len(remaining) != len(joints):
+            obj.Joints = remaining
+
         obj.touch()
+
+    # -- joint management convenience methods -------------------------------
+
+    @staticmethod
+    def add_joint(obj, joint):
+        """Add a TimberJoint to this Bent's Joints list.
+
+        If the joint already belongs to another Bent, it is removed from
+        that Bent first.  If the joint is already in this Bent, this is
+        a no-op.
+
+        The caller must wrap this in an open transaction.
+        """
+        current = list(obj.Joints) if obj.Joints else []
+        if joint in current:
+            return
+
+        # Single-bent enforcement for joints.
+        doc = obj.Document
+        if doc is not None:
+            other = find_parent_bent_for_joint(doc, joint)
+            if other is not None and other != obj:
+                Bent.remove_joint(other, joint)
+
+        current.append(joint)
+        obj.Joints = current
+
+    @staticmethod
+    def remove_joint(obj, joint):
+        """Remove a TimberJoint from this Bent's Joints list."""
+        current = list(obj.Joints) if obj.Joints else []
+        if joint not in current:
+            return
+        current.remove(joint)
+        obj.Joints = current
+
+    @staticmethod
+    def adopt_qualifying_joints(obj):
+        """Auto-add joints whose primary AND secondary are both in this Bent.
+
+        Scans the document for TimberJoint objects.  If both linked
+        members are in this Bent's Members list and the joint isn't
+        already claimed, it is added to the Joints list.
+        """
+        doc = obj.Document
+        if doc is None:
+            return
+
+        members = set(obj.Members) if obj.Members else set()
+        if len(members) < 2:
+            return
+
+        current_joints = list(obj.Joints) if obj.Joints else []
+        current_set = set(current_joints)
+
+        for doc_obj in doc.Objects:
+            if doc_obj in current_set:
+                continue
+            if not hasattr(doc_obj, "PrimaryMember"):
+                continue
+            pri = getattr(doc_obj, "PrimaryMember", None)
+            sec = getattr(doc_obj, "SecondaryMember", None)
+            if pri in members and sec in members:
+                current_joints.append(doc_obj)
+                current_set.add(doc_obj)
+
+        obj.Joints = current_joints
 
     # -- serialization ------------------------------------------------------
 
@@ -245,6 +337,23 @@ def find_parent_bent(doc, member_obj):
         if type(obj.Proxy).__name__ != "Bent":
             continue
         if hasattr(obj, "Members") and member_obj in (obj.Members or []):
+            return obj
+    return None
+
+
+def find_parent_bent_for_joint(doc, joint_obj):
+    """Return the Bent containing *joint_obj*, or ``None``.
+
+    Scans for Bent objects whose Joints list includes *joint_obj*.
+    """
+    for obj in doc.Objects:
+        if not hasattr(obj, "Proxy"):
+            continue
+        if obj.Proxy is None:
+            continue
+        if type(obj.Proxy).__name__ != "Bent":
+            continue
+        if hasattr(obj, "Joints") and joint_obj in (obj.Joints or []):
             return obj
     return None
 
@@ -317,32 +426,48 @@ if FreeCAD.GuiUp:
 
         def claimChildren(self):
             """Tell the model tree which objects nest under this Bent."""
-            return self.Object.Members or []
+            children = list(self.Object.Members or [])
+            children.extend(self.Object.Joints or [])
+            return children
 
         def canDropObjects(self):
             """Allow objects to be dropped directly onto this Bent."""
             return True
 
         def canDropObject(self, obj):
-            """Accept TimberMember drops from the model tree."""
+            """Accept TimberMember and TimberJoint drops from the tree."""
             if not hasattr(obj, "Proxy"):
                 return False
             if obj.Proxy is None:
                 return False
-            return type(obj.Proxy).__name__ == "TimberMember"
+            class_name = type(obj.Proxy).__name__
+            return class_name in ("TimberMember", "TimberJoint")
 
         def dropObject(self, vobj, dropped):
-            """Handle a TimberMember dropped onto this Bent in the tree."""
-            FreeCAD.ActiveDocument.openTransaction("Add Member to Bent")
-            try:
-                Bent.add_member(self.Object, dropped)
-                FreeCAD.ActiveDocument.recompute()
-            except Exception as e:
-                FreeCAD.Console.PrintError(
-                    f"Bent drop failed: {e}\n"
-                )
-            finally:
-                FreeCAD.ActiveDocument.commitTransaction()
+            """Handle a TimberMember or TimberJoint dropped onto this Bent."""
+            class_name = type(dropped.Proxy).__name__
+            if class_name == "TimberMember":
+                FreeCAD.ActiveDocument.openTransaction("Add Member to Bent")
+                try:
+                    Bent.add_member(self.Object, dropped)
+                    FreeCAD.ActiveDocument.recompute()
+                except Exception as e:
+                    FreeCAD.Console.PrintError(
+                        f"Bent drop failed: {e}\n"
+                    )
+                finally:
+                    FreeCAD.ActiveDocument.commitTransaction()
+            elif class_name == "TimberJoint":
+                FreeCAD.ActiveDocument.openTransaction("Add Joint to Bent")
+                try:
+                    Bent.add_joint(self.Object, dropped)
+                    FreeCAD.ActiveDocument.recompute()
+                except Exception as e:
+                    FreeCAD.Console.PrintError(
+                        f"Bent joint drop failed: {e}\n"
+                    )
+                finally:
+                    FreeCAD.ActiveDocument.commitTransaction()
 
         def dumps(self):
             return None

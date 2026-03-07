@@ -104,7 +104,7 @@ def _approach_depth_dir(primary, secondary, joint_cs):
 class ThroughMortiseTenonDefinition(TimberJointDefinition):
     """Through mortise and tenon joint definition."""
 
-    NAME = "Through Mortise and Tenon"
+    NAME = "Mortise & Tenon"
     ID = "through_mortise_tenon"
     CATEGORY = "Mortise and Tenon"
     DESCRIPTION = (
@@ -162,11 +162,11 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         tenon_height = sec_h * 0.75
 
         # Shoulder: 0 = flush with approach face, >0 = housed into primary.
-        shoulder_depth = 0.0
+        housing_depth = 0.0
 
         # Tenon length from shoulder to tip.
         # Default = through extent (through mortise, flush shoulder).
-        tenon_length = through_extent - shoulder_depth
+        tenon_length = through_extent - housing_depth
 
         # Mortise dimensions (tenon + clearance).
         mortise_width = tenon_width + 2 * clearance
@@ -199,8 +199,8 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
                            group="Tenon",
                            description="Tenon length from shoulder to tip"),
             # -- Shoulder --
-            JointParameter("shoulder_depth", "length",
-                           shoulder_depth, shoulder_depth,
+            JointParameter("housing_depth", "length",
+                           housing_depth, housing_depth,
                            min_value=0.0, max_value=afd * 0.5,
                            group="Shoulder",
                            description="Housing depth into primary "
@@ -211,17 +211,21 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
                            group="Shoulder",
                            description="Shoulder cut angle "
                                        "(90\u00b0 = perpendicular)"),
-            # -- Mortise --
+            # -- Mortise (display-only, derived from tenon + clearance) --
             JointParameter("mortise_width", "length",
                            mortise_width, mortise_width,
                            min_value=20.0,
                            group="Mortise",
-                           description="Width of the mortise opening"),
+                           description="Width of the mortise opening "
+                                       "(tenon width + 2\u00d7 clearance)",
+                           read_only=True),
             JointParameter("mortise_height", "length",
                            mortise_height, mortise_height,
                            min_value=20.0,
                            group="Mortise",
-                           description="Height of the mortise opening"),
+                           description="Height of the mortise opening "
+                                       "(tenon height + 2\u00d7 clearance)",
+                           read_only=True),
             # -- Pegs --
             JointParameter("peg_diameter", "length", peg_diameter, peg_diameter,
                            min_value=12.0, max_value=38.0,
@@ -249,20 +253,44 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         ]
         return ParameterSet(params)
 
+    # -- dependent defaults -------------------------------------------------
+
+    def update_dependent_defaults(self, params):
+        """Keep mortise dimensions in sync with tenon dimensions.
+
+        When the user overrides tenon_width or tenon_height, the mortise
+        defaults (tenon + 2×clearance) must follow.  Without this, the
+        mortise stays at the geometry-derived default.
+        """
+        clearance = 1.6
+
+        tw = params.get("tenon_width")
+        th = params.get("tenon_height")
+
+        mw_param = params.get_param("mortise_width")
+        if not mw_param.is_overridden:
+            mw_param.default_value = tw + 2 * clearance
+            mw_param.value = tw + 2 * clearance
+
+        mh_param = params.get_param("mortise_height")
+        if not mh_param.is_overridden:
+            mh_param.default_value = th + 2 * clearance
+            mh_param.value = th + 2 * clearance
+
     # -- primary cut (mortise + optional housing) ---------------------------
 
     def build_primary_tool(self, params, primary, secondary, joint_cs):
         """Build the mortise void to subtract from the primary member.
 
         The mortise starts at the primary's approach face and extends
-        inward by ``tenon_length``.  When ``shoulder_depth > 0``, a
+        inward by ``tenon_length``.  When ``housing_depth > 0``, a
         wider housing pocket (matching the secondary's full cross-section)
-        is cut from the approach face inward by ``shoulder_depth``.
+        is cut from the approach face inward by ``housing_depth``.
         """
         mw = params.get("mortise_width")
         mh = params.get("mortise_height")
         tl = params.get("tenon_length")
-        sd = params.get("shoulder_depth")
+        sd = params.get("housing_depth")
 
         _pri_origin, pri_x, pri_y, pri_z = _member_local_cs(primary)
         _sec_origin, sec_x, sec_y, sec_z = _member_local_cs(secondary)
@@ -326,10 +354,10 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         """Distance the secondary member must extend past the datum endpoint.
 
         The datum endpoint is at the primary's centerline.  The tenon tip
-        is at ``tenon_length - (afd - shoulder_depth)`` past the centerline.
+        is at ``tenon_length - (afd - housing_depth)`` past the centerline.
         """
         afd = self._approach_face_distance(primary, secondary, joint_cs)
-        sd = params.get("shoulder_depth")
+        sd = params.get("housing_depth")
         tl = params.get("tenon_length")
         return max(0.0, tl - (afd - sd))
 
@@ -339,13 +367,13 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         """Build the tenon shape and shoulder cut for the secondary member.
 
         The shoulder is anchored at the primary's approach face (plus
-        ``shoulder_depth`` into the primary for housed joints).  Changing
+        ``housing_depth`` into the primary for housed joints).  Changing
         ``tenon_length`` only moves the tenon tip; the shoulder stays fixed.
         """
         tw = params.get("tenon_width")
         th = params.get("tenon_height")
         tl = params.get("tenon_length")
-        sd = params.get("shoulder_depth")
+        sd = params.get("housing_depth")
         shoulder_angle = params.get("shoulder_angle")
 
         sec_origin, sec_x, sec_y, sec_z = _member_local_cs(secondary)
@@ -372,7 +400,7 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         afd = self._approach_face_distance(primary, secondary, joint_cs)
         approach_face = shoulder_origin + inward_dir * afd
 
-        # Shoulder face: approach face + shoulder_depth into primary.
+        # Shoulder face: approach face + housing_depth into primary.
         shoulder_face = approach_face + tenon_direction * sd
 
         # -- Tenon: starts at shoulder face, extends tl in tenon_direction --
@@ -389,9 +417,16 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         tenon_face = Part.Face(tenon_wire)
         tenon_shape = tenon_face.extrude(tenon_direction * tl)
 
-        # -- Shoulder cut: removes the ring of material around the tenon
-        # from shoulder_face outward through the full tenon zone.
-        # The member extension ensures the solid reaches this zone.
+        # -- Shoulder cut: removes material around the tenon from the
+        # shoulder face outward.  Must extend at least to the datum
+        # endpoint so that short tenons (blind mortise) don't leave a
+        # full-section stub between the tenon tip and the datum end.
+        #
+        # Distance from shoulder_face to the datum endpoint:
+        #   datum_reach = afd - sd
+        # The cut must span max(tl, datum_reach) + overshoot.
+        datum_reach = afd - sd
+        cut_depth = max(tl, datum_reach + 2.0)  # 2.0 mm boolean overshoot
 
         full_corner = (shoulder_face
                        - sec_y * (sec_w / 2.0)
@@ -404,9 +439,11 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
 
         full_wire = Part.makePolygon([fp1, fp2, fp3, fp4, fp1])
         full_face = Part.Face(full_wire)
-        full_box = full_face.extrude(tenon_direction * tl)
+        full_box = full_face.extrude(tenon_direction * cut_depth)
 
-        # Tenon-shaped box spanning the same zone (the portion to keep).
+        # Tenon-shaped keep zone: only extends tl (the actual tenon).
+        # The cut result = shoulder ring (around tenon) + full stub
+        # (from tenon tip to datum endpoint, if any).
         tenon_zone_corner = (shoulder_face
                              - sec_y * (tw / 2.0)
                              - sec_z * (th / 2.0))
@@ -495,7 +532,7 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         th = params.get("tenon_height")
         tw = params.get("tenon_width")
         tl = params.get("tenon_length")
-        sd = params.get("shoulder_depth")
+        sd = params.get("housing_depth")
         peg_d = params.get("peg_diameter")
         peg_edge = params.get("peg_edge_distance")
 
@@ -575,7 +612,7 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
             "tenon_width": params.get("tenon_width"),
             "tenon_height": params.get("tenon_height"),
             "tenon_length": params.get("tenon_length"),
-            "shoulder_depth": params.get("shoulder_depth"),
+            "housing_depth": params.get("housing_depth"),
             "peg_count": params.get("peg_count"),
             "peg_diameter": params.get("peg_diameter"),
             "angle": round(joint_cs.angle, 1),

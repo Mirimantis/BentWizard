@@ -13,7 +13,7 @@ import json
 import FreeCAD
 import Part
 
-from joints.base import JointCoordinateSystem, ParameterSet
+from joints.base import JointCoordinateSystem, ParameterSet, ValidationResult
 from joints.intersection import (
     closest_approach_segments,
     compute_joint_cs,
@@ -79,7 +79,7 @@ class TimberJoint:
         if not obj.JointType:
             ids = get_ids()
             if not ids:
-                ids = ["through_mortise_tenon", "half_lap", "dovetail"]
+                ids = ["placeholder", "through_mortise_tenon", "half_lap", "dovetail"]
             obj.JointType = ids
             obj.JointType = ids[0]
         _ensure("App::PropertyString", "Parameters", "Joint",
@@ -235,7 +235,7 @@ class TimberJoint:
         joint_type_id = obj.JointType
         if not joint_type_id:
             joint_type_id = DEFAULT_JOINT_TYPES.get(
-                obj.IntersectionType, "through_mortise_tenon"
+                obj.IntersectionType, "placeholder"
             )
             obj.JointType = joint_type_id
 
@@ -267,13 +267,22 @@ class TimberJoint:
             else:
                 # Same joint type — update derived defaults, keep overrides.
                 new_defaults = {}
+                new_bounds = {}
                 for name, p in fresh.items():
                     new_defaults[name] = p.default_value
+                    new_bounds[name] = (p.min_value, p.max_value)
                 params.update_defaults(new_defaults)
+                params.update_bounds(new_bounds)
+                # Update dependent defaults (e.g. mortise follows tenon).
+                definition.update_dependent_defaults(params)
         else:
             params = fresh
 
-        obj.Parameters = params.to_json()
+        # Only write Parameters if the JSON actually changed, to avoid
+        # unnecessary property-change → recompute cycles.
+        new_params_json = params.to_json()
+        if obj.Parameters != new_params_json:
+            obj.Parameters = new_params_json
 
         # 4. Build cut tools.
         primary_tool = definition.build_primary_tool(
@@ -326,6 +335,12 @@ class TimberJoint:
 
         # 6. Validate.
         results = definition.validate(params, primary, secondary, joint_cs)
+
+        # 6b. Check for duplicate secondary endpoint.
+        dup_warning = self._check_duplicate_secondary_endpoint(obj)
+        if dup_warning is not None:
+            results.append(dup_warning)
+
         obj.ValidationResults = json.dumps(
             [{"level": r.level, "message": r.message, "code": r.code}
              for r in results]
@@ -350,6 +365,76 @@ class TimberJoint:
         if self._cuts_changed(obj):
             primary.touch()
             secondary.touch()
+
+    # -- duplicate secondary endpoint check ---------------------------------
+
+    @staticmethod
+    def _check_duplicate_secondary_endpoint(obj):
+        """Warn if another joint shares this joint's secondary endpoint.
+
+        Scans the document for other TimberJoint objects that reference
+        the same SecondaryMember at the same endpoint (start or end).
+        Two joints competing for the same endpoint would produce
+        conflicting shoulder cuts.
+
+        Returns a :class:`ValidationResult` or ``None``.
+        """
+        doc = obj.Document
+        if doc is None:
+            return None
+
+        secondary = obj.SecondaryMember
+        if secondary is None:
+            return None
+
+        sec_name = secondary.Name
+
+        # Determine which endpoint of the secondary this joint uses.
+        s_start = FreeCAD.Vector(secondary.A_StartPoint)
+        s_end = FreeCAD.Vector(secondary.B_EndPoint)
+        ip = FreeCAD.Vector(obj.IntersectionPoint)
+        dist_start = (ip - s_start).Length
+        dist_end = (ip - s_end).Length
+        at_start = dist_start <= dist_end
+
+        for other in doc.Objects:
+            if other.Name == obj.Name:
+                continue
+            if not hasattr(other, "SecondaryMember"):
+                continue
+            other_sec = getattr(other, "SecondaryMember", None)
+            if other_sec is None:
+                continue
+            # Compare by Name — FreeCAD object identity can be unreliable.
+            try:
+                if other_sec.Name != sec_name:
+                    continue
+            except Exception:
+                continue
+            # Same secondary member — check if it claims the same endpoint.
+            try:
+                other_ip = FreeCAD.Vector(other.IntersectionPoint)
+                od_start = (other_ip - s_start).Length
+                od_end = (other_ip - s_end).Length
+                other_at_start = od_start <= od_end
+            except Exception:
+                continue
+
+            if at_start == other_at_start:
+                end_name = "start" if at_start else "end"
+                FreeCAD.Console.PrintWarning(
+                    f"TimberJoint: {obj.Label} and {other.Label} both "
+                    f"use the {end_name} endpoint of {secondary.Label}\n"
+                )
+                return ValidationResult(
+                    "warning",
+                    f"Another joint ({other.Label}) also uses the "
+                    f"{end_name} endpoint of {secondary.Label}.  "
+                    f"Conflicting shoulder cuts may result.",
+                    "DUPLICATE_SECONDARY_ENDPOINT",
+                )
+
+        return None
 
     # -- serialization ------------------------------------------------------
 
@@ -410,7 +495,7 @@ if FreeCAD.GuiUp:
             return mode
 
         def onDelete(self, vobj, subelements):
-            """Clean up active panel before the object is deleted."""
+            """Clean up panel and schedule member recompute after deletion."""
             panel = getattr(self, "_active_panel", None)
             if panel is not None:
                 panel._disconnect()
@@ -419,6 +504,40 @@ if FreeCAD.GuiUp:
                     FreeCADGui.Control.closeDialog()
                 except Exception:
                     pass
+
+            # Capture member references before the joint is removed from
+            # the document.  Schedule a deferred recompute so it runs
+            # AFTER deletion — by then _collect_joint_cuts will no longer
+            # find this joint and the boolean cuts will disappear.
+            obj = vobj.Object
+            members_to_update = []
+            try:
+                if obj.PrimaryMember is not None:
+                    members_to_update.append(obj.PrimaryMember.Name)
+                if obj.SecondaryMember is not None:
+                    members_to_update.append(obj.SecondaryMember.Name)
+            except Exception:
+                pass
+
+            if members_to_update:
+                doc_name = obj.Document.Name
+                from PySide2 import QtCore
+
+                def _deferred_recompute():
+                    try:
+                        doc = FreeCAD.getDocument(doc_name)
+                        if doc is None:
+                            return
+                        for mname in members_to_update:
+                            m = doc.getObject(mname)
+                            if m is not None:
+                                m.touch()
+                        doc.recompute()
+                    except Exception:
+                        pass
+
+                QtCore.QTimer.singleShot(0, _deferred_recompute)
+
             return True
 
         def doubleClicked(self, vobj):
@@ -479,12 +598,26 @@ def create_timber_joint(primary_obj, secondary_obj, intersection_result,
     else:
         obj.JointType = DEFAULT_JOINT_TYPES.get(
             intersection_result.intersection_type,
-            "through_mortise_tenon",
+            "placeholder",
         )
 
     if FreeCAD.GuiUp:
         TimberJointViewProvider(obj.ViewObject)
-        obj.ViewObject.ShapeColor = (0.40, 0.50, 0.60)  # blue-gray, distinct from timber
+        effective_type = joint_type_id or DEFAULT_JOINT_TYPES.get(
+            intersection_result.intersection_type, "placeholder"
+        )
+        if effective_type == "placeholder":
+            obj.ViewObject.ShapeColor = (1.0, 0.65, 0.0)  # orange — needs assignment
+        else:
+            obj.ViewObject.ShapeColor = (0.40, 0.50, 0.60)  # blue-gray
+
+    # Auto-add to Bent if both members share the same Bent.
+    from objects.Bent import find_parent_bent, Bent as BentProxy
+    pri_bent = find_parent_bent(doc, primary_obj)
+    if pri_bent is not None:
+        sec_bent = find_parent_bent(doc, secondary_obj)
+        if sec_bent is pri_bent:
+            BentProxy.add_joint(pri_bent, obj)
 
     # Two recompute passes are needed:
     #   Pass 1: Members build raw solids, Joint computes cut shapes and

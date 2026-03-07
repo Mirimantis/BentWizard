@@ -25,10 +25,11 @@ _registry: dict = {}    # {id_string: TimberJointDefinition instance}
 _loaded: bool = False
 
 # Default joint type for each intersection type.
+# All default to "placeholder" — the user assigns the real joint type.
 DEFAULT_JOINT_TYPES = {
-    "EndpointToMidpoint": "through_mortise_tenon",
-    "MidpointToMidpoint": "half_lap",
-    "EndpointToEndpoint": "scarf_bladed",
+    "EndpointToMidpoint": "placeholder",
+    "MidpointToMidpoint": "placeholder",
+    "EndpointToEndpoint": "placeholder",
 }
 
 
