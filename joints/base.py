@@ -87,6 +87,7 @@ class JointParameter:
     enum_options: list = field(default_factory=list)
     group: str = "General"
     description: str = ""
+    read_only: bool = False
 
 
 class ParameterSet:
@@ -125,8 +126,13 @@ class ParameterSet:
     # -- override management ------------------------------------------------
 
     def set_override(self, name: str, value: Any) -> None:
-        """Set a user override for a parameter, clamping to bounds."""
+        """Set a user override for a parameter, clamping to bounds.
+
+        Read-only parameters silently ignore overrides.
+        """
         p = self._params[name]
+        if p.read_only:
+            return
         if p.min_value is not None and value < p.min_value:
             value = p.min_value
         if p.max_value is not None and value > p.max_value:
@@ -154,6 +160,21 @@ class ParameterSet:
             if not p.is_overridden:
                 p.value = new_val
 
+    def update_bounds(self, new_bounds: dict) -> None:
+        """Refresh min/max bounds from freshly computed parameters.
+
+        Parameters
+        ----------
+        new_bounds : dict
+            Mapping of ``name -> (min_value, max_value)``.
+        """
+        for name, (min_val, max_val) in new_bounds.items():
+            if name not in self._params:
+                continue
+            p = self._params[name]
+            p.min_value = min_val
+            p.max_value = max_val
+
     # -- JSON serialization -------------------------------------------------
 
     def to_json(self) -> str:
@@ -172,6 +193,7 @@ class ParameterSet:
                 "enum_options": p.enum_options,
                 "group": p.group,
                 "description": p.description,
+                "read_only": p.read_only,
             })
         return json.dumps(data, separators=(",", ":"))
 
@@ -192,6 +214,7 @@ class ParameterSet:
                 enum_options=d.get("enum_options", []),
                 group=d.get("group", "General"),
                 description=d.get("description", ""),
+                read_only=d.get("read_only", False),
             ))
         return cls(params)
 
@@ -396,6 +419,17 @@ class TimberJointDefinition:
         (e.g. half lap, midpoint-to-midpoint joints).
         """
         return 0.0
+
+    def update_dependent_defaults(self, params: ParameterSet) -> None:
+        """Update defaults of parameters that depend on other parameters.
+
+        Called after ``update_defaults()`` with geometry-based defaults.
+        Override in subclasses to link parameters — for example, updating
+        mortise defaults to follow the current tenon dimensions.
+
+        Non-overridden dependent parameters adopt their new derived value.
+        Overridden dependent parameters keep the user's value.
+        """
 
     def structural_properties(self, params: ParameterSet,
                               primary, secondary) -> JointStructuralProperties:
