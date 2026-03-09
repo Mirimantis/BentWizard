@@ -391,6 +391,14 @@ if FreeCAD.GuiUp:
                     # Panel widget was deleted (dialog closed).
                     self._active_panel = None
 
+            # Forward to Bent Designer MDI tab if open.
+            designer = getattr(self, "_active_designer", None)
+            if designer is not None:
+                try:
+                    designer.notify_property_changed(prop)
+                except (RuntimeError, AttributeError):
+                    self._active_designer = None
+
         def onChanged(self, vobj, prop):
             pass
 

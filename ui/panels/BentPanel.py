@@ -138,6 +138,14 @@ class BentPanel(QtWidgets.QWidget):
         mem_layout.addLayout(btn_row)
         root.addWidget(self._members_group, 1)
 
+        # -- Open Designer button -------------------------------------------
+        self._designer_btn = QtWidgets.QPushButton("Open Designer")
+        self._designer_btn.setToolTip(
+            "Open the 2D elevation editor for this bent"
+        )
+        self._designer_btn.clicked.connect(self._on_open_designer)
+        root.addWidget(self._designer_btn)
+
         root.addStretch()
 
     # ======================================================================
@@ -322,6 +330,23 @@ class BentPanel(QtWidgets.QWidget):
             self._refresh_member_list()
         except Exception:
             self._invalidate()
+
+    # ======================================================================
+    # Slot: open bent designer
+    # ======================================================================
+
+    def _on_open_designer(self):
+        """Open the 2D Bent Designer MDI tab for this bent."""
+        if not self._obj_valid():
+            return
+        try:
+            from ui.BentDesigner import open_bent_designer
+            open_bent_designer(self._obj)
+        except Exception as e:
+            import FreeCAD
+            FreeCAD.Console.PrintError(
+                f"Failed to open Bent Designer: {e}\n"
+            )
 
     # ======================================================================
     # External notification
