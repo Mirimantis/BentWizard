@@ -157,6 +157,12 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         afd = self._approach_face_distance(primary, secondary, joint_cs)
         through_extent = afd * 2.0
 
+        # Primary cross-section extent in the mortise width direction.
+        _pri_o, _pri_x, pri_y, pri_z = _member_local_cs(primary)
+        _sec_o, _sec_x, sec_y, _sec_z = _member_local_cs(secondary)
+        pri_extent_mw = (abs(sec_y.dot(pri_y)) * pri_w
+                         + abs(sec_y.dot(pri_z)) * pri_h)
+
         # Tenon dimensions.
         tenon_width = sec_w / 3.0
         tenon_height = sec_h * 0.75
@@ -172,6 +178,14 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         mortise_width = tenon_width + 2 * clearance
         mortise_height = tenon_height + 2 * clearance
 
+        # Max tenon width: mortise must stay ≤ 75% of primary's
+        # perpendicular cross-section extent.
+        max_tw = sec_w * 0.9
+        if pri_extent_mw > 1.0:
+            max_from_pri = pri_extent_mw * 0.75 - 2 * clearance
+            if max_from_pri >= 20.0:
+                max_tw = min(max_tw, max_from_pri)
+
         # Shoulder angle relative to secondary axis (90° = perpendicular).
         shoulder_angle = 90.0
 
@@ -186,7 +200,7 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         params = [
             # -- Tenon --
             JointParameter("tenon_width", "length", tenon_width, tenon_width,
-                           min_value=20.0, max_value=sec_w * 0.9,
+                           min_value=20.0, max_value=max_tw,
                            group="Tenon",
                            description="Width of the tenon"),
             JointParameter("tenon_height", "length", tenon_height, tenon_height,
@@ -201,7 +215,7 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
             # -- Shoulder --
             JointParameter("housing_depth", "length",
                            housing_depth, housing_depth,
-                           min_value=0.0, max_value=afd * 0.5,
+                           min_value=0.0, max_value=afd,
                            group="Shoulder",
                            description="Housing depth into primary "
                                        "(0 = flush with face)"),
@@ -529,15 +543,77 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         results = []
         sec_h = float(secondary.Height)
         sec_w = float(secondary.Width)
+        pri_w = float(primary.Width)
+        pri_h = float(primary.Height)
         th = params.get("tenon_height")
         tw = params.get("tenon_width")
         tl = params.get("tenon_length")
         sd = params.get("housing_depth")
+        mw = params.get("mortise_width")
+        mh = params.get("mortise_height")
         peg_d = params.get("peg_diameter")
         peg_edge = params.get("peg_edge_distance")
 
         afd = self._approach_face_distance(primary, secondary, joint_cs)
         through_extent = afd * 2.0
+
+        # Primary cross-section extents in mortise directions.
+        _pri_o, _pri_x, pri_y, pri_z = _member_local_cs(primary)
+        _sec_o, _sec_x, sec_y, sec_z = _member_local_cs(secondary)
+        pri_extent_mw = (abs(sec_y.dot(pri_y)) * pri_w
+                         + abs(sec_y.dot(pri_z)) * pri_h)
+        pri_extent_mh = (abs(sec_z.dot(pri_y)) * pri_w
+                         + abs(sec_z.dot(pri_z)) * pri_h)
+
+        # -- Mortise vs primary cross-section --
+
+        WARN_RATIO = 0.35
+
+        if pri_extent_mw > 1.0:
+            if mw > pri_extent_mw * 0.75:
+                results.append(ValidationResult(
+                    "error",
+                    f"Mortise width ({mw:.1f}mm) exceeds 75% of primary "
+                    f"cross-section ({pri_extent_mw:.1f}mm). Maximum: "
+                    f"{pri_extent_mw * 0.75:.1f}mm.",
+                    "MORTISE_WIDTH_EXCEEDS_LIMIT",
+                ))
+            elif mw > pri_extent_mw * WARN_RATIO:
+                results.append(ValidationResult(
+                    "warning",
+                    f"Mortise width ({mw:.1f}mm) exceeds "
+                    f"{WARN_RATIO:.0%} of primary cross-section "
+                    f"({pri_extent_mw:.1f}mm) in that direction.",
+                    "MORTISE_WIDTH_LARGE",
+                ))
+
+        if pri_extent_mh > 1.0 and mh > pri_extent_mh * WARN_RATIO:
+            results.append(ValidationResult(
+                "warning",
+                f"Mortise height ({mh:.1f}mm) exceeds "
+                f"{WARN_RATIO:.0%} of primary cross-section "
+                f"({pri_extent_mh:.1f}mm) in that direction.",
+                "MORTISE_HEIGHT_LARGE",
+            ))
+
+        # -- Housing depth vs primary through-dimension --
+
+        if sd > through_extent * 0.50:
+            results.append(ValidationResult(
+                "error",
+                f"Housing depth ({sd:.1f}mm) exceeds 50% of primary "
+                f"through-dimension ({through_extent:.1f}mm). Maximum: "
+                f"{through_extent * 0.50:.1f}mm.",
+                "HOUSING_DEPTH_EXCEEDS_LIMIT",
+            ))
+        elif sd > through_extent * WARN_RATIO:
+            results.append(ValidationResult(
+                "warning",
+                f"Housing depth ({sd:.1f}mm) exceeds "
+                f"{WARN_RATIO:.0%} of primary through-dimension "
+                f"({through_extent:.1f}mm).",
+                "HOUSING_DEPTH_LARGE",
+            ))
 
         # Blind mortise info.
         if tl < through_extent - sd:
@@ -554,15 +630,6 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
                 f"Tenon ({tl:.1f}mm) does not reach primary centerline "
                 f"\u2014 joint may be weak.",
                 "TENON_TOO_SHORT",
-            ))
-
-        # Housing too deep.
-        if sd > afd * 0.5:
-            results.append(ValidationResult(
-                "warning",
-                f"Housing depth ({sd:.1f}mm) exceeds half the primary "
-                f"width ({afd:.1f}mm).",
-                "HOUSING_TOO_DEEP",
             ))
 
         # Tenon height check.
@@ -589,7 +656,7 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
             results.append(ValidationResult(
                 "warning",
                 f"Peg edge distance ({peg_edge:.1f}mm) is less than "
-                f"1.5x peg diameter ({peg_d * 1.5:.1f}mm).",
+                f"1.5\u00d7 peg diameter ({peg_d * 1.5:.1f}mm).",
                 "PEG_EDGE_DISTANCE",
             ))
 
@@ -597,8 +664,8 @@ class ThroughMortiseTenonDefinition(TimberJointDefinition):
         if joint_cs.angle < self.MIN_ANGLE or joint_cs.angle > self.MAX_ANGLE:
             results.append(ValidationResult(
                 "error",
-                f"Intersection angle ({joint_cs.angle:.1f} deg) is outside "
-                f"the valid range ({self.MIN_ANGLE}\u2013{self.MAX_ANGLE} deg).",
+                f"Intersection angle ({joint_cs.angle:.1f}\u00b0) is outside "
+                f"the valid range ({self.MIN_ANGLE}\u2013{self.MAX_ANGLE}\u00b0).",
                 "ANGLE_OUT_OF_RANGE",
             ))
 

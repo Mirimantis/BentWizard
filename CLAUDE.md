@@ -462,7 +462,7 @@ Opens from Bent context panel. 2D elevation view. Members shown as rectangles. D
 - Through mortise & tenon, half lap, dovetail
 - Boolean cuts parametrically updating
 
-### Phase 3 (next) — Bent and Frame Composition
+### Phase 3 (in progress) — Bent and Frame Composition
 - Bent container object
 - Frame object with bent instancing and longitudinal members
 - Bent Designer 2D panel
@@ -537,6 +537,31 @@ Template:
 **Alternatives considered:** What else was on the table and why it was rejected.
 -->
 
+### 2026-03-08 — Bent Designer grid as scene items, not drawBackground
+**Decision:** Grid lines are added as `QGraphicsLineItem` objects during `rebuild()` instead of being painted in `QGraphicsScene.drawBackground()`.
+**Reason:** `drawBackground()` receives the exposed rect in scene coordinates. With a large scene rect (-50000 to 50000) needed for panning, the exposed rect on initial display was enormous, triggering the "too many lines" safety check and skipping the grid entirely. Even after `fitInView` zoomed in, the grid did not reliably appear. Scene items are a guaranteed rendering path.
+**Alternatives considered:** (1) `drawBackground` with invalidation calls — tried, grid still did not render. (2) Drawing grid in `QGraphicsView.drawForeground()` — rejected, would draw on top of members. (3) `ViewportUpdateMode.FullViewportUpdate` — would hurt performance for the entire view just to fix the grid.
+
+### 2026-03-08 — Bent Designer hosted as MDI tab (TechDraw-style)
+**Decision:** The Bent Designer opens as a QMdiArea subwindow (maximized tab) in FreeCAD's central area, matching TechDraw's hosting pattern.
+**Reason:** The designer needs the full viewport area for the 2D canvas. A dock widget or task panel would be too small. An MDI tab provides full space, coexists with the 3D view (user can switch tabs), and follows established FreeCAD precedent. The user confirmed this approach.
+**Alternatives considered:** (1) Sketcher-style Coin3D overlay in the 3D view — rejected, would require Coin3D scene graph work and wouldn't provide a clean 2D canvas. (2) Separate FreeCAD workbench — rejected, too heavyweight for a single panel; MDI tab achieves the same viewport space without workbench switching overhead. (3) Dock widget — rejected, too small.
+
+### 2026-03-08 — Bent Designer background colour from FreeCAD preferences
+**Decision:** The 2D canvas background reads FreeCAD's viewport colour from `User parameter:BaseApp/Preferences/View`. Uses `BackgroundColor3` (bottom gradient colour) when gradient is active, or `BackgroundColor` for solid mode. Grid line colours are computed dynamically to contrast with the background.
+**Reason:** A hardcoded dark background (45, 45, 50) clashed with FreeCAD's default warm gray gradient and made grid lines invisible regardless of alpha. Matching the 3D viewport colour gives a consistent visual experience and allows grid colours to be computed with known contrast ratios.
+**Alternatives considered:** Fixed dark background with high-alpha grid lines — rejected, looked inconsistent with FreeCAD's theme and the grid contrast problem depended on the user's chosen background.
+
+### 2026-03-08 — Placeholder joint fins replace star cones
+**Decision:** The unassigned `TimberJoint` placeholder shape was changed from six cones (star) to three perpendicular rectangular fins. Two fins lie in the joint plane (one along each member's datum), and a third fin runs perpendicular along the secondary member's datum. Fins protrude 1.5× the largest timber half-dimension along the joint normal, and span 2× the max cross-section dimension along the datum.
+**Reason:** The cone-star was not visible enough — cones were obscured by the timber solids from most viewing angles. Thin rectangular planes ("fins") extend beyond the timber surface and are visible from all angles without obscuring the timber geometry. The third fin follows the secondary datum so it tracks correctly for non-90° intersections.
+**Alternatives considered:** (1) Larger cones — still obscured by timbers from many angles. (2) Two fins only — user requested a third for better visibility. (3) Third fin along primary datum — rejected, secondary datum provides better visual tracking at non-orthogonal angles.
+
+### 2026-03-08 — M&T validation: mortise width ≤ 75%, housing depth ≤ 50%
+**Decision:** Added tiered validation to through_mortise_tenon: warning when mortise/housing exceeds 35% of the associated primary dimension, error when mortise width exceeds 75% of the primary's perpendicular extent, error when housing depth exceeds 50% of the primary's through-dimension. `tenon_width` max_value is clamped to enforce the 75% limit.
+**Reason:** Without validation, a user could enlarge the mortise until it severed the primary timber entirely. The 35% warning threshold catches cases where the mortise is getting large relative to the primary. The 75%/50% hard limits prevent structurally dangerous cuts. Dot-product projection is used to compute the primary's extent in the mortise direction, handling arbitrary intersection angles correctly.
+**Alternatives considered:** (1) Simple percentage of primary width/height — doesn't work for angled intersections where the mortise direction doesn't align with the primary's local axes. (2) No validation, rely on structural checks later — rejected, geometry destruction is more immediate than structural failure and should be caught at the joint level.
+
 ### 2026-03-05 — Shoulder-anchored mortise & tenon geometry
 **Decision:** The M&T shoulder is anchored at the primary member's approach face. `tenon_length` is measured from the shoulder to the tenon tip. `shoulder_depth` (default 0) recesses the shoulder into the primary, creating a housing pocket. Changing `tenon_length` only moves the tenon tip; the shoulder stays fixed. This unifies through and blind mortise into one joint type — a shorter `tenon_length` naturally creates a blind mortise.
 **Reason:** The previous implementation centered the tenon on the datum endpoint (primary centerline). When the user edited `tenon_length`, both the shoulder and tenon tip moved equally — this was incorrect. The shoulder must always sit against the primary's face (or housing bottom). The approach-face-anchored model matches how the joint is physically constructed and makes parameter editing intuitive.
@@ -579,57 +604,56 @@ Template:
 
 ---
 
-## Handoff Notes (2026-03-04)
+## Handoff Notes (2026-03-08)
 
 ### What was just completed
 
-**Joint-driven member extensions** — the core architectural feature allowing joints to extend the secondary member's solid past its datum endpoint. This was a multi-session iterative effort with extensive user testing. The final implementation:
+**Bent Designer** — a 2D elevation editor for bent profiles, hosted as an MDI tab in FreeCAD's central area. Full implementation covering:
 
-- `TimberJointDefinition.secondary_extension()` base method (returns 0.0 by default)
-- `TimberJoint` stores `SecondaryStartExtension` / `SecondaryEndExtension` (hidden properties)
-- `TimberMember._collect_extensions()` scans document for max extensions at each endpoint
-- `TimberMember._build_solid()` shifts extrusion start and increases length accordingly
-- Through M&T: extension = `tenon_length / 2`, shoulder cut spans `tl` centered on endpoint
-- Dovetail: extension = `max(0, slot_depth - approach_face_distance)`, shoulder starts at approach face
+- `ui/BentDesigner.py` — main module with `ProjectionPlane`, `SnapEngine`, `MemberItem`, `HandleItem`, `BentDesignerScene`, `BentDesignerView`, `BentDesignerWidget`, and `open_bent_designer()` entry point
+- `ui/bent_templates.py` — template dataclasses and 4 built-in templates (King Post, Queen Post, Hammer Beam, Scissors Truss)
+- `ui/panels/BentPanel.py` — added "Open Designer" button
+- `objects/Bent.py` — `BentViewProvider.updateData()` forwards to `_active_designer`
 
-**Bug fixes in this session:**
-1. **Double-undo for joint params** — removed extra `doc.recompute()` from `JointPanel._deferred_refresh()`
-2. **Bent drag-drop** — added `canDropObjects()` gate method to `BentViewProvider`
-3. **"Still touched after recompute"** — replaced `_skip_touch` alternating flag with BoundBox comparison (`_cuts_changed()`)
-4. **Dovetail tail inverted** — swapped `narrow_w`/`wide_w` arguments in `_make_trapezoid_wire` calls
-5. **tail_height → tail_width** — renamed parameter, default now `sec_w` (full timber width, no inset in Through mode)
-6. **Half channel tail offset** — tail center now shifted to match slot position in Half mode
+Features user-tested and passing:
+- MDI tab hosting with FreeCAD viewport background colour
+- Wheel zoom, middle-drag pan, F key fit-all
+- Member rectangles coloured by role with MemberID labels
+- Draggable endpoint handles with cluster support (shared endpoints move together)
+- Grid lines as scene items (configurable spacing, toggle)
+- Template application (dropdown, span/height inputs, Apply button)
+- Undo/redo for endpoint drag moves
 
-### What needs testing
-
-The user has been doing hands-on testing after each round of changes. The following fixes from this session have **NOT yet been tested by the user**:
-
-1. The `_cuts_changed()` BoundBox approach — should eliminate "still touched after recompute" warnings when adding a second joint to the same timber
-2. Dovetail tail direction fix (narrow→wide from entry to back)
-3. `tail_width` parameter rename and default change to `sec_w`
-4. Half channel mode tail offset matching slot position
-5. Spread formula now uses `slot_depth` instead of the old `tail_height`
+**Other changes this session:**
+1. **Placeholder joint fins** — replaced 6-cone star with three perpendicular rectangular fins in `joints/builtin/placeholder.py`
+2. **M&T mortise/housing validation** — tiered warnings (35%) and hard limits (75% width, 50% depth) in `joints/builtin/through_mortise_tenon.py`
 
 ### Known issues and edge cases to watch
 
-- **TimberJoint visualization offset**: User reported in previous round that the TimberJoint object's visual shape (tenon + pegs) is offset from the actual cut geometry. The cuts work correctly but the visualization sticks out of the primary. This was noted but not fixed — the tenon viz start position may need adjustment.
-- **Half channel mode geometry**: The tail offset uses `tail_w / 4.0` which centers the tail within the half-slot region. This is a heuristic — if the tail width doesn't match the half-slot width, the tail may not align perfectly. May need refinement after user testing.
-- **Multiple joints sharing a member**: The `_cuts_changed()` approach should work but creates one unavoidable warning on the first recompute pass when creating a NEW joint (the cut tools go from empty to non-empty, which always triggers a touch). The second pass is clean.
-- **Dovetail `shoulder_depth` parameter**: Currently defaults to 0.0 (since `tail_width = sec_w`). The parameter is informational — it's not used in geometry computation. May need to be removed or repurposed.
+- **TimberJoint visualization offset**: Previously reported — the TimberJoint's visual shape (tenon + pegs) is offset from the actual cut geometry. Cuts work correctly but the visualization sticks out of the primary. Not yet fixed.
+- **Half channel mode geometry**: The dovetail tail offset uses `tail_w / 4.0` — a heuristic that may not align perfectly if tail width doesn't match the half-slot width.
+- **Bent Designer grid extent**: Grid lines are scene items extending 10 grid spacings beyond the items bounding rect. If the user pans far beyond the members, they'll be past the grid. Acceptable for typical bent editing.
+- **Bent Designer external sync**: The ViewProvider forwards `updateData` to the designer, but only for "Members" and "Shape" property changes. If members are edited directly (not through the designer), a manual close/reopen may be needed for full sync.
 
 ### Current phase status
 
-**Phase 2 (Joints)** — complete. All three joint types (through M&T, half lap, dovetail) are functional with correct geometry, shoulder cuts, and joint-driven extensions.
+**Phase 2 (Joints)** — complete.
 
-**Phase 3 (Bent and Frame Composition)** — in progress. The Bent container object exists with:
-- Add/remove members, drag-drop in model tree, MemberID auto-assignment
-- BentPanel UI with member list and reorder
-- Bent templates and Frame object are NOT yet implemented
+**Phase 3 (Bent and Frame Composition)** — in progress. Completed:
+- Bent container object with add/remove members, drag-drop, MemberID auto-assignment
+- BentPanel UI with member list
+- **Bent Designer 2D editor** (this session)
+- **Bent templates** (this session)
+
+Remaining Phase 3 work:
+- Frame object with bent instancing and longitudinal members
 
 ### Key files to read first
 
 For the next session, the most important files to understand are:
 - `CLAUDE.md` — architecture, conventions, decisions log (this file)
-- `objects/TimberJoint.py` — the recompute pipeline (steps 1-8) and `_cuts_changed()` mechanism
-- `joints/builtin/housed_dovetail.py` — most complex joint, recently rewritten
+- `ui/BentDesigner.py` — the 2D editor (most recent major addition)
+- `ui/bent_templates.py` — template dataclasses and built-in templates
+- `objects/Bent.py` — Bent container, ViewProvider, member/joint management
+- `objects/TimberJoint.py` — the recompute pipeline and `_cuts_changed()` mechanism
 - `objects/TimberMember.py` — `_build_solid()` with extensions, `_collect_joint_cuts()` boolean pipeline

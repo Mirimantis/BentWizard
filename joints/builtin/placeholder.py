@@ -1,13 +1,12 @@
 """Placeholder joint — visual marker with no geometry effect.
 
-Assigned by default when a new joint is detected.  Renders as a
-6-pointed 3D star at the intersection so the user sees it needs to
-be assigned to a real joint type.
+Assigned by default when a new joint is detected.  Renders as two
+thin rectangular fins along each parent timber's datum near the
+intersection so the user sees it needs to be assigned to a real
+joint type.
 
 This module must work headless — no FreeCADGui / Qt imports.
 """
-
-import math
 
 import FreeCAD
 import Part
@@ -23,56 +22,122 @@ from joints.base import (
 
 
 # ---------------------------------------------------------------------------
-# Star geometry helper
+# Fin geometry helpers
 # ---------------------------------------------------------------------------
 
-def _build_star(origin, arm_length, base_radius):
-    """Build a 6-pointed 3D star (jack shape) from six cones.
-
-    Six cones radiate outward from *origin* along the +/-X, +/-Y, +/-Z
-    axes.  Each cone has its base at the centre and its tip pointing
-    outward.
+def _build_fin(origin, length_dir, protrusion_dir, thickness_dir,
+               half_length, half_protrusion, half_thickness):
+    """Build a single thin rectangular fin centered at *origin*.
 
     Parameters
     ----------
     origin : FreeCAD.Vector
-        Centre of the star.
-    arm_length : float
-        Length of each cone arm.
-    base_radius : float
-        Radius of each cone at the base (centre).
+        Centre of the fin.
+    length_dir : FreeCAD.Vector
+        Unit vector along the member datum (long axis of fin).
+    protrusion_dir : FreeCAD.Vector
+        Unit vector for the fin's visible extent (joint plane normal).
+    thickness_dir : FreeCAD.Vector
+        Unit vector for the fin's thin dimension.
+    half_length : float
+        Half the fin extent along *length_dir*.
+    half_protrusion : float
+        Half the fin extent along *protrusion_dir*.
+    half_thickness : float
+        Half the fin thickness along *thickness_dir*.
 
     Returns
     -------
     Part.Shape
-        A compound of six cones.
+        A thin box solid.
     """
-    directions = [
-        FreeCAD.Vector(1, 0, 0),
-        FreeCAD.Vector(-1, 0, 0),
-        FreeCAD.Vector(0, 1, 0),
-        FreeCAD.Vector(0, -1, 0),
-        FreeCAD.Vector(0, 0, 1),
-        FreeCAD.Vector(0, 0, -1),
-    ]
+    corner = (origin
+              - length_dir * half_length
+              - protrusion_dir * half_protrusion
+              - thickness_dir * half_thickness)
 
-    cones = []
-    for d in directions:
+    p1 = corner
+    p2 = corner + length_dir * (2.0 * half_length)
+    p3 = (corner + length_dir * (2.0 * half_length)
+          + protrusion_dir * (2.0 * half_protrusion))
+    p4 = corner + protrusion_dir * (2.0 * half_protrusion)
+
+    wire = Part.makePolygon([p1, p2, p3, p4, p1])
+    face = Part.Face(wire)
+    return face.extrude(thickness_dir * (2.0 * half_thickness))
+
+
+def _build_fins(origin, primary_axis, secondary_axis, normal,
+                primary_dims, secondary_dims):
+    """Build two perpendicular rectangular fin planes at a joint.
+
+    One fin runs along each parent member's datum axis for a short
+    distance from the intersection, extending beyond the timber
+    cross-sections along the joint-plane normal so they remain visible.
+
+    Parameters
+    ----------
+    origin : FreeCAD.Vector
+        Joint intersection point.
+    primary_axis, secondary_axis : FreeCAD.Vector
+        Unit directions of each member datum.
+    normal : FreeCAD.Vector
+        Joint plane normal (primary_axis x secondary_axis).
+    primary_dims : tuple(float, float)
+        (Width, Height) of the primary member in mm.
+    secondary_dims : tuple(float, float)
+        (Width, Height) of the secondary member in mm.
+
+    Returns
+    -------
+    Part.Shape
+        A compound of two thin box solids.
+    """
+    pri_w, pri_h = primary_dims
+    sec_w, sec_h = secondary_dims
+
+    # Protrusion: extend 50% beyond the largest member half-dimension.
+    largest = max(pri_w, pri_h, sec_w, sec_h)
+    half_protrusion = largest * 0.75
+
+    # Thickness: constant thin slab (3 mm total).
+    half_thickness = 1.5
+
+    fins = []
+
+    # One fin along each member's datum axis.
+    for axis, dims in ((primary_axis, primary_dims),
+                       (secondary_axis, secondary_dims)):
+        half_length = max(dims[0], dims[1])  # 2x max dim total
+        t_dir = axis.cross(normal)
+        if t_dir.Length > 1e-6:
+            t_dir.normalize()
+        else:
+            t_dir = FreeCAD.Vector(0, 0, 1)
         try:
-            cone = Part.makeCone(
-                base_radius,    # radius at base (centre)
-                0.0,            # radius at tip (point)
-                arm_length,     # height
-                origin,         # base position
-                d,              # direction
-            )
-            cones.append(cone)
+            fin = _build_fin(origin, axis, normal, t_dir,
+                             half_length, half_protrusion, half_thickness)
+            fins.append(fin)
         except Exception:
             pass
 
-    if cones:
-        return Part.makeCompound(cones)
-    # Fallback: tiny box at origin.
+    # Third fin perpendicular to the other two, running along the
+    # secondary datum so it follows non-90-degree intersections.
+    sec_half_length = max(sec_w, sec_h)
+    sec_t_dir = secondary_axis.cross(normal)
+    if sec_t_dir.Length > 1e-6:
+        sec_t_dir.normalize()
+    else:
+        sec_t_dir = FreeCAD.Vector(0, 0, 1)
+    try:
+        fin = _build_fin(origin, secondary_axis, sec_t_dir, normal,
+                         sec_half_length, half_protrusion, half_thickness)
+        fins.append(fin)
+    except Exception:
+        pass
+
+    if fins:
+        return Part.makeCompound(fins)
     return Part.makeBox(1, 1, 1, origin)
 
 
@@ -117,25 +182,21 @@ class PlaceholderDefinition(TimberJointDefinition):
         """No extension needed."""
         return 0.0
 
-    # -- secondary profile (star visual, no shoulder cut) -------------------
+    # -- secondary profile (fin visual, no shoulder cut) --------------------
 
     def build_secondary_profile(self, params, primary, secondary, joint_cs):
-        """Return the star visual as tenon_shape, with a null shoulder cut."""
-        pri_w = float(primary.Width)
-        pri_h = float(primary.Height)
-        sec_w = float(secondary.Width)
-        sec_h = float(secondary.Height)
-
-        # Size the star 20% bigger than the largest dimension across
-        # both connected members so it's always clearly visible.
-        largest = max(pri_w, pri_h, sec_w, sec_h)
-        arm_length = largest * 1.2 / 2.0  # half because arms radiate both ways
-        base_radius = arm_length * 0.25
-
-        star = _build_star(joint_cs.origin, arm_length, base_radius)
+        """Return fin markers as tenon_shape, with a null shoulder cut."""
+        fins = _build_fins(
+            joint_cs.origin,
+            joint_cs.primary_axis,
+            joint_cs.secondary_axis,
+            joint_cs.normal,
+            (float(primary.Width), float(primary.Height)),
+            (float(secondary.Width), float(secondary.Height)),
+        )
 
         return SecondaryProfile(
-            tenon_shape=star,
+            tenon_shape=fins,
             shoulder_cut=Part.Shape(),  # null — no cutting
         )
 
