@@ -536,6 +536,21 @@ Template:
 **Alternatives considered:** What else was on the table and why it was rejected.
 -->
 
+### 2026-03-10 — Datum snap uses perpendicular distance, not total distance to tick
+**Decision:** The datum-aligned grid snap ranks candidates by perpendicular distance to the datum line, not the total Euclidean distance from cursor to the grid-ticked snap point. A separate `DATUM_SNAP_TOLERANCE = 30.0` (50% wider than `SNAP_TOLERANCE`) is used for activation.
+**Reason:** The original implementation compared the diagonal distance from cursor to the snapped grid tick on the datum. When the cursor was between two ticks, the along-datum offset dominated the total distance, easily exceeding the 20-unit tolerance — especially on vertical datums where the entire offset was in one axis. Using perpendicular distance (closeness to the datum *line*) correctly captures user intent: if you're near the line, you want to snap along it.
+**Alternatives considered:** (1) A single larger tolerance for the total distance — would over-activate the datum snap when the cursor is far from the line but near a tick. (2) Removing the distance check entirely — rejected, needs a sanity bound to avoid snapping when the cursor is nowhere near any datum.
+
+### 2026-03-10 — Live drag preview via MemberItem endpoint update, not FreeCAD recompute
+**Decision:** During endpoint drags in the Bent Designer, the member rectangles update live by calling `MemberItem.update_endpoint_2d()` from `HandleItem.itemChange()`. FreeCAD objects are not modified until mouse release. The scene `_member_items` dict maps `member.Name` → `MemberItem` for O(1) lookup.
+**Reason:** Updating FreeCAD objects on every mouse move would trigger full recompute cycles (member → joints → boolean cuts → structural graph) at 60+ Hz, which would be unusably slow. The Qt scene update is trivial math (hypot, atan2, setRect, setPos, setRotation) with no FreeCAD calls. The full rebuild on release corrects any drift from the cosmetic preview.
+**Alternatives considered:** (1) Datum line preview only — simpler but loses cross-section width visualization. (2) Ghost/transparent copies — more items to manage and clean up. (3) Throttled FreeCAD updates — still too slow for smooth interaction.
+
+### 2026-03-10 — Datum centerlines as MemberItem child items
+**Decision:** Each MemberItem creates a `QGraphicsLineItem` child for the datum centerline, drawn in local coordinates at y=0 from `-length/2 - overshoot` to `+length/2 + overshoot`. The line inherits the parent's position and rotation transform, so it follows drag updates automatically.
+**Reason:** Making the datum a child item means zero additional work for live drag updates — `_update_geometry()` already sets position/rotation on the parent, and the child follows. A scene-level datum item would require separate tracking and synchronization.
+**Alternatives considered:** Scene-level line items with manual position updates — more code, no benefit, would need explicit drag synchronization.
+
 ### 2026-03-09 — Half-channel shoulder trim matches housing boundary, not centerline
 **Decision:** The trim slab that cuts back the non-tail half of the secondary in half-channel mode now starts at the housing pocket's non-tail edge instead of at the secondary centerline. The housing boundary is computed by replicating the primary's `chan_half` and `hous_chan` logic: `housing_non_tail = chan_half/2 - hous_chan/2` in open_dir from approach face. Only material outside the housing footprint is trimmed.
 **Reason:** The housing pocket in the primary is wider than the half-tail (it accommodates the full secondary cross-section + clearance) and offset toward the open side. The original trim at the centerline over-trimmed — it removed material that should seat into the housing pocket on the non-tail side of center.
@@ -638,31 +653,17 @@ Template:
 
 ---
 
-## Handoff Notes (2026-03-08)
+## Handoff Notes (2026-03-10)
 
 ### What was just completed
 
-**Bent Designer** — a 2D elevation editor for bent profiles, hosted as an MDI tab in FreeCAD's central area. Full implementation covering:
+**Bent Designer drag improvements** (`ui/BentDesigner.py` only):
 
-- `ui/BentDesigner.py` — main module with `ProjectionPlane`, `SnapEngine`, `MemberItem`, `HandleItem`, `BentDesignerScene`, `BentDesignerView`, `BentDesignerWidget`, and `open_bent_designer()` entry point
-- `ui/bent_templates.py` — template dataclasses and 4 built-in templates (King Post, Queen Post, Hammer Beam, Scissors Truss)
-- `ui/panels/BentPanel.py` — added "Open Designer" button
-- `objects/Bent.py` — `BentViewProvider.updateData()` forwards to `_active_designer`
+1. **Live drag preview** — MemberItem stores `_start_2d`, `_end_2d`, `_visible_depth` and exposes `update_endpoint_2d()`. HandleItem calls this from `itemChange()` so colored rectangles follow endpoint drags in real time. No FreeCAD calls during drag; full rebuild on release. Scene maintains `_member_items` dict for O(1) member lookup.
 
-Features user-tested and passing:
-- MDI tab hosting with FreeCAD viewport background colour
-- Wheel zoom, middle-drag pan, F key fit-all
-- Member rectangles coloured by role with MemberID labels
-- Draggable endpoint handles with cluster support (shared endpoints move together)
-- Grid lines as scene items (configurable spacing, toggle)
-- Template application (dropdown, span/height inputs, Apply button)
-- Undo/redo for endpoint drag moves
+2. **Datum-aligned grid snap** — new snap priority: endpoint > alignment > **datum** > grid > free. SnapEngine stores datum segments via `set_datums()`. During drag, projects cursor onto each datum line, checks perpendicular distance against `DATUM_SNAP_TOLERANCE` (30), snaps to nearest grid tick along the datum. Ranks candidates by perpendicular distance (not total distance to tick) for reliable activation on all datum orientations. Dragged member's own datums excluded via `exclude_members` parameter. Visual feedback: orange perpendicular tick mark at snap point.
 
-**Other changes this session:**
-1. **Placeholder joint fins** — replaced 6-cone star with three perpendicular rectangular fins in `joints/builtin/placeholder.py`
-2. **M&T mortise/housing validation** — tiered warnings (35%) and hard limits (75% width, 50% depth) in `joints/builtin/mortise_tenon.py`
-3. **M&T rename and orientation fix** — renamed `through_mortise_tenon` to `mortise_tenon`, added `_mortise_axes()` helper so mortise height always aligns with primary grain
-4. **Dovetail joint rewrite** — simplified parameter set, removed over-determined params (`tail_width`, `tail_base_width`, `tail_end_width`), added working housing, added `_dovetail_axes()` helper, derived `flare_height` as read-only
+3. **Visible datum centerlines** — `QGraphicsLineItem` child of each MemberItem, drawn in local coordinates at y=0 with `HANDLE_RADIUS` overshoot beyond endpoints. White dash-dot pattern. Follows parent transform automatically during drag.
 
 ### Known issues and edge cases to watch
 
@@ -670,6 +671,7 @@ Features user-tested and passing:
 - **Dovetail rewrite needs testing**: The dovetail joint was rewritten with new parameters and geometry. Needs verification in FreeCAD with a beam-into-post connection.
 - **Bent Designer grid extent**: Grid lines are scene items extending 10 grid spacings beyond the items bounding rect. If the user pans far beyond the members, they'll be past the grid. Acceptable for typical bent editing.
 - **Bent Designer external sync**: The ViewProvider forwards `updateData` to the designer, but only for "Members" and "Shape" property changes. If members are edited directly (not through the designer), a manual close/reopen may be needed for full sync.
+- **Datum snap and visible depth during drag**: `_visible_depth` is kept fixed during drag (it depends on the member's local CS relative to the projection plane). If a drag rotates a member enough to swap which cross-section axis is visible, the depth won't update until release. Acceptable for typical bent editing.
 
 ### Current phase status
 
@@ -678,8 +680,9 @@ Features user-tested and passing:
 **Phase 3 (Bent and Frame Composition)** — in progress. Completed:
 - Bent container object with add/remove members, drag-drop, MemberID auto-assignment
 - BentPanel UI with member list
-- **Bent Designer 2D editor** (this session)
-- **Bent templates** (this session)
+- Bent Designer 2D editor
+- Bent templates
+- **Bent Designer drag improvements** (this session)
 
 Remaining Phase 3 work:
 - Frame object with bent instancing and longitudinal members
@@ -688,7 +691,7 @@ Remaining Phase 3 work:
 
 For the next session, the most important files to understand are:
 - `CLAUDE.md` — architecture, conventions, decisions log (this file)
-- `ui/BentDesigner.py` — the 2D editor (most recent major addition)
+- `ui/BentDesigner.py` — the 2D editor with live drag, datum snap, datum lines
 - `ui/bent_templates.py` — template dataclasses and built-in templates
 - `objects/Bent.py` — Bent container, ViewProvider, member/joint management
 - `objects/TimberJoint.py` — the recompute pipeline and `_cuts_changed()` mechanism

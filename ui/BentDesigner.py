@@ -41,9 +41,12 @@ HANDLE_COLOR = QtGui.QColor(30, 120, 220)
 HANDLE_HOVER_COLOR = QtGui.QColor(255, 180, 0)
 SNAP_ENDPOINT_COLOR = QtGui.QColor(0, 200, 0)
 SNAP_ALIGN_COLOR = QtGui.QColor(0, 100, 255, 120)
+SNAP_DATUM_COLOR = QtGui.QColor(255, 160, 0, 150)
 
 HANDLE_RADIUS = 8.0
 SNAP_TOLERANCE = 20.0
+DATUM_SNAP_TOLERANCE = 30.0   # wider catch radius for datum-aligned snap
+DATUM_LINE_COLOR = QtGui.QColor(255, 255, 255, 200)
 GRID_DEFAULT_SPACING = 50.0
 CLUSTER_TOLERANCE = 1.0   # mm — endpoints within this form a cluster
 
@@ -233,7 +236,7 @@ class SnapResult:
 
 
 class SnapEngine:
-    """Combined snap system: endpoint > alignment > grid > free.
+    """Combined snap system: endpoint > alignment > datum > grid > free.
 
     Shift key suppresses all snapping.
     """
@@ -243,13 +246,26 @@ class SnapEngine:
         self.grid_enabled = True
         self.endpoint_enabled = True
         self.alignment_enabled = True
+        self.datum_enabled = True
         self._endpoints = []  # list of QPointF
+        self._datums = []     # list of (QPointF, QPointF, member_name)
 
     def set_endpoints(self, points):
         """Set the available snap target positions."""
         self._endpoints = list(points)
 
-    def combined_snap(self, pos, exclude_positions=None):
+    def set_datums(self, segments):
+        """Set datum line segments for datum-aligned snapping.
+
+        Parameters
+        ----------
+        segments : list of (QPointF, QPointF, str)
+            Each tuple is (start_2d, end_2d, member_name).
+        """
+        self._datums = list(segments)
+
+    def combined_snap(self, pos, exclude_positions=None,
+                      exclude_members=None):
         """Apply snap to *pos*.  Returns a SnapResult.
 
         Parameters
@@ -258,6 +274,8 @@ class SnapEngine:
             Proposed position in scene coordinates.
         exclude_positions : set of (float, float) or None
             Positions to skip (rounded to 0.1 mm precision).
+        exclude_members : set of str or None
+            Member Names whose datums should be skipped.
         """
         modifiers = QtWidgets.QApplication.keyboardModifiers()
         if modifiers & QtCore.Qt.ShiftModifier:
@@ -265,6 +283,8 @@ class SnapEngine:
 
         if exclude_positions is None:
             exclude_positions = set()
+        if exclude_members is None:
+            exclude_members = set()
 
         # 1. Endpoint snap — nearest existing endpoint within tolerance
         if self.endpoint_enabled:
@@ -333,14 +353,70 @@ class SnapEngine:
                     snap_type, alignment_ref,
                 )
 
-        # 3. Grid snap
+        # 3. Datum snap — grid-spaced ticks along other members' datums
+        #    Activation uses perpendicular distance to the datum line
+        #    (not total distance to the tick mark), so the snap engages
+        #    reliably regardless of datum orientation.
+        if self.datum_enabled and self.grid_spacing > 0:
+            gs = self.grid_spacing
+            best_perp = DATUM_SNAP_TOLERANCE
+            best_datum_pt = None
+            best_datum_dir = None  # (dx, dy) unit vector along datum
+
+            for p0, p1, name in self._datums:
+                if name in exclude_members:
+                    continue
+                # Direction vector and squared length
+                ddx = p1.x() - p0.x()
+                ddy = p1.y() - p0.y()
+                len_sq = ddx * ddx + ddy * ddy
+                if len_sq < 1.0:
+                    continue
+                length = math.sqrt(len_sq)
+
+                # Project pos onto the datum segment
+                t = ((pos.x() - p0.x()) * ddx
+                     + (pos.y() - p0.y()) * ddy) / len_sq
+                t = max(0.0, min(1.0, t))
+
+                # Perpendicular distance to segment
+                closest_x = p0.x() + t * ddx
+                closest_y = p0.y() + t * ddy
+                perp_dist = math.hypot(
+                    pos.x() - closest_x, pos.y() - closest_y
+                )
+                if perp_dist >= DATUM_SNAP_TOLERANCE:
+                    continue
+
+                # Snap to nearest grid tick along datum
+                dist_along = t * length
+                snapped_dist = round(dist_along / gs) * gs
+                snapped_dist = max(0.0, min(length, snapped_dist))
+                t_snap = snapped_dist / length
+
+                snap_x = p0.x() + t_snap * ddx
+                snap_y = p0.y() + t_snap * ddy
+
+                # Rank by perpendicular distance (closeness to the
+                # datum line), not total distance to the tick mark.
+                if perp_dist < best_perp:
+                    best_perp = perp_dist
+                    best_datum_pt = QtCore.QPointF(snap_x, snap_y)
+                    best_datum_dir = (ddx / length, ddy / length)
+
+            if best_datum_pt is not None:
+                return SnapResult(
+                    best_datum_pt, "datum", best_datum_dir
+                )
+
+        # 4. Grid snap
         if self.grid_enabled and self.grid_spacing > 0:
             gs = self.grid_spacing
             gx = round(pos.x() / gs) * gs
             gy = round(pos.y() / gs) * gs
             return SnapResult(QtCore.QPointF(gx, gy), "grid")
 
-        # 4. Free
+        # 5. Free
         return SnapResult(pos, "free")
 
 
@@ -353,11 +429,19 @@ class MemberItem(QtWidgets.QGraphicsRectItem):
 
     Positioned at the datum midpoint, rotated to match datum angle.
     Colored by role.  MemberID label at center.
+
+    Stores its 2D endpoint positions so that HandleItem can update
+    the rectangle live during drag without touching FreeCAD data.
     """
 
     def __init__(self, member_obj, projection):
         super().__init__()
         self._member = member_obj
+        self._start_2d = QtCore.QPointF()
+        self._end_2d = QtCore.QPointF()
+        self._visible_depth = 0.0
+        self._label = None
+        self._datum_line = None
         self._setup(projection)
 
     def _setup(self, projection):
@@ -367,13 +451,8 @@ class MemberItem(QtWidgets.QGraphicsRectItem):
         start_3d = FreeCAD.Vector(self._member.A_StartPoint)
         end_3d = FreeCAD.Vector(self._member.B_EndPoint)
 
-        start_2d = projection.project(start_3d)
-        end_2d = projection.project(end_3d)
-
-        dx = end_2d.x() - start_2d.x()
-        dy = end_2d.y() - start_2d.y()
-        length_2d = math.hypot(dx, dy)
-        angle_deg = math.degrees(math.atan2(dy, dx))
+        self._start_2d = projection.project(start_3d)
+        self._end_2d = projection.project(end_3d)
 
         # Determine visible depth (cross-section dim NOT along view normal)
         _, _x, y_axis, z_axis = TimberMember.get_member_local_cs(
@@ -385,24 +464,19 @@ class MemberItem(QtWidgets.QGraphicsRectItem):
         if abs(y_axis.dot(projection.w_axis)) > abs(
             z_axis.dot(projection.w_axis)
         ):
-            visible_depth = h
+            self._visible_depth = h
         else:
-            visible_depth = w
+            self._visible_depth = w
 
-        if length_2d < 1.0:
-            length_2d = 10.0
+        # Datum centerline — child item in local coordinates.
+        # Runs along y=0 from -length/2 to +length/2, so it
+        # follows the parent's position and rotation automatically.
+        self._datum_line = QtWidgets.QGraphicsLineItem(self)
+        self._datum_line.setPen(QtGui.QPen(
+            DATUM_LINE_COLOR, 1, QtCore.Qt.DashDotLine,
+        ))
 
-        # Rect centered at local origin
-        self.setRect(
-            -length_2d / 2, -visible_depth / 2,
-            length_2d, visible_depth,
-        )
-
-        # Position and rotate
-        mid_x = (start_2d.x() + end_2d.x()) / 2
-        mid_y = (start_2d.y() + end_2d.y()) / 2
-        self.setPos(mid_x, mid_y)
-        self.setRotation(angle_deg)
+        self._update_geometry()
 
         # Color by role
         role = str(getattr(self._member, "Role", ""))
@@ -415,17 +489,64 @@ class MemberItem(QtWidgets.QGraphicsRectItem):
         # MemberID label
         mid_str = getattr(self._member, "MemberID", "") or self._member.Label
         if mid_str:
-            label = QtWidgets.QGraphicsSimpleTextItem(mid_str, self)
-            label.setBrush(QtGui.QBrush(QtCore.Qt.white))
-            font = label.font()
+            self._label = QtWidgets.QGraphicsSimpleTextItem(mid_str, self)
+            self._label.setBrush(QtGui.QBrush(QtCore.Qt.white))
+            font = self._label.font()
             font.setPointSize(8)
             font.setBold(True)
-            label.setFont(font)
-            br = label.boundingRect()
-            label.setPos(-br.width() / 2, -br.height() / 2)
-            # Flip label for readability when member points leftward
-            if angle_deg > 90 or angle_deg < -90:
-                label.setRotation(180)
+            self._label.setFont(font)
+            self._update_label_position()
+
+    def _update_geometry(self):
+        """Recompute rect position, rotation, and size from stored 2D endpoints."""
+        dx = self._end_2d.x() - self._start_2d.x()
+        dy = self._end_2d.y() - self._start_2d.y()
+        length_2d = math.hypot(dx, dy)
+        angle_deg = math.degrees(math.atan2(dy, dx))
+
+        if length_2d < 1.0:
+            length_2d = 10.0
+
+        self.setRect(
+            -length_2d / 2, -self._visible_depth / 2,
+            length_2d, self._visible_depth,
+        )
+
+        mid_x = (self._start_2d.x() + self._end_2d.x()) / 2
+        mid_y = (self._start_2d.y() + self._end_2d.y()) / 2
+        self.setPos(mid_x, mid_y)
+        self.setRotation(angle_deg)
+
+        if self._datum_line is not None:
+            overshoot = HANDLE_RADIUS
+            self._datum_line.setLine(
+                -length_2d / 2 - overshoot, 0,
+                length_2d / 2 + overshoot, 0,
+            )
+
+        if self._label is not None:
+            self._update_label_position()
+
+    def _update_label_position(self):
+        """Center the label and flip for readability when member points left."""
+        br = self._label.boundingRect()
+        self._label.setPos(-br.width() / 2, -br.height() / 2)
+
+        dx = self._end_2d.x() - self._start_2d.x()
+        dy = self._end_2d.y() - self._start_2d.y()
+        angle_deg = math.degrees(math.atan2(dy, dx))
+        if angle_deg > 90 or angle_deg < -90:
+            self._label.setRotation(180)
+        else:
+            self._label.setRotation(0)
+
+    def update_endpoint_2d(self, endpoint, new_pos):
+        """Update one endpoint and recompute geometry.  Called during drag."""
+        if endpoint == "start":
+            self._start_2d = QtCore.QPointF(new_pos)
+        else:
+            self._end_2d = QtCore.QPointF(new_pos)
+        self._update_geometry()
 
 
 # ---------------------------------------------------------------------------
@@ -491,20 +612,23 @@ class HandleItem(QtWidgets.QGraphicsEllipseItem):
             if self._batch_moving:
                 return value
 
-            # Build exclusion set from this handle + cluster originals
+            # Build exclusion sets from this handle + cluster
             exclude = set()
             if self._original_pos is not None:
                 exclude.add((
                     round(self._original_pos.x(), 1),
                     round(self._original_pos.y(), 1),
                 ))
+            exclude_members = {self._member.Name}
             for other in self._cluster:
                 op = other._original_pos
                 if op is not None:
                     exclude.add((round(op.x(), 1), round(op.y(), 1)))
+                exclude_members.add(other._member.Name)
 
             snap = self._scene_ref.snap_engine.combined_snap(
                 value, exclude_positions=exclude,
+                exclude_members=exclude_members,
             )
             snapped_pos = snap.point
 
@@ -513,6 +637,21 @@ class HandleItem(QtWidgets.QGraphicsEllipseItem):
                 other._batch_moving = True
                 other.setPos(snapped_pos)
                 other._batch_moving = False
+
+            # Live update of member rectangles during drag
+            member_item = self._scene_ref._member_items.get(
+                self._member.Name
+            )
+            if member_item is not None:
+                member_item.update_endpoint_2d(self._endpoint, snapped_pos)
+            for other in self._cluster:
+                other_mi = self._scene_ref._member_items.get(
+                    other._member.Name
+                )
+                if other_mi is not None:
+                    other_mi.update_endpoint_2d(
+                        other._endpoint, snapped_pos
+                    )
 
             self._scene_ref.update_snap_feedback(snap)
             return snapped_pos
@@ -586,6 +725,7 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
         self.snap_engine = SnapEngine()
         self.projection = ProjectionPlane()
         self._snap_indicators = []
+        self._member_items = {}          # member.Name → MemberItem
         self._grid_enabled = True
         self._grid_spacing = GRID_DEFAULT_SPACING
         self.setSceneRect(-50000, -50000, 100000, 100000)
@@ -654,6 +794,7 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
     def _rebuild_impl(self):
         self.clear()
         self._snap_indicators = []
+        self._member_items = {}
 
         obj = self._designer._obj
         if obj is None:
@@ -685,6 +826,7 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
             try:
                 item = MemberItem(m, self.projection)
                 self.addItem(item)
+                self._member_items[m.Name] = item
             except Exception as e:
                 FreeCAD.Console.PrintWarning(
                     f"BentDesigner: skip member: {e}\n"
@@ -718,6 +860,11 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
         self.snap_engine.set_endpoints(
             [h._original_pos for h in handles if h._original_pos]
         )
+        self.snap_engine.set_datums([
+            (QtCore.QPointF(mi._start_2d),
+             QtCore.QPointF(mi._end_2d), name)
+            for name, mi in self._member_items.items()
+        ])
 
         # Grid lines (added last; z = -1 keeps them behind everything).
         self._add_grid_items()
@@ -782,6 +929,25 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
                 )
                 line.setZValue(20)
                 self._snap_indicators.append(line)
+
+        elif (snap_result.snap_type == "datum"
+              and snap_result.alignment_ref is not None):
+            # alignment_ref is (dx, dy) unit vector along datum;
+            # draw a perpendicular tick mark centered on the snap point.
+            datum_dx, datum_dy = snap_result.alignment_ref
+            perp_dx, perp_dy = -datum_dy, datum_dx  # 90° rotation
+            extent = HANDLE_RADIUS * 3
+            pt = snap_result.point
+            pen = QtGui.QPen(SNAP_DATUM_COLOR, 2, QtCore.Qt.DashLine)
+            line = self.addLine(
+                pt.x() - perp_dx * extent,
+                pt.y() - perp_dy * extent,
+                pt.x() + perp_dx * extent,
+                pt.y() + perp_dy * extent,
+                pen,
+            )
+            line.setZValue(20)
+            self._snap_indicators.append(line)
 
     def clear_snap_feedback(self):
         for item in self._snap_indicators:
