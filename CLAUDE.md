@@ -38,8 +38,7 @@ BentWizard/
 │   ├── loader.py                # Discovers and registers joint definitions
 │   └── builtin/                 # Built-in joint library (same interface as user joints)
 │       ├── __init__.py
-│       ├── through_mortise_tenon.py
-│       ├── blind_mortise_tenon.py
+│       ├── mortise_tenon.py
 │       ├── half_lap.py
 │       ├── housed_dovetail.py       # Class is DovetailDefinition, ID is "dovetail"
 │       ├── birdsmouth.py
@@ -211,7 +210,7 @@ Created automatically when two datum lines intersect or come within a tolerance 
 | IntersectionPoint | Vector | World-space origin of joint CS, derived |
 | IntersectionAngle | Float | Angle between datum lines in degrees |
 | IntersectionType | Enumeration | EndpointToMidpoint / MidpointToMidpoint / EndpointToEndpoint |
-| JointType | String | ID string from joint registry (e.g. "through_mortise_tenon") |
+| JointType | String | ID string from joint registry (e.g. "mortise_tenon") |
 | Parameters | String | JSON-serialized ParameterSet values |
 | AllowableMoment | Float | From reference data, computed |
 | AllowableShear | Float | From reference data, computed |
@@ -246,8 +245,8 @@ All joints — built-in and user-defined — implement the same interface. Built
 
 ```python
 class TimberJointDefinition:
-    NAME = ""           # "Through Mortise and Tenon"
-    ID = ""             # "through_mortise_tenon" — stable, unique
+    NAME = ""           # "Mortise & Tenon"
+    ID = ""             # "mortise_tenon" — stable, unique
     CATEGORY = ""       # "Mortise and Tenon"
     DESCRIPTION = ""
     ICON = ""           # path relative to definition file
@@ -537,6 +536,41 @@ Template:
 **Alternatives considered:** What else was on the table and why it was rejected.
 -->
 
+### 2026-03-09 — Half-channel shoulder trim matches housing boundary, not centerline
+**Decision:** The trim slab that cuts back the non-tail half of the secondary in half-channel mode now starts at the housing pocket's non-tail edge instead of at the secondary centerline. The housing boundary is computed by replicating the primary's `chan_half` and `hous_chan` logic: `housing_non_tail = chan_half/2 - hous_chan/2` in open_dir from approach face. Only material outside the housing footprint is trimmed.
+**Reason:** The housing pocket in the primary is wider than the half-tail (it accommodates the full secondary cross-section + clearance) and offset toward the open side. The original trim at the centerline over-trimmed — it removed material that should seat into the housing pocket on the non-tail side of center.
+**Alternatives considered:** (1) Building the shoulder cut from the approach face and keeping a housing-shaped block — more complex boolean chain for the same result. (2) Using the approach face for both halves (no housing on the secondary) — would leave the tail side unsupported in the housing.
+
+### 2026-03-09 — _cuts_changed() also compares Parameters JSON
+**Decision:** `TimberJoint._cuts_changed()` now stores and compares the Parameters JSON string alongside bounding boxes. Members are touched when either the BB or the parameters change.
+**Reason:** Bounding-box-only comparison missed interior geometry changes where the cut shape changed but its outer envelope didn't. Specifically, increasing `housing_depth` in half-channel dovetail mode changed the housing pocket depth and shoulder face position, but neither the primary nor secondary cut tool's bounding box changed (the socket extends deeper than the housing, dominating the BB). Adding the Parameters JSON as a comparison key catches all parameter-driven changes without complicating the BB logic.
+**Alternatives considered:** (1) Making the boolean overshoot scale with housing_depth to force BB changes — hacky, only fixes one specific case. (2) Shape hashing — potentially expensive and not readily available in OCC. (3) Always touching members — would reintroduce the infinite-recompute-loop problem that `_cuts_changed()` was created to solve.
+
+### 2026-03-09 — Socket depth max 50% in Through mode, 75% in Half mode
+**Decision:** `socket_depth.max_value` is dynamically set in `update_dependent_defaults()` based on `channel_mode`: Through = 50% of `primary_depth`, Half = 75%. Added `primary_depth` as a read-only reference parameter (= `through_extent`) so the max can be recomputed after deserialization.
+**Reason:** In Through mode, the socket passes through the full primary width, so exceeding 50% compromises the remaining material on both sides. In Half mode, the untouched half preserves structural integrity, allowing a deeper socket.
+**Alternatives considered:** A single fixed max (75%) for both modes — rejected, Through mode at 75% leaves only 25% of the primary's depth on the back side, which is structurally inadequate.
+
+### 2026-03-09 — Dovetail half-channel tail and flare clamping
+**Decision:** Two fixes to the dovetail joint: (1) Half-channel mode now reduces the tail (secondary tenon) to half-width and offsets it to match the half-channel socket. `build_secondary_profile()` computes `tail_extent_w = sec_extent_w / 2.0` and offsets `tail_center` by `sec_extent_w / 4.0` in the open direction. Both the tenon and the keep zone use the offset center and reduced extent. (2) Added `sec_extent_h` as a read-only reference parameter storing the secondary member's extent along primary grain. `update_dependent_defaults()` now dynamically clamps `dovetail_height.max_value` and `dovetail_angle.max_value` so that `flare_height` (the wide end of the tail) never exceeds `sec_extent_h`. The formula: `max_dh = sec_ext_h - 2 * effective_depth * tan(angle)` and `max_angle = atan((sec_ext_h - dh) / (2 * effective_depth))`. Current values are clamped if they exceed the new maxima. Flare is recomputed after clamping.
+**Reason:** (1) The half-channel socket correctly cut only half the primary, but the tenon remained full-width, leaving half the tail protruding outside the socket. (2) Large `dovetail_height` or `dovetail_angle` values could produce a flare wider than the secondary member, creating empty gaps at the corners of the tenon. Clamping the UI controls prevents the user from reaching these invalid configurations.
+**Alternatives considered:** (1) For the flare limit: validation-only (warning/error) without clamping — rejected, the user specifically requested that the controls stop at the limit. (2) Storing `sec_extent_h` as a custom attribute on ParameterSet — rejected, wouldn't survive JSON round-trip in the deserialization pipeline.
+
+### 2026-03-08 — Dovetail joint rewrite: simplified parameters and working housing
+**Decision:** Complete rewrite of `housed_dovetail.py`. New parameter set: `socket_depth`, `dovetail_angle` (14° default), `dovetail_height` (half secondary extent along primary grain), `housing_depth`, `clearance`, `channel_mode`, `flip_channel`, and `flare_height` (read-only derived). Removed `tail_width`, `tail_base_width`, `tail_end_width`. Dovetail is always full secondary member width. Added `_dovetail_axes()` helper (same pattern as M&T's `_mortise_axes()`). Housing pocket implemented as a rectangular cut from approach face to `housing_depth`, fused with the dovetail socket. Shoulder face offset by `housing_depth` into primary (M&T pattern). `flare_height = dovetail_height + 2 * (socket_depth - housing_depth) * tan(angle)`.
+**Reason:** The previous implementation had multiple interrelated bugs: (1) `housing_depth` parameter existed but was never used in geometry building. (2) `tail_width` changes updated the secondary profile but not the primary socket — the `_cuts_changed()` bounding box comparison didn't detect interior-only changes because the shoulder cut's BB was always the full cross-section. (3) `dovetail_angle`, `tail_base_width`, and `tail_end_width` were over-determined — given any two plus socket depth, the third is fixed. (4) Axes were inconsistent, mixing `sec_y`/`sec_z` with `pri_x`/`taper_dir`.
+**Alternatives considered:** (1) Keeping `tail_width` as a parameter — rejected, it was the source of the boolean propagation bug, and in traditional timber framing the dovetail is always full width of the secondary member. (2) Making `flare_height` editable instead of `dovetail_height` — rejected, the craftsman thinks in terms of the narrow end (neck) height, the flare follows from the angle. (3) Fixing `_cuts_changed()` to detect interior changes — rejected, the bounding box approach is fundamentally limited for this case, and removing the problematic parameter is cleaner than complicating the recompute pipeline.
+
+### 2026-03-08 — Mortise orientation derived from primary grain direction
+**Decision:** The mortise/tenon rectangle orientation is now computed from the primary member's grain axis (length direction), projected into the cross-section plane perpendicular to the approach direction. A new `_mortise_axes()` helper returns `(width_dir, height_dir)` where height always runs along the primary grain. The secondary member's cross-section extents are projected onto these axes for tenon dimension defaults and limits.
+**Reason:** The previous implementation used the secondary member's local axes (`sec_y`, `sec_z`) to orient the mortise. This produced correct results for orthogonal connections (beam into post) by coincidence, but for angled connections (braces, rafters) the mortise could cut across the primary's grain rather than along it. In real timber framing, the mortise height always runs with the primary grain to preserve structural integrity.
+**Alternatives considered:** (1) Keeping secondary-based orientation — rejected, physically incorrect for angled connections and would cut across the primary grain. (2) Using a fixed world-axis alignment — rejected, wouldn't work for non-vertical/non-horizontal primary members.
+
+### 2026-03-08 — Renamed through_mortise_tenon to mortise_tenon
+**Decision:** Class `ThroughMortiseTenonDefinition` renamed to `MortiseTenonDefinition`, ID `"through_mortise_tenon"` changed to `"mortise_tenon"`, file renamed from `through_mortise_tenon.py` to `mortise_tenon.py`.
+**Reason:** The joint already handled blind and housed mortise configurations via the `tenon_length` and `housing_depth` parameters. The "Through" prefix was misleading since the joint wasn't limited to through mortise configurations.
+**Alternatives considered:** Keeping the old name for backwards compatibility — rejected, no saved documents rely on the ID yet (Phase 3 still in progress).
+
 ### 2026-03-08 — Bent Designer grid as scene items, not drawBackground
 **Decision:** Grid lines are added as `QGraphicsLineItem` objects during `rebuild()` instead of being painted in `QGraphicsScene.drawBackground()`.
 **Reason:** `drawBackground()` receives the exposed rect in scene coordinates. With a large scene rect (-50000 to 50000) needed for panning, the exposed rect on initial display was enormous, triggering the "too many lines" safety check and skipping the grid entirely. Even after `fitInView` zoomed in, the grid did not reliably appear. Scene items are a guaranteed rendering path.
@@ -558,7 +592,7 @@ Template:
 **Alternatives considered:** (1) Larger cones — still obscured by timbers from many angles. (2) Two fins only — user requested a third for better visibility. (3) Third fin along primary datum — rejected, secondary datum provides better visual tracking at non-orthogonal angles.
 
 ### 2026-03-08 — M&T validation: mortise width ≤ 75%, housing depth ≤ 50%
-**Decision:** Added tiered validation to through_mortise_tenon: warning when mortise/housing exceeds 35% of the associated primary dimension, error when mortise width exceeds 75% of the primary's perpendicular extent, error when housing depth exceeds 50% of the primary's through-dimension. `tenon_width` max_value is clamped to enforce the 75% limit.
+**Decision:** Added tiered validation to mortise_tenon: warning when mortise/housing exceeds 35% of the associated primary dimension, error when mortise width exceeds 75% of the primary's perpendicular extent, error when housing depth exceeds 50% of the primary's through-dimension. `tenon_width` max_value is clamped to enforce the 75% limit.
 **Reason:** Without validation, a user could enlarge the mortise until it severed the primary timber entirely. The 35% warning threshold catches cases where the mortise is getting large relative to the primary. The 75%/50% hard limits prevent structurally dangerous cuts. Dot-product projection is used to compute the primary's extent in the mortise direction, handling arbitrary intersection angles correctly.
 **Alternatives considered:** (1) Simple percentage of primary width/height — doesn't work for angled intersections where the mortise direction doesn't align with the primary's local axes. (2) No validation, rely on structural checks later — rejected, geometry destruction is more immediate than structural failure and should be caught at the joint level.
 
@@ -626,12 +660,14 @@ Features user-tested and passing:
 
 **Other changes this session:**
 1. **Placeholder joint fins** — replaced 6-cone star with three perpendicular rectangular fins in `joints/builtin/placeholder.py`
-2. **M&T mortise/housing validation** — tiered warnings (35%) and hard limits (75% width, 50% depth) in `joints/builtin/through_mortise_tenon.py`
+2. **M&T mortise/housing validation** — tiered warnings (35%) and hard limits (75% width, 50% depth) in `joints/builtin/mortise_tenon.py`
+3. **M&T rename and orientation fix** — renamed `through_mortise_tenon` to `mortise_tenon`, added `_mortise_axes()` helper so mortise height always aligns with primary grain
+4. **Dovetail joint rewrite** — simplified parameter set, removed over-determined params (`tail_width`, `tail_base_width`, `tail_end_width`), added working housing, added `_dovetail_axes()` helper, derived `flare_height` as read-only
 
 ### Known issues and edge cases to watch
 
 - **TimberJoint visualization offset**: Previously reported — the TimberJoint's visual shape (tenon + pegs) is offset from the actual cut geometry. Cuts work correctly but the visualization sticks out of the primary. Not yet fixed.
-- **Half channel mode geometry**: The dovetail tail offset uses `tail_w / 4.0` — a heuristic that may not align perfectly if tail width doesn't match the half-slot width.
+- **Dovetail rewrite needs testing**: The dovetail joint was rewritten with new parameters and geometry. Needs verification in FreeCAD with a beam-into-post connection.
 - **Bent Designer grid extent**: Grid lines are scene items extending 10 grid spacings beyond the items bounding rect. If the user pans far beyond the members, they'll be past the grid. Acceptable for typical bent editing.
 - **Bent Designer external sync**: The ViewProvider forwards `updateData` to the designer, but only for "Members" and "Shape" property changes. If members are edited directly (not through the designer), a manual close/reopen may be needed for full sync.
 

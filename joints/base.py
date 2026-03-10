@@ -320,7 +320,7 @@ class TimberJointDefinition:
     NAME : str
         Human-readable name (e.g. ``"Through Mortise and Tenon"``).
     ID : str
-        Stable unique identifier (e.g. ``"through_mortise_tenon"``).
+        Stable unique identifier (e.g. ``"mortise_tenon"``).
     CATEGORY : str
         Grouping category (e.g. ``"Mortise and Tenon"``).
     DESCRIPTION : str

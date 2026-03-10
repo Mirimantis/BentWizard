@@ -65,7 +65,7 @@ User tested against 28-point checklist — all items pass including undo for Mem
 - `TimberJoint` FeaturePython object with intersection detection, cut tools, pegs, validation
 - `AddJoint` command (select 2 members -> detect intersection -> create joint)
 - Joint definition infrastructure: `base.py`, `intersection.py`, `loader.py`
-- Three joint definitions: `through_mortise_tenon`, `half_lap`, `dovetail`
+- Three joint definitions: `mortise_tenon`, `half_lap`, `dovetail`
 - **JointPanel UI** — parameter editing with grouped scroll, type switching, validation display
 - **Shared `param_widgets.py`** — reusable ParameterRow for all future panels
 
@@ -79,7 +79,7 @@ User tested against 28-point checklist — all items pass including undo for Mem
 - **Remaining Phase 3** — Frame object, Bent Designer 2D panel
 - **Structural analysis** — `structural/` is empty
 - **Remaining objects** — Frame, FrameOpening, WallOpening, GroundPlane, BearingPoint, ChimneyObject, StructuralGraph, BuildingParameters, TimberBrace
-- **Remaining joints** — blind_mortise_tenon, birdsmouth, scarf_bladed
+- **Remaining joints** — birdsmouth, scarf_bladed
 - **Remaining commands** — AddBrace, AddGroundPlane, AddWallOpening, AddChimney
 
 ## Known Observations
@@ -93,7 +93,7 @@ Per CLAUDE.md Phase 3:
 - **Bent Designer** (`ui/BentDesigner.py`) — 2D elevation editor for bent profiles
 
 Or backfill:
-- Remaining joint definitions (blind mortise & tenon, birdsmouth)
+- Remaining joint definitions (birdsmouth, scarf_bladed)
 - MemberID update on Role change (outside Bent context)
 
 ## Key File Notes
@@ -104,7 +104,7 @@ Or backfill:
 | `objects/Bent.py` | `_BBOX_PADDING = 200.0` — padding on each side of bounding box wireframe. |
 | `joints/builtin/housed_dovetail.py` | File still named `housed_dovetail.py` but class is `DovetailDefinition` with `ID = "dovetail"`. |
 | `objects/TimberMember.py` | Properties are `A_StartPoint` and `B_EndPoint` (not `StartPoint`/`EndPoint`). |
-| `objects/TimberJoint.py` | Fallback joint ID list: `["through_mortise_tenon", "half_lap", "dovetail"]`. |
+| `objects/TimberJoint.py` | Fallback joint ID list: `["mortise_tenon", "half_lap", "dovetail"]`. |
 | `ui/param_widgets.py` | Shared widget factory — use for all future parameter panels. |
 
 ## Architectural Reminders
