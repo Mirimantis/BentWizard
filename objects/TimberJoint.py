@@ -79,7 +79,7 @@ class TimberJoint:
         if not obj.JointType:
             ids = get_ids()
             if not ids:
-                ids = ["placeholder", "through_mortise_tenon", "half_lap", "dovetail"]
+                ids = ["placeholder", "mortise_tenon", "half_lap", "dovetail"]
             obj.JointType = ids
             obj.JointType = ids[0]
         _ensure("App::PropertyString", "Parameters", "Joint",
@@ -150,14 +150,24 @@ class TimberJoint:
                 round(bb.XMax, 2), round(bb.YMax, 2), round(bb.ZMax, 2))
 
     def _cuts_changed(self, obj):
-        """Return True if cut tools differ from last recompute."""
+        """Return True if cut tools or parameters differ from last recompute.
+
+        Bounding-box comparison catches most geometry changes.  The
+        parameters comparison handles cases where the internal cut
+        geometry changes without affecting the bounding box (e.g.
+        housing depth changes in a half-channel dovetail).
+        """
         pri_key = self._bb_key(obj.PrimaryCutTool)
         sec_key = self._bb_key(obj.SecondaryCutTool)
+        params_key = obj.Parameters
         old_pri = getattr(self, '_last_pri_bb', None)
         old_sec = getattr(self, '_last_sec_bb', None)
-        changed = (pri_key != old_pri) or (sec_key != old_sec)
+        old_params = getattr(self, '_last_params', None)
+        changed = ((pri_key != old_pri) or (sec_key != old_sec)
+                   or (params_key != old_params))
         self._last_pri_bb = pri_key
         self._last_sec_bb = sec_key
+        self._last_params = params_key
         return changed
 
     def _recompute_joint(self, obj):
