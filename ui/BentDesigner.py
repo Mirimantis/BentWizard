@@ -46,7 +46,7 @@ SNAP_DATUM_COLOR = QtGui.QColor(255, 160, 0, 150)
 HANDLE_RADIUS = 8.0
 SNAP_TOLERANCE = 20.0
 DATUM_SNAP_TOLERANCE = 30.0   # wider catch radius for datum-aligned snap
-DATUM_LINE_COLOR = QtGui.QColor(255, 255, 255, 200)
+DATUM_LINE_COLOR = HANDLE_COLOR
 GRID_DEFAULT_SPACING = 50.0
 CLUSTER_TOLERANCE = 1.0   # mm — endpoints within this form a cluster
 
@@ -472,9 +472,10 @@ class MemberItem(QtWidgets.QGraphicsRectItem):
         # Runs along y=0 from -length/2 to +length/2, so it
         # follows the parent's position and rotation automatically.
         self._datum_line = QtWidgets.QGraphicsLineItem(self)
-        self._datum_line.setPen(QtGui.QPen(
-            DATUM_LINE_COLOR, 1, QtCore.Qt.DashDotLine,
-        ))
+        datum_pen = QtGui.QPen(DATUM_LINE_COLOR, 2, QtCore.Qt.SolidLine)
+        datum_pen.setCosmetic(True)
+        self._datum_line.setPen(datum_pen)
+        self._datum_line.setAcceptedMouseButtons(QtCore.Qt.NoButton)
 
         self._update_geometry()
 
@@ -486,13 +487,19 @@ class MemberItem(QtWidgets.QGraphicsRectItem):
         self.setOpacity(0.8)
         self.setZValue(1)
 
-        # MemberID label
+        # MemberID label — ignores view transforms so it stays a fixed
+        # screen size regardless of zoom.  Hidden when zoomed out so far
+        # that the label would be wider than the timber.
         mid_str = getattr(self._member, "MemberID", "") or self._member.Label
         if mid_str:
             self._label = QtWidgets.QGraphicsSimpleTextItem(mid_str, self)
+            self._label.setFlag(
+                QtWidgets.QGraphicsItem.ItemIgnoresTransformations
+            )
+            self._label.setAcceptedMouseButtons(QtCore.Qt.NoButton)
             self._label.setBrush(QtGui.QBrush(QtCore.Qt.white))
             font = self._label.font()
-            font.setPointSize(8)
+            font.setPointSize(11)
             font.setBold(True)
             self._label.setFont(font)
             self._update_label_position()
@@ -528,17 +535,49 @@ class MemberItem(QtWidgets.QGraphicsRectItem):
             self._update_label_position()
 
     def _update_label_position(self):
-        """Center the label and flip for readability when member points left."""
-        br = self._label.boundingRect()
-        self._label.setPos(-br.width() / 2, -br.height() / 2)
+        """Align label with the datum line, offset above it.
 
+        The label uses ItemIgnoresTransformations, so it stays at a
+        fixed screen size.  A composite QTransform handles both
+        rotation (matching the datum angle, normalized to [-90, 90])
+        and offset (centered along datum, gap pixels above it).
+
+        Rotation and offset must be in a single transform so the
+        offset direction rotates with the text — using separate
+        setRotation + setTransform causes the offset to drift at
+        non-zero angles because Qt applies them in different
+        coordinate spaces.
+        """
         dx = self._end_2d.x() - self._start_2d.x()
         dy = self._end_2d.y() - self._start_2d.y()
         angle_deg = math.degrees(math.atan2(dy, dx))
-        if angle_deg > 90 or angle_deg < -90:
-            self._label.setRotation(180)
-        else:
-            self._label.setRotation(0)
+
+        # Normalize to [-90, 90] for readability
+        if angle_deg > 90:
+            angle_deg -= 180
+        elif angle_deg < -90:
+            angle_deg += 180
+
+        angle_rad = math.radians(angle_deg)
+        cos_a = math.cos(angle_rad)
+        sin_a = math.sin(angle_rad)
+
+        br = self._label.boundingRect()
+        w = br.width()
+        h = br.height()
+        gap = 3  # screen pixels between text bottom and datum line
+
+        # Screen-space offset: center along datum, (h + gap) above it.
+        # Projects the local text offset onto the datum-aligned axes.
+        tx = -w / 2 * cos_a + (h + gap) * sin_a
+        ty = -w / 2 * sin_a - (h + gap) * cos_a
+
+        self._label.setPos(0, 0)
+        self._label.setRotation(0)
+        t = QtGui.QTransform()
+        t.translate(tx, ty)
+        t.rotate(angle_deg)
+        self._label.setTransform(t)
 
     def update_endpoint_2d(self, endpoint, new_pos):
         """Update one endpoint and recompute geometry.  Called during drag."""
@@ -547,6 +586,18 @@ class MemberItem(QtWidgets.QGraphicsRectItem):
         else:
             self._end_2d = QtCore.QPointF(new_pos)
         self._update_geometry()
+
+    # -- click to select in FreeCAD tree ------------------------------------
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            try:
+                import FreeCADGui
+                FreeCADGui.Selection.clearSelection()
+                FreeCADGui.Selection.addSelection(self._member)
+            except Exception:
+                pass
+        super().mousePressEvent(event)
 
 
 # ---------------------------------------------------------------------------
@@ -709,6 +760,201 @@ class HandleItem(QtWidgets.QGraphicsEllipseItem):
 
 
 # ---------------------------------------------------------------------------
+# DatumTranslateHandle
+# ---------------------------------------------------------------------------
+
+class DatumTranslateHandle(QtWidgets.QGraphicsPathItem):
+    """Diamond handle at datum midpoint for translating an entire member.
+
+    Dragging moves both endpoints by the same delta, preserving member
+    length and angle.  Clustered endpoint handles follow the move.
+    """
+
+    def __init__(self, member_obj, start_handle, end_handle, designer_scene):
+        super().__init__()
+        self._member = member_obj
+        self._start_handle = start_handle
+        self._end_handle = end_handle
+        self._scene_ref = designer_scene
+        self._original_midpoint = None
+        self._original_start = None
+        self._original_end = None
+        self._drag_start_pos = None
+
+        # Diamond shape
+        r = HANDLE_RADIUS * 0.9
+        path = QtGui.QPainterPath()
+        path.moveTo(0, -r)
+        path.lineTo(r, 0)
+        path.lineTo(0, r)
+        path.lineTo(-r, 0)
+        path.closeSubpath()
+        self.setPath(path)
+
+        self.setBrush(QtGui.QBrush(HANDLE_COLOR))
+        self.setPen(QtGui.QPen(QtCore.Qt.NoPen))
+        self.setFlag(QtWidgets.QGraphicsItem.ItemIsMovable)
+        self.setFlag(QtWidgets.QGraphicsItem.ItemSendsGeometryChanges)
+        self.setAcceptHoverEvents(True)
+        self.setCursor(QtCore.Qt.SizeAllCursor)
+        self.setZValue(9)
+
+        self.setToolTip(f"{member_obj.Label} (move)")
+
+    # -- hover feedback -----------------------------------------------------
+
+    def hoverEnterEvent(self, event):
+        self.setBrush(QtGui.QBrush(HANDLE_HOVER_COLOR))
+        super().hoverEnterEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self.setBrush(QtGui.QBrush(HANDLE_COLOR))
+        super().hoverLeaveEvent(event)
+
+    # -- drag handling ------------------------------------------------------
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            self._drag_start_pos = QtCore.QPointF(self.pos())
+            self._original_midpoint = QtCore.QPointF(self.pos())
+            self._original_start = QtCore.QPointF(
+                self._start_handle.pos()
+            )
+            self._original_end = QtCore.QPointF(self._end_handle.pos())
+        super().mousePressEvent(event)
+
+    def itemChange(self, change, value):
+        if change != QtWidgets.QGraphicsItem.ItemPositionChange:
+            return super().itemChange(change, value)
+        if self._original_midpoint is None:
+            return value
+
+        # Build exclusion sets from both endpoints + their clusters
+        exclude = set()
+        exclude_members = {self._member.Name}
+        for pos in (self._original_start, self._original_end):
+            exclude.add((round(pos.x(), 1), round(pos.y(), 1)))
+        for h in self._start_handle._cluster:
+            if h._original_pos is not None:
+                exclude.add((
+                    round(h._original_pos.x(), 1),
+                    round(h._original_pos.y(), 1),
+                ))
+            exclude_members.add(h._member.Name)
+        for h in self._end_handle._cluster:
+            if h._original_pos is not None:
+                exclude.add((
+                    round(h._original_pos.x(), 1),
+                    round(h._original_pos.y(), 1),
+                ))
+            exclude_members.add(h._member.Name)
+
+        snap = self._scene_ref.snap_engine.combined_snap(
+            value, exclude_positions=exclude,
+            exclude_members=exclude_members,
+        )
+        snapped_pos = snap.point
+
+        # Delta from original midpoint
+        delta_x = snapped_pos.x() - self._original_midpoint.x()
+        delta_y = snapped_pos.y() - self._original_midpoint.y()
+
+        new_start = QtCore.QPointF(
+            self._original_start.x() + delta_x,
+            self._original_start.y() + delta_y,
+        )
+        new_end = QtCore.QPointF(
+            self._original_end.x() + delta_x,
+            self._original_end.y() + delta_y,
+        )
+
+        # Move endpoint handles (batch flag skips their snap logic)
+        self._start_handle._batch_moving = True
+        self._start_handle.setPos(new_start)
+        self._start_handle._batch_moving = False
+
+        self._end_handle._batch_moving = True
+        self._end_handle.setPos(new_end)
+        self._end_handle._batch_moving = False
+
+        # Move cluster handles
+        for other in self._start_handle._cluster:
+            other._batch_moving = True
+            other.setPos(new_start)
+            other._batch_moving = False
+        for other in self._end_handle._cluster:
+            other._batch_moving = True
+            other.setPos(new_end)
+            other._batch_moving = False
+
+        # Live-update member rectangles
+        mi = self._scene_ref._member_items.get(self._member.Name)
+        if mi is not None:
+            mi.update_endpoint_2d("start", new_start)
+            mi.update_endpoint_2d("end", new_end)
+        for other in self._start_handle._cluster:
+            other_mi = self._scene_ref._member_items.get(
+                other._member.Name
+            )
+            if other_mi is not None:
+                other_mi.update_endpoint_2d(other._endpoint, new_start)
+        for other in self._end_handle._cluster:
+            other_mi = self._scene_ref._member_items.get(
+                other._member.Name
+            )
+            if other_mi is not None:
+                other_mi.update_endpoint_2d(other._endpoint, new_end)
+
+        self._scene_ref.update_snap_feedback(snap)
+        return snapped_pos
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        if (event.button() == QtCore.Qt.LeftButton
+                and self._drag_start_pos is not None):
+            dx = self.pos().x() - self._drag_start_pos.x()
+            dy = self.pos().y() - self._drag_start_pos.y()
+            if math.hypot(dx, dy) > 0.5:
+                self._commit_move()
+            self._drag_start_pos = None
+            self._original_midpoint = None
+            self._scene_ref.clear_snap_feedback()
+
+    def _commit_move(self):
+        """Write both endpoint positions to FreeCAD objects."""
+        import FreeCAD
+
+        projection = self._scene_ref.projection
+        new_start_3d = projection.unproject(self._start_handle.pos())
+        new_end_3d = projection.unproject(self._end_handle.pos())
+
+        doc = self._member.Document
+        doc.openTransaction("Move Timber Member")
+        try:
+            self._member.A_StartPoint = new_start_3d
+            self._member.B_EndPoint = new_end_3d
+
+            for other in self._start_handle._cluster:
+                HandleItem._write_endpoint(
+                    other._member, other._endpoint, new_start_3d,
+                )
+            for other in self._end_handle._cluster:
+                HandleItem._write_endpoint(
+                    other._member, other._endpoint, new_end_3d,
+                )
+
+            doc.recompute()
+        except Exception as e:
+            FreeCAD.Console.PrintError(
+                f"BentDesigner move failed: {e}\n"
+            )
+        finally:
+            doc.commitTransaction()
+
+        self._scene_ref.rebuild()
+
+
+# ---------------------------------------------------------------------------
 # BentDesignerScene
 # ---------------------------------------------------------------------------
 
@@ -790,6 +1036,10 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
             self._rebuild_impl()
         finally:
             self._designer._rebuilding = False
+        # Update label visibility for the current zoom level.
+        view = getattr(self._designer, '_view', None)
+        if view is not None:
+            view._update_label_visibility()
 
     def _rebuild_impl(self):
         self.clear()
@@ -832,10 +1082,12 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
                     f"BentDesigner: skip member: {e}\n"
                 )
 
-        # Create HandleItems
+        # Create HandleItems — track per-member for datum translate handles
         handles = []
+        member_handles = {}  # member.Name → {"start": h, "end": h}
         for m in members:
             try:
+                mh = {}
                 for ep in ("start", "end"):
                     h = HandleItem(m, ep, self)
                     if ep == "start":
@@ -850,11 +1102,30 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
                     h._original_pos = QtCore.QPointF(pos2d)
                     self.addItem(h)
                     handles.append(h)
+                    mh[ep] = h
+                member_handles[m.Name] = mh
             except Exception:
                 pass
 
         # Build endpoint clusters
         self._build_clusters(handles)
+
+        # Create datum translate handles (diamond at midpoint)
+        for m in members:
+            try:
+                mh = member_handles.get(m.Name)
+                if mh and "start" in mh and "end" in mh:
+                    dth = DatumTranslateHandle(
+                        m, mh["start"], mh["end"], self,
+                    )
+                    mid = QtCore.QPointF(
+                        (mh["start"].pos().x() + mh["end"].pos().x()) / 2,
+                        (mh["start"].pos().y() + mh["end"].pos().y()) / 2,
+                    )
+                    dth.setPos(mid)
+                    self.addItem(dth)
+            except Exception:
+                pass
 
         # Update snap engine
         self.snap_engine.set_endpoints(
@@ -994,6 +1265,7 @@ class BentDesignerView(QtWidgets.QGraphicsView):
             return
 
         self.scale(factor, factor)
+        self._update_label_visibility()
 
     # -- pan (middle mouse) -------------------------------------------------
 
@@ -1045,6 +1317,29 @@ class BentDesignerView(QtWidgets.QGraphicsView):
         margin = max(rect.width(), rect.height()) * 0.1
         rect.adjust(-margin, -margin, margin, margin)
         self.fitInView(rect, QtCore.Qt.KeepAspectRatio)
+        self._update_label_visibility()
+
+    # -- label visibility ---------------------------------------------------
+
+    def _update_label_visibility(self):
+        """Hide labels when the member is smaller than the label on screen.
+
+        Labels use ItemIgnoresTransformations, so they stay at a fixed
+        screen size.  When zoomed far out, the member's screen-space
+        length may be smaller than the label — hide the label in that case.
+        """
+        scene = self.scene()
+        if not hasattr(scene, '_member_items'):
+            return
+        scale = abs(self.transform().m11())
+        for _name, mi in scene._member_items.items():
+            if mi._label is None:
+                continue
+            dx = mi._end_2d.x() - mi._start_2d.x()
+            dy = mi._end_2d.y() - mi._start_2d.y()
+            length_px = math.hypot(dx, dy) * scale
+            label_w = mi._label.boundingRect().width()
+            mi._label.setVisible(length_px > label_w * 1.2)
 
 
 # ---------------------------------------------------------------------------
