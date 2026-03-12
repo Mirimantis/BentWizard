@@ -63,6 +63,8 @@ SNAP_TOLERANCE = 20.0
 DATUM_SNAP_TOLERANCE = 30.0   # wider catch radius for datum-aligned snap
 DATUM_LINE_COLOR = HANDLE_COLOR
 GRID_DEFAULT_SPACING = 50.0
+GRID_MIN_EXTENT = 10000.0  # minimum half-extent for grid (20000 mm total)
+GROUND_LINE_COLOR = QtGui.QColor(80, 180, 80)  # muted green for Z=0 datum
 CLUSTER_TOLERANCE = 1.0   # mm — endpoints within this form a cluster
 
 ZOOM_MIN = 0.05
@@ -106,12 +108,12 @@ def _grid_colors_for_bg(bg):
     """
     lum = 0.299 * bg.red() + 0.587 * bg.green() + 0.114 * bg.blue()
     if lum < 128:
-        # Dark background → white grid lines
-        return (QtGui.QColor(255, 255, 255, 80),
-                QtGui.QColor(255, 255, 255, 130))
-    # Light background → black grid lines
-    return (QtGui.QColor(0, 0, 0, 90),
-            QtGui.QColor(0, 0, 0, 140))
+        # Dark background → light gray grid lines
+        return (QtGui.QColor(255, 255, 255, 30),
+                QtGui.QColor(255, 255, 255, 60))
+    # Light background → light gray grid lines
+    return (QtGui.QColor(0, 0, 0, 30),
+            QtGui.QColor(0, 0, 0, 60))
 
 
 # ---------------------------------------------------------------------------
@@ -135,9 +137,15 @@ class ProjectionPlane:
         self.u_axis = None   # horizontal in 2D
         self.v_axis = None   # vertical in 2D
         self.w_axis = None   # normal (into screen)
+        self._fitted = False  # True after the first successful fit
 
     def fit(self, points_3d):
         """Compute the projection plane from a list of 3D points.
+
+        On the first call the origin is set to the centroid and the
+        axes are chosen from the point spread.  Subsequent calls only
+        update the axes (if needed) — the origin is kept fixed so the
+        grid and members don't shift when timbers move.
 
         Parameters
         ----------
@@ -147,18 +155,24 @@ class ProjectionPlane:
         import FreeCAD
 
         if not points_3d:
-            self._set_default_xz()
+            if not self._fitted:
+                self._set_default_xz()
             return
 
         n = len(points_3d)
-        cx = sum(p.x for p in points_3d) / n
-        cy = sum(p.y for p in points_3d) / n
-        cz = sum(p.z for p in points_3d) / n
-        self.origin = FreeCAD.Vector(cx, cy, cz)
+
+        # Lock the origin on the first fit so the grid stays fixed.
+        if not self._fitted:
+            cx = sum(p.x for p in points_3d) / n
+            cy = sum(p.y for p in points_3d) / n
+            cz = sum(p.z for p in points_3d) / n
+            self.origin = FreeCAD.Vector(cx, cy, cz)
 
         if n < 2:
-            self._set_default_xz()
-            self.origin = FreeCAD.Vector(cx, cy, cz)
+            if not self._fitted:
+                self._set_default_xz()
+                # Keep the centroid origin computed above.
+            self._fitted = True
             return
 
         xs = [p.x for p in points_3d]
@@ -177,6 +191,8 @@ class ProjectionPlane:
             self._set_axes_yz(FreeCAD)
         else:
             self._set_axes_xy(FreeCAD)
+
+        self._fitted = True
 
     # -- axis presets -------------------------------------------------------
 
@@ -262,6 +278,7 @@ class SnapEngine:
         self.endpoint_enabled = True
         self.alignment_enabled = True
         self.datum_enabled = True
+        self.grid_y_offset = 0.0  # Y offset to align grid with ground line
         self._endpoints = []  # list of QPointF
         self._datums = []     # list of (QPointF, QPointF, member_name)
 
@@ -424,11 +441,11 @@ class SnapEngine:
                     best_datum_pt, "datum", best_datum_dir
                 )
 
-        # 4. Grid snap
+        # 4. Grid snap — Y is offset to align with the ground line
         if self.grid_enabled and self.grid_spacing > 0:
             gs = self.grid_spacing
             gx = round(pos.x() / gs) * gs
-            gy = round(pos.y() / gs) * gs
+            gy = round((pos.y() - self.grid_y_offset) / gs) * gs + self.grid_y_offset
             return SnapResult(QtCore.QPointF(gx, gy), "grid")
 
         # 5. Free
@@ -1288,48 +1305,94 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
 
     # -- grid (scene items) -------------------------------------------------
 
-    def _add_grid_items(self):
-        """Add grid lines as QGraphicsLineItems around the members area.
+    def _ground_y(self):
+        """Scene Y coordinate of the Z=0 ground plane."""
+        proj = self.projection
+        if proj.origin is None or proj.v_axis is None:
+            return 0.0
+        import FreeCAD
+        return proj.project(FreeCAD.Vector(0, 0, 0)).y()
 
-        Lines are placed at z = -1 so they sit behind members and
-        handles.  The grid extends 10 grid spacings beyond the items
-        bounding rect, which is sufficient for the typical bent editing
-        workflow.
+    def _add_grid_items(self):
+        """Add grid lines aligned to the ground plane.
+
+        Horizontal lines are offset so that a major grid line falls
+        exactly on the Z=0 ground line.  Vertical lines are anchored
+        at X=0 in scene space.  Lines sit at z = -1 behind members
+        and handles.
         """
         if not self._grid_enabled or self._grid_spacing <= 0:
             return
 
-        items_rect = self.itemsBoundingRect()
-        if items_rect.isEmpty():
-            return
-
         gs = self._grid_spacing
         margin = gs * 10
-        rect = items_rect.adjusted(-margin, -margin, margin, margin)
+
+        # Compute extent from origin, covering items + margin on all sides.
+        # Always at least GRID_MIN_EXTENT so the grid is visible on empty bents.
+        items_rect = self.itemsBoundingRect()
+        if items_rect.isEmpty():
+            extent = GRID_MIN_EXTENT
+        else:
+            extent = max(
+                abs(items_rect.left()),
+                abs(items_rect.right()),
+                abs(items_rect.top()),
+                abs(items_rect.bottom()),
+            ) + margin
+            extent = max(extent, GRID_MIN_EXTENT)
 
         minor_pen = QtGui.QPen(self._grid_minor_color, 0)   # cosmetic
         major_pen = QtGui.QPen(self._grid_major_color, 0)
 
-        left = math.floor(rect.left() / gs) * gs
-        top = math.floor(rect.top() / gs) * gs
+        # Offset horizontal grid so a major line lands on the ground (Z=0).
+        # Round ground_y to the nearest major interval (5 * gs).
+        ground_y = self._ground_y()
+        major_interval = 5 * gs
+        h_offset = ground_y - round(ground_y / major_interval) * major_interval
 
-        # Vertical lines
-        x = left
-        while x <= rect.right():
-            idx = round(x / gs)
-            pen = major_pen if idx % 5 == 0 else minor_pen
-            line = self.addLine(x, rect.top(), x, rect.bottom(), pen)
-            line.setZValue(-1)
-            x += gs
+        # Keep snap engine in sync with the visible grid.
+        self.snap_engine.grid_y_offset = h_offset
 
-        # Horizontal lines
-        y = top
-        while y <= rect.bottom():
-            idx = round(y / gs)
-            pen = major_pen if idx % 5 == 0 else minor_pen
-            line = self.addLine(rect.left(), y, rect.right(), y, pen)
-            line.setZValue(-1)
-            y += gs
+        n = int(math.ceil(extent / gs))
+
+        for i in range(-n, n + 1):
+            pen = major_pen if i % 5 == 0 else minor_pen
+            coord = i * gs
+            # Vertical line — anchored at x = 0
+            vline = self.addLine(coord, -extent + h_offset, coord, extent + h_offset, pen)
+            vline.setZValue(-1)
+            # Horizontal line — offset to align with ground
+            hy = coord + h_offset
+            hline = self.addLine(-extent, hy, extent, hy, pen)
+            hline.setZValue(-1)
+
+    def _add_ground_line(self):
+        """Draw a prominent horizontal line at Z=0 (the default ground plane).
+
+        Sits at z=0 — above grid lines (z=-1) but below members (z=1).
+        Always collinear with a major grid line due to grid alignment.
+        """
+        ground_y = self._ground_y()
+
+        # Extent — reuse the grid extent calculation.
+        items_rect = self.itemsBoundingRect()
+        gs = self._grid_spacing if self._grid_spacing > 0 else GRID_DEFAULT_SPACING
+        margin = gs * 10
+        if items_rect.isEmpty():
+            extent = GRID_MIN_EXTENT
+        else:
+            extent = max(
+                abs(items_rect.left()),
+                abs(items_rect.right()),
+                abs(items_rect.top()),
+                abs(items_rect.bottom()),
+            ) + margin
+            extent = max(extent, GRID_MIN_EXTENT)
+
+        pen = QtGui.QPen(GROUND_LINE_COLOR, 2)
+        pen.setCosmetic(True)
+        line = self.addLine(-extent, ground_y, extent, ground_y, pen)
+        line.setZValue(0)
 
     # -- rebuild from FreeCAD state -----------------------------------------
 
@@ -1362,6 +1425,8 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
 
         if not members:
             self.projection.fit([])
+            self._add_grid_items()
+            self._add_ground_line()
             return
 
         # Collect 3D endpoints and fit projection plane
@@ -1444,6 +1509,9 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
 
         # Grid lines (added last; z = -1 keeps them behind everything).
         self._add_grid_items()
+
+        # Z=0 ground reference line (z=0, above grid, below members).
+        self._add_ground_line()
 
         # Create JointItems from the Bent's Joints list.
         try:
@@ -1631,14 +1699,24 @@ class BentDesignerView(QtWidgets.QGraphicsView):
         super().keyPressEvent(event)
 
     def fit_all(self):
-        """Fit all items in view with 10 % padding."""
-        rect = self.scene().itemsBoundingRect()
+        """Fit members in view with 10 % padding (ignores grid/ground)."""
+        rect = self._members_bounding_rect()
         if rect.isEmpty():
             return
         margin = max(rect.width(), rect.height()) * 0.1
         rect.adjust(-margin, -margin, margin, margin)
         self.fitInView(rect, QtCore.Qt.KeepAspectRatio)
         self._update_label_visibility()
+
+    def _members_bounding_rect(self):
+        """Bounding rect of member items only, excluding grid/ground lines."""
+        scene = self.scene()
+        if not hasattr(scene, '_member_items') or not scene._member_items:
+            return QtCore.QRectF()
+        rect = QtCore.QRectF()
+        for mi in scene._member_items.values():
+            rect = rect.united(mi.sceneBoundingRect())
+        return rect
 
     # -- label visibility ---------------------------------------------------
 
