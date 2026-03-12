@@ -43,6 +43,21 @@ SNAP_ENDPOINT_COLOR = QtGui.QColor(0, 200, 0)
 SNAP_ALIGN_COLOR = QtGui.QColor(0, 100, 255, 120)
 SNAP_DATUM_COLOR = QtGui.QColor(255, 160, 0, 150)
 
+# Joint visualization
+JOINT_VALID_COLOR = QtGui.QColor(102, 128, 153)     # blue-gray (matches 3D)
+JOINT_PLACEHOLDER_COLOR = QtGui.QColor(255, 165, 0) # orange
+JOINT_BROKEN_COLOR = QtGui.QColor(230, 26, 26)      # red
+
+JOINT_ABBREV = {
+    "mortise_tenon": "MT",
+    "dovetail": "DT",
+    "half_lap": "HL",
+    "birdsmouth": "BM",
+    "scarf_bladed": "SC",
+    "placeholder": "?",
+}
+JOINT_MARKER_SIZE = 25.0  # half-size of the diamond/circle marker
+
 HANDLE_RADIUS = 8.0
 SNAP_TOLERANCE = 20.0
 DATUM_SNAP_TOLERANCE = 30.0   # wider catch radius for datum-aligned snap
@@ -601,6 +616,285 @@ class MemberItem(QtWidgets.QGraphicsRectItem):
 
 
 # ---------------------------------------------------------------------------
+# JointItem
+# ---------------------------------------------------------------------------
+
+class JointItem(QtWidgets.QGraphicsItem):
+    """2D marker for a TimberJoint in the Bent Designer.
+
+    Positioned at the projected intersection point.  Visual style depends
+    on joint state: assigned (blue-gray diamond with type abbreviation),
+    placeholder (orange circle with "?"), or broken (red X marks at
+    last-valid positions on each member's datum with connecting line).
+
+    Rendered behind endpoint handles (z=4 vs handles at default z)
+    so the marker is visible around the edges but doesn't block handle
+    interaction.
+    """
+
+    def __init__(self, joint_obj, projection, member_items):
+        super().__init__()
+        self._joint = joint_obj
+        self._projection = projection
+        self._member_items = member_items  # dict: member.Name → MemberItem
+        self._primary_name = ""
+        self._secondary_name = ""
+        self._is_broken = False
+        self._joint_type = "placeholder"
+        self._abbrev = "?"
+
+        # 2D positions for broken-joint line drawing
+        self._pri_point_2d = QtCore.QPointF()
+        self._sec_point_2d = QtCore.QPointF()
+
+        self._read_state()
+        self._setup()
+
+    def _read_state(self):
+        """Read joint state from the FreeCAD object."""
+        import FreeCAD
+        try:
+            self._is_broken = getattr(self._joint, "IsBroken", False)
+            self._joint_type = getattr(self._joint, "JointType", "placeholder")
+            self._abbrev = JOINT_ABBREV.get(self._joint_type, "?")
+
+            pri = self._joint.PrimaryMember
+            sec = self._joint.SecondaryMember
+            self._primary_name = pri.Name if pri else ""
+            self._secondary_name = sec.Name if sec else ""
+
+            if self._is_broken:
+                lv_pri = FreeCAD.Vector(self._joint.LastValidPrimaryPoint)
+                lv_sec = FreeCAD.Vector(self._joint.LastValidSecondaryPoint)
+                self._pri_point_2d = self._projection.project(lv_pri)
+                self._sec_point_2d = self._projection.project(lv_sec)
+                # Position at midpoint of the two last-valid points.
+                mid = FreeCAD.Vector(self._joint.LastValidPoint)
+                pos2d = self._projection.project(mid)
+            else:
+                ip = FreeCAD.Vector(self._joint.IntersectionPoint)
+                pos2d = self._projection.project(ip)
+                self._pri_point_2d = QtCore.QPointF(pos2d)
+                self._sec_point_2d = QtCore.QPointF(pos2d)
+        except Exception:
+            pos2d = QtCore.QPointF(0, 0)
+
+        self.setPos(pos2d)
+
+    def _setup(self):
+        # Non-broken joints use ItemIgnoresTransformations for fixed
+        # screen-size markers.  Broken joints paint in scene coordinates
+        # so the connecting line between distant points scales correctly.
+        if not self._is_broken:
+            self.setFlag(
+                QtWidgets.QGraphicsItem.ItemIgnoresTransformations, True
+            )
+        self.setAcceptHoverEvents(True)
+        # Z=4: behind endpoint handles (z=10) but above member rects (z=0)
+        self.setZValue(4)
+        self._update_tooltip()
+
+    def _update_tooltip(self):
+        try:
+            jtype = self._joint_type or "placeholder"
+            name_map = {
+                "mortise_tenon": "Mortise & Tenon",
+                "dovetail": "Dovetail",
+                "half_lap": "Half Lap",
+                "birdsmouth": "Birdsmouth",
+                "scarf_bladed": "Scarf",
+                "placeholder": "Unassigned",
+            }
+            type_name = name_map.get(jtype, jtype)
+            pri_label = ""
+            sec_label = ""
+            try:
+                if self._joint.PrimaryMember:
+                    pri_label = self._joint.PrimaryMember.Label
+                if self._joint.SecondaryMember:
+                    sec_label = self._joint.SecondaryMember.Label
+            except Exception:
+                pass
+            angle = getattr(self._joint, "IntersectionAngle", 0.0)
+            tip = f"{type_name}\n{pri_label} + {sec_label}\n{angle:.1f}\u00b0"
+            if self._is_broken:
+                tip += "\nBROKEN"
+            self.setToolTip(tip)
+        except Exception:
+            pass
+
+    # -- geometry and painting ------------------------------------------------
+
+    def boundingRect(self):
+        if self._is_broken:
+            # Broken state paints in scene coordinates — compute bounds
+            # from the two last-valid points relative to this item's pos.
+            pri_local = self._pri_point_2d - self.pos()
+            sec_local = self._sec_point_2d - self.pos()
+            xs = [pri_local.x(), sec_local.x(), 0]
+            ys = [pri_local.y(), sec_local.y(), 0]
+            margin = 10.0
+            return QtCore.QRectF(
+                min(xs) - margin, min(ys) - margin,
+                max(xs) - min(xs) + 2 * margin,
+                max(ys) - min(ys) + 2 * margin,
+            )
+        s = JOINT_MARKER_SIZE + 2
+        # Extra space above for the text label
+        return QtCore.QRectF(-s, -s * 2.4, 2 * s, s * 3.4)
+
+    def paint(self, painter, option, widget=None):
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+
+        if self._is_broken:
+            self._paint_broken(painter)
+        elif self._joint_type == "placeholder":
+            self._paint_placeholder(painter)
+        else:
+            self._paint_assigned(painter)
+
+    def _paint_assigned(self, painter):
+        """Blue-gray diamond with type abbreviation above."""
+        s = JOINT_MARKER_SIZE
+        diamond = QtGui.QPolygonF([
+            QtCore.QPointF(0, -s),
+            QtCore.QPointF(s, 0),
+            QtCore.QPointF(0, s),
+            QtCore.QPointF(-s, 0),
+        ])
+        painter.setBrush(QtGui.QBrush(JOINT_VALID_COLOR))
+        painter.setPen(QtGui.QPen(JOINT_VALID_COLOR.darker(140), 1.5))
+        painter.drawPolygon(diamond)
+
+        # Type abbreviation — drawn above the diamond
+        painter.setPen(QtGui.QPen(QtCore.Qt.white))
+        font = painter.font()
+        font.setPointSize(9)
+        font.setBold(True)
+        painter.setFont(font)
+        text_rect = QtCore.QRectF(-s, -s * 2.2, 2 * s, s)
+        painter.drawText(text_rect, QtCore.Qt.AlignCenter, self._abbrev)
+
+    def _paint_placeholder(self, painter):
+        """Orange circle with '?' above."""
+        s = JOINT_MARKER_SIZE
+        painter.setBrush(QtGui.QBrush(JOINT_PLACEHOLDER_COLOR))
+        painter.setPen(QtGui.QPen(JOINT_PLACEHOLDER_COLOR.darker(140), 1.5))
+        painter.drawEllipse(QtCore.QRectF(-s, -s, 2 * s, 2 * s))
+
+        # Question mark — drawn above the circle
+        painter.setPen(QtGui.QPen(QtCore.Qt.white))
+        font = painter.font()
+        font.setPointSize(10)
+        font.setBold(True)
+        painter.setFont(font)
+        text_rect = QtCore.QRectF(-s, -s * 2.2, 2 * s, s)
+        painter.drawText(text_rect, QtCore.Qt.AlignCenter, "?")
+
+    def _paint_broken(self, painter):
+        """Red X marks at last-valid positions with dashed connecting line.
+
+        Painted in scene coordinates (ItemIgnoresTransformations is NOT set
+        for broken joints).  Cosmetic pens keep line width constant.
+        """
+        # Convert scene positions to local coordinates (relative to item pos)
+        pri_local = self._pri_point_2d - self.pos()
+        sec_local = self._sec_point_2d - self.pos()
+
+        pen = QtGui.QPen(JOINT_BROKEN_COLOR, 2, QtCore.Qt.DashLine)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+
+        # Dashed line connecting the two last-valid points
+        painter.drawLine(pri_local, sec_local)
+
+        # X marks at each last-valid point — size in scene units
+        xs = 8.0
+        xpen = QtGui.QPen(JOINT_BROKEN_COLOR, 2.5)
+        xpen.setCosmetic(True)
+        painter.setPen(xpen)
+        for pt in (pri_local, sec_local):
+            painter.drawLine(
+                QtCore.QPointF(pt.x() - xs, pt.y() - xs),
+                QtCore.QPointF(pt.x() + xs, pt.y() + xs),
+            )
+            painter.drawLine(
+                QtCore.QPointF(pt.x() - xs, pt.y() + xs),
+                QtCore.QPointF(pt.x() + xs, pt.y() - xs),
+            )
+
+    # -- interaction ----------------------------------------------------------
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            try:
+                import FreeCADGui
+                FreeCADGui.Selection.clearSelection()
+                FreeCADGui.Selection.addSelection(self._joint)
+            except Exception:
+                pass
+        super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            try:
+                import FreeCADGui
+                vobj = self._joint.ViewObject
+                if vobj and hasattr(vobj.Proxy, 'doubleClicked'):
+                    vobj.Proxy.doubleClicked(vobj)
+            except Exception:
+                pass
+        super().mouseDoubleClickEvent(event)
+
+    # -- live drag update -----------------------------------------------------
+
+    def update_position_from_members(self, member_items):
+        """Recompute 2D position from current member endpoint positions.
+
+        Called during handle drag for cosmetic live preview.
+        Uses 2D line intersection of the two member datums.  During drag,
+        the marker keeps showing its joint type and moves along the primary
+        datum at the point where the secondary datum line intersects.
+        """
+        pri_mi = member_items.get(self._primary_name)
+        sec_mi = member_items.get(self._secondary_name)
+        if pri_mi is None or sec_mi is None:
+            return
+
+        # 2D line intersection of the two datums
+        pt = _intersect_2d_segments(
+            pri_mi._start_2d, pri_mi._end_2d,
+            sec_mi._start_2d, sec_mi._end_2d,
+        )
+        if pt is not None:
+            self.setPos(pt)
+            self._pri_point_2d = QtCore.QPointF(pt)
+            self._sec_point_2d = QtCore.QPointF(pt)
+
+
+def _intersect_2d_segments(p1, p2, p3, p4):
+    """Compute the intersection of two 2D line segments (or their extensions).
+
+    Returns a QPointF or None if lines are parallel.
+    Uses the parametric form and allows intersection outside segment bounds
+    (since member datums extend beyond their endpoints in the frame).
+    """
+    x1, y1 = p1.x(), p1.y()
+    x2, y2 = p2.x(), p2.y()
+    x3, y3 = p3.x(), p3.y()
+    x4, y4 = p4.x(), p4.y()
+
+    denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if abs(denom) < 1e-10:
+        return None  # parallel
+
+    t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
+    ix = x1 + t * (x2 - x1)
+    iy = y1 + t * (y2 - y1)
+    return QtCore.QPointF(ix, iy)
+
+
+# ---------------------------------------------------------------------------
 # HandleItem
 # ---------------------------------------------------------------------------
 
@@ -703,6 +997,16 @@ class HandleItem(QtWidgets.QGraphicsEllipseItem):
                     other_mi.update_endpoint_2d(
                         other._endpoint, snapped_pos
                     )
+
+            # Live update of joint markers during drag
+            affected = {self._member.Name}
+            for other in self._cluster:
+                affected.add(other._member.Name)
+            joint_items = getattr(self._scene_ref, '_joint_items', {})
+            mi_dict = self._scene_ref._member_items
+            for _jname, ji in joint_items.items():
+                if ji._primary_name in affected or ji._secondary_name in affected:
+                    ji.update_position_from_members(mi_dict)
 
             self._scene_ref.update_snap_feedback(snap)
             return snapped_pos
@@ -1045,6 +1349,7 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
         self.clear()
         self._snap_indicators = []
         self._member_items = {}
+        self._joint_items = {}
 
         obj = self._designer._obj
         if obj is None:
@@ -1139,6 +1444,22 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
 
         # Grid lines (added last; z = -1 keeps them behind everything).
         self._add_grid_items()
+
+        # Create JointItems from the Bent's Joints list.
+        try:
+            joints = obj.Joints or []
+        except Exception:
+            joints = []
+        for j in joints:
+            try:
+                ji = JointItem(j, self.projection, self._member_items)
+                self.addItem(ji)
+                self._joint_items[j.Name] = ji
+            except Exception as e:
+                import FreeCAD
+                FreeCAD.Console.PrintWarning(
+                    f"BentDesigner: skip joint: {e}\n"
+                )
 
     def _build_clusters(self, handles):
         """Group handles at the same 2D position into clusters."""
@@ -1560,7 +1881,7 @@ class BentDesignerWidget(QtWidgets.QWidget):
         """Called by the ViewProvider when the bent recomputes externally."""
         if self._rebuilding:
             return
-        if prop in ("Members", "Shape"):
+        if prop in ("Members", "Shape", "Joints"):
             QtCore.QTimer.singleShot(0, self._deferred_rebuild)
 
     def _deferred_rebuild(self):

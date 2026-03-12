@@ -536,6 +536,31 @@ Template:
 **Alternatives considered:** What else was on the table and why it was rejected.
 -->
 
+### 2026-03-11 — Member-joint awareness: utility function over back-reference property
+**Decision:** TimberMember does NOT get back-reference properties (JointLinks, JointFractions) pointing to its joints. The existing document-scan pattern (`_collect_joint_cuts()`, `_collect_extensions()`) is kept. The Bent Designer reads from the Bent's existing `Joints` property list to correlate joints with members.
+**Reason:** Adding member → joint Link properties would create a circular dependency in FreeCAD's recompute graph (member → joint → member), violating the "parametric graph flows downstream only" rule. Writing computed `JointFractions` in `execute()` would violate "no property modification during execute" or require a separate sync mechanism. The document scan handles 20-50 objects in microseconds — negligible vs. OCC boolean operations. `SupportFractions` is reserved for structural load path (Phase 4), not joint positions.
+**Alternatives considered:** (1) `App::PropertyLinkList` back-reference — circular dependency risk. (2) Computed JointFractions property — sync complexity. (3) Cached utility module — considered but YAGNI; the scan is fast enough as-is and the Bent's Joints list suffices for the Bent Designer.
+
+### 2026-03-11 — IsBroken as explicit property, not ValidationResults parse
+**Decision:** Added `IsBroken` (read-only Bool), `LastValidPoint`, `LastValidPrimaryPoint`, `LastValidSecondaryPoint` (hidden Vectors) to TimberJoint. `IsBroken` is set to True in both broken paths (OUT_OF_TOLERANCE, NO_INTERSECTION) and False in the valid path. The LastValid* properties store the last-good intersection geometry and are NOT overwritten when the joint breaks.
+**Reason:** Consumers (ViewProvider, Bent Designer, future StructuralGraph) need a fast boolean check, not JSON parsing of `ValidationResults`. The per-member last-valid points (`LastValidPrimaryPoint`, `LastValidSecondaryPoint`) enable showing broken-joint markers at the correct position on each member's datum. Safe to write in execute() under the same rationale as IntersectionAngle — display-only, no downstream links.
+**Alternatives considered:** Parsing ValidationResults JSON for "OUT_OF_TOLERANCE" code — too slow for paint callbacks. A single LastValidPoint midpoint — insufficient, need per-member positions to show where each timber was connected.
+
+### 2026-03-11 — Unknown joint type: error + Placeholder fallback, not backward-compat aliases
+**Decision:** When `_recompute_joint()` encounters an unknown `JointType` ID (definition lookup returns None), it prints an error message and resets `obj.JointType = "placeholder"`. The previous alias system (`_ALIASES` dict in `joints/loader.py` mapping old IDs like `"through_mortise_tenon"` → `"mortise_tenon"`) was removed entirely. The migration block that checked `definition.ID != joint_type_id` was also removed.
+**Reason:** The user explicitly rejected silent backward compatibility. Unknown joint types should be surfaced as errors so the user knows something is wrong and can reassign the joint. The Placeholder state is the correct recovery — it shows the joint exists but needs assignment, matching the same state as a newly created joint.
+**Alternatives considered:** (1) `_ALIASES` dict for backward-compat migration — rejected by user, masks errors. (2) Return with invisible 1x1x1mm box — rejected, leaves joint in limbo with no cuts and no visual feedback.
+
+### 2026-03-11 — Broken joint 3D visual: octahedra at timber faces + gap cylinder
+**Decision:** When `IsBroken` is True, the joint's Shape becomes a compound of: (1) octahedron markers at where the gap cylinder exits each timber's face, (2) a single thin gap cylinder between current closest points. ViewProvider colors these red via `_update_color()`. The octahedron offset from datum center is scaled by `(1 - alignment)` where `alignment = abs(gap_dir · member_axis)` — so endpoint exits (gap along member axis) get near-zero offset while midpoint exits (gap perpendicular to axis) get the full `max(W,H)/2` offset.
+**Reason:** The datum point is at the member center for midpoint intersections but at the endpoint for endpoint intersections. A fixed `half_dim` offset along gap direction works for midpoints (side face exit) but overshoots for endpoints (end face exit), placing the marker in the gap. The alignment-scaled offset handles both cases correctly.
+**Alternatives considered:** (1) Fixed spheres at datum center — hidden inside timber. (2) Three cylinders (two displacement + gap) — confusing. (3) Uniform half_dim offset for all members — secondary marker floated in gap for endpoint connections.
+
+### 2026-03-11 — JointItem in Bent Designer: 250% markers behind handles, scene coords for broken
+**Decision:** `JointItem` uses `ItemIgnoresTransformations` for non-broken joints (fixed screen-size diamond/circle markers at z=4) but NOT for broken joints. Broken joints paint in scene coordinates with cosmetic pens. Marker size is 25px half-size (250% of original 10px). Z-ordering: members z=1, joints z=4, translate handles z=9, endpoint handles z=10 — so joint markers are visible around handle edges but don't block handle interaction.
+**Reason:** Non-broken joint markers should stay a fixed pixel size. But broken-joint visualization connects two potentially distant scene positions — screen-space coordinates would clip or mis-position the connecting line. The 250% size increase ensures markers are clearly visible and distinguishable from endpoint handles. Z=4 (behind handles at z=10) allows clicking the marker edges while keeping handles interactive.
+**Alternatives considered:** (1) z=5 with original 10px size — markers hidden behind endpoint handles. (2) All scene coords — markers would shrink to invisible at wide zoom. (3) Separate scene-level line items for broken visualization — more items to manage.
+
 ### 2026-03-10 — Datum snap uses perpendicular distance, not total distance to tick
 **Decision:** The datum-aligned grid snap ranks candidates by perpendicular distance to the datum line, not the total Euclidean distance from cursor to the grid-ticked snap point. A separate `DATUM_SNAP_TOLERANCE = 30.0` (50% wider than `SNAP_TOLERANCE`) is used for activation.
 **Reason:** The original implementation compared the diagonal distance from cursor to the snapped grid tick on the datum. When the cursor was between two ticks, the along-datum offset dominated the total distance, easily exceeding the 20-unit tolerance — especially on vertical datums where the entire offset was in one axis. Using perpendicular distance (closeness to the datum *line*) correctly captures user intent: if you're near the line, you want to snap along it.
@@ -653,24 +678,34 @@ Template:
 
 ---
 
-## Handoff Notes (2026-03-10)
+## Handoff Notes (2026-03-11)
 
 ### What was just completed
 
-**Bent Designer drag improvements** (`ui/BentDesigner.py` only):
+**Broken joint visualization and Bent Designer joint display** (`objects/TimberJoint.py`, `ui/BentDesigner.py`):
 
-1. **Live drag preview** — MemberItem stores `_start_2d`, `_end_2d`, `_visible_depth` and exposes `update_endpoint_2d()`. HandleItem calls this from `itemChange()` so colored rectangles follow endpoint drags in real time. No FreeCAD calls during drag; full rebuild on release. Scene maintains `_member_items` dict for O(1) member lookup.
+1. **Broken joint properties** — Added `IsBroken` (read-only Bool), `LastValidPoint`, `LastValidPrimaryPoint`, `LastValidSecondaryPoint` (hidden Vectors) to TimberJoint. Set in `_recompute_joint()`: valid path sets `IsBroken=False` and stores current intersection geometry; broken paths set `IsBroken=True` without overwriting last-valid data.
 
-2. **Datum-aligned grid snap** — new snap priority: endpoint > alignment > **datum** > grid > free. SnapEngine stores datum segments via `set_datums()`. During drag, projects cursor onto each datum line, checks perpendicular distance against `DATUM_SNAP_TOLERANCE` (30), snaps to nearest grid tick along the datum. Ranks candidates by perpendicular distance (not total distance to tick) for reliable activation on all datum orientations. Dragged member's own datums excluded via `exclude_members` parameter. Visual feedback: orange perpendicular tick mark at snap point.
+2. **3D broken joint visual** — `_build_broken_visual()` replaces the invisible 1x1x1mm fallback box with: octahedron markers at timber faces where the gap cylinder exits each member, plus a single gap cylinder between current closest points. The octahedron offset from datum center is scaled by `(1 - alignment)` where alignment = `abs(gap_dir · member_axis)`, handling both endpoint exits (near-zero offset) and midpoint exits (full half_dim offset). ViewProvider dynamically colors broken joints red (0.9, 0.1, 0.1) via `_update_color()` in `updateData()`. Per-member displacement cylinders removed (user found them confusing).
 
-3. **Visible datum centerlines** — `QGraphicsLineItem` child of each MemberItem, drawn in local coordinates at y=0 with `HANDLE_RADIUS` overshoot beyond endpoints. White dash-dot pattern. Follows parent transform automatically during drag.
+3. **Bent Designer JointItem** — New `JointItem(QGraphicsItem)` at z=4 (behind handles at z=10, above members at z=1). Three visual states: assigned (blue-gray diamond 25px half-size with 2-char type abbreviation), placeholder (orange circle 25px with "?"), broken (red X marks at last-valid positions with dashed connecting line). Click-to-select and double-click-to-edit. Non-broken uses `ItemIgnoresTransformations` for fixed screen size; broken uses scene coordinates for correct connecting line scaling.
+
+4. **Joint items in scene rebuild** — `_rebuild_impl()` iterates `bent_obj.Joints` and creates `JointItem` instances stored in `_joint_items` dict. Scene rebuilds when "Joints" property changes (added to `notify_property_changed` filter).
+
+5. **Live joint drag update** — `HandleItem.itemChange()` updates connected JointItems via `update_position_from_members()` during endpoint drag. Uses 2D line intersection (`_intersect_2d_segments()`) of the two member datums — no FreeCAD calls. During drag, marker keeps showing joint type and tracks along primary datum; on release (rebuild), broken joints show red X at last-valid position.
+
+6. **Architecture decision** — No back-reference properties on TimberMember. Current document-scan pattern kept. Bent Designer reads from `Bent.Joints` list.
+
+7. **Unknown joint type handling** — Removed `_ALIASES` backward-compatibility dict and migration block from `joints/loader.py` and `TimberJoint._recompute_joint()`. Unknown joint types now print an error and reset to `"placeholder"`. No silent migration of renamed IDs.
 
 ### Known issues and edge cases to watch
 
 - **TimberJoint visualization offset**: Previously reported — the TimberJoint's visual shape (tenon + pegs) is offset from the actual cut geometry. Cuts work correctly but the visualization sticks out of the primary. Not yet fixed.
 - **Dovetail rewrite needs testing**: The dovetail joint was rewritten with new parameters and geometry. Needs verification in FreeCAD with a beam-into-post connection.
+- **Broken joint first-time case**: If a joint is created already out of tolerance (shouldn't happen in normal flow), `LastValidPrimaryPoint`/`LastValidSecondaryPoint` default to (0,0,0). The `_build_broken_visual` detects this and falls back to current closest points.
+- **Broken JointItem bounding rect**: The broken state computes boundingRect from the two last-valid points. If members move very far apart, the bounding rect may become very large. This is acceptable as it's a transient error state.
+- **JointItem during drag**: Live drag updates use 2D line intersection of member datums, which extends lines infinitely. For parallel members (e.g., two posts), the intersection returns None and the joint marker stays at its last position until rebuild.
 - **Bent Designer grid extent**: Grid lines are scene items extending 10 grid spacings beyond the items bounding rect. If the user pans far beyond the members, they'll be past the grid. Acceptable for typical bent editing.
-- **Bent Designer external sync**: The ViewProvider forwards `updateData` to the designer, but only for "Members" and "Shape" property changes. If members are edited directly (not through the designer), a manual close/reopen may be needed for full sync.
 - **Datum snap and visible depth during drag**: `_visible_depth` is kept fixed during drag (it depends on the member's local CS relative to the projection plane). If a drag rotates a member enough to swap which cross-section axis is visible, the depth won't update until release. Acceptable for typical bent editing.
 
 ### Current phase status
@@ -680,9 +715,11 @@ Template:
 **Phase 3 (Bent and Frame Composition)** — in progress. Completed:
 - Bent container object with add/remove members, drag-drop, MemberID auto-assignment
 - BentPanel UI with member list
-- Bent Designer 2D editor
+- Bent Designer 2D editor with joint visualization
 - Bent templates
-- **Bent Designer drag improvements** (this session)
+- Bent Designer drag improvements (live preview, datum snap, datum lines)
+- **Broken joint visualization** (this session)
+- **Bent Designer joint display and interaction** (this session)
 
 Remaining Phase 3 work:
 - Frame object with bent instancing and longitudinal members
@@ -691,8 +728,7 @@ Remaining Phase 3 work:
 
 For the next session, the most important files to understand are:
 - `CLAUDE.md` — architecture, conventions, decisions log (this file)
-- `ui/BentDesigner.py` — the 2D editor with live drag, datum snap, datum lines
-- `ui/bent_templates.py` — template dataclasses and built-in templates
+- `ui/BentDesigner.py` — the 2D editor with JointItem, live drag, datum snap
+- `objects/TimberJoint.py` — IsBroken, LastValid* properties, broken visual, ViewProvider color
 - `objects/Bent.py` — Bent container, ViewProvider, member/joint management
-- `objects/TimberJoint.py` — the recompute pipeline and `_cuts_changed()` mechanism
 - `objects/TimberMember.py` — `_build_solid()` with extensions, `_collect_joint_cuts()` boolean pipeline

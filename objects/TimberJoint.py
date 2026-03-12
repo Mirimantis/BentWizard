@@ -99,6 +99,17 @@ class TimberJoint:
         _ensure("App::PropertyString", "ValidationResults", "Validation",
                 "JSON list of validation messages")
 
+        # Broken-joint state
+        _ensure("App::PropertyBool", "IsBroken", "Joint",
+                "True when members are out of tolerance or invalid angle",
+                False)
+        _ensure("App::PropertyVector", "LastValidPoint", "Internal",
+                "Intersection midpoint from last valid recompute")
+        _ensure("App::PropertyVector", "LastValidPrimaryPoint", "Internal",
+                "Point on primary datum from last valid recompute")
+        _ensure("App::PropertyVector", "LastValidSecondaryPoint", "Internal",
+                "Point on secondary datum from last valid recompute")
+
         # Hidden cut tool shapes — used by TimberMember.execute() to apply
         # boolean subtractions.  Not visible in the property editor.
         _ensure("Part::PropertyPartShape", "PrimaryCutTool", "Internal",
@@ -116,6 +127,7 @@ class TimberJoint:
         # Make computed/internal properties read-only or hidden.
         obj.setEditorMode("IntersectionPoint", 1)   # read-only
         obj.setEditorMode("IntersectionAngle", 1)
+        obj.setEditorMode("IsBroken", 1)
         obj.setEditorMode("AllowableMoment", 1)
         obj.setEditorMode("AllowableShear", 1)
         obj.setEditorMode("RotationalStiffness", 1)
@@ -124,6 +136,9 @@ class TimberJoint:
         obj.setEditorMode("SecondaryCutTool", 2)
         obj.setEditorMode("SecondaryStartExtension", 2)
         obj.setEditorMode("SecondaryEndExtension", 2)
+        obj.setEditorMode("LastValidPoint", 2)
+        obj.setEditorMode("LastValidPrimaryPoint", 2)
+        obj.setEditorMode("LastValidSecondaryPoint", 2)
 
     # -- recompute ----------------------------------------------------------
 
@@ -198,7 +213,9 @@ class TimberJoint:
                 "TimberJoint: members no longer within intersection "
                 f"tolerance ({dist:.1f}mm > {INTERSECTION_TOLERANCE}mm)\n"
             )
-            obj.Shape = Part.makeBox(1, 1, 1)
+            obj.IsBroken = True
+            obj.Shape = self._build_broken_visual(obj, primary, secondary,
+                                                   pt1, pt2)
             obj.PrimaryCutTool = Part.Shape()
             obj.SecondaryCutTool = Part.Shape()
             obj.SecondaryStartExtension = 0.0
@@ -208,6 +225,9 @@ class TimberJoint:
                 "message": f"Members too far apart ({dist:.1f}mm)",
                 "code": "OUT_OF_TOLERANCE",
             }])
+            if self._cuts_changed(obj):
+                primary.touch()
+                secondary.touch()
             return
 
         fresh_point = (pt1 + pt2) * 0.5
@@ -217,7 +237,9 @@ class TimberJoint:
             FreeCAD.Console.PrintWarning(
                 "TimberJoint: members no longer form a valid intersection\n"
             )
-            obj.Shape = Part.makeBox(1, 1, 1)
+            obj.IsBroken = True
+            obj.Shape = self._build_broken_visual(obj, primary, secondary,
+                                                   pt1, pt2)
             obj.PrimaryCutTool = Part.Shape()
             obj.SecondaryCutTool = Part.Shape()
             obj.SecondaryStartExtension = 0.0
@@ -238,8 +260,12 @@ class TimberJoint:
         # targets properties that other objects link to (causing recompute
         # loops).  These are display-only read-only fields; no object has a
         # Link or Expression pointing to them.
+        obj.IsBroken = False
         obj.IntersectionPoint = joint_cs.origin
         obj.IntersectionAngle = joint_cs.angle
+        obj.LastValidPoint = fresh_point
+        obj.LastValidPrimaryPoint = pt1
+        obj.LastValidSecondaryPoint = pt2
 
         # 2. Look up joint definition.
         joint_type_id = obj.JointType
@@ -250,9 +276,20 @@ class TimberJoint:
             obj.JointType = joint_type_id
 
         definition = get_definition(joint_type_id)
+
         if definition is None:
-            FreeCAD.Console.PrintWarning(
-                f"TimberJoint: unknown joint type '{joint_type_id}'\n"
+            FreeCAD.Console.PrintError(
+                f"TimberJoint: unknown joint type '{joint_type_id}' — "
+                f"resetting to placeholder\n"
+            )
+            obj.JointType = "placeholder"
+            joint_type_id = "placeholder"
+            definition = get_definition(joint_type_id)
+
+        if definition is None:
+            # Placeholder definition itself is missing — nothing we can do.
+            FreeCAD.Console.PrintError(
+                "TimberJoint: placeholder joint definition not found\n"
             )
             obj.Shape = Part.makeBox(1, 1, 1)
             obj.PrimaryCutTool = Part.Shape()
@@ -376,6 +413,144 @@ class TimberJoint:
             primary.touch()
             secondary.touch()
 
+    # -- broken joint visual -------------------------------------------------
+
+    @staticmethod
+    def _build_broken_visual(obj, primary, secondary, pt1_now, pt2_now):
+        """Build a visual shape for a broken joint.
+
+        Shows octahedron markers where the gap cylinder exits each
+        timber's face, plus the thin gap cylinder itself.  The
+        octahedra sit at the timber surface so they are always visible.
+
+        Parameters
+        ----------
+        obj : FreeCAD document object
+            The TimberJoint object (for reading LastValid* properties).
+        primary, secondary : FreeCAD document objects
+            The linked TimberMember objects (for reading cross-section size).
+        pt1_now : FreeCAD.Vector
+            Current closest point on the primary member's datum.
+        pt2_now : FreeCAD.Vector
+            Current closest point on the secondary member's datum.
+        """
+        LINE_RADIUS = 1.0     # mm
+
+        parts = []
+
+        gap_vec = pt2_now - pt1_now
+        gap_len = gap_vec.Length
+        if gap_len < 0.1:
+            gap_dir = FreeCAD.Vector(0, 0, 1)
+        else:
+            gap_dir = FreeCAD.Vector(gap_vec)
+            gap_dir.normalize()
+
+        # Place octahedron markers at the timber face where the gap
+        # cylinder exits each member.  The datum point is at the member
+        # center; offset along gap direction by half the cross-section
+        # dimension to reach the SIDE face.
+        #
+        # However, when the gap direction aligns with the member's axis
+        # (i.e. the datum point is an endpoint, not a midpoint), the gap
+        # exits through the END face, which is at approximately the
+        # datum point itself — not half_dim away.  Scale the offset by
+        # (1 - alignment) so endpoint exits get near-zero offset while
+        # midpoint (perpendicular) exits get the full half_dim.
+        for member, datum_pt, sign in [
+            (primary, pt1_now, 1.0),      # toward secondary
+            (secondary, pt2_now, -1.0),   # toward primary
+        ]:
+            try:
+                w = float(member.Width)
+                h = float(member.Height)
+                half_dim = max(w, h) / 2.0
+                marker_size = max(half_dim * 0.35, 8.0)
+
+                # Compute alignment of gap direction with member axis.
+                m_start = FreeCAD.Vector(member.A_StartPoint)
+                m_end = FreeCAD.Vector(member.B_EndPoint)
+                m_axis = m_end - m_start
+                m_len = m_axis.Length
+                if m_len > 0.01:
+                    m_axis.normalize()
+                    alignment = abs(gap_dir.dot(m_axis))
+                else:
+                    alignment = 0.0
+
+                # alignment ≈ 1 → gap along member axis → end face → ~0 offset
+                # alignment ≈ 0 → gap perpendicular → side face → full offset
+                face_offset = half_dim * (1.0 - alignment)
+                face_pt = datum_pt + gap_dir * (sign * max(face_offset, 1.0))
+                octa = TimberJoint._make_octahedron(
+                    face_pt, marker_size
+                )
+                if octa is not None:
+                    parts.append(octa)
+            except Exception:
+                # Fallback: small octahedron at datum point
+                try:
+                    octa = TimberJoint._make_octahedron(datum_pt, 8.0)
+                    if octa is not None:
+                        parts.append(octa)
+                except Exception:
+                    pass
+
+        # Gap cylinder between current closest points.
+        if gap_len > 0.1:
+            try:
+                parts.append(
+                    Part.makeCylinder(LINE_RADIUS, gap_len, pt1_now, gap_vec)
+                )
+            except Exception:
+                pass
+
+        if parts:
+            return Part.makeCompound(parts)
+        return Part.makeBox(1, 1, 1)
+
+    @staticmethod
+    def _make_octahedron(center, size):
+        """Build an octahedron (8 triangular faces) centered at *center*.
+
+        Parameters
+        ----------
+        center : FreeCAD.Vector
+            Center of the octahedron.
+        size : float
+            Distance from center to each vertex.
+
+        Returns
+        -------
+        Part.Shape or None
+        """
+        try:
+            cx, cy, cz = center.x, center.y, center.z
+            # Six vertices along ±X, ±Y, ±Z axes
+            verts = [
+                FreeCAD.Vector(cx + size, cy, cz),   # +X  (0)
+                FreeCAD.Vector(cx - size, cy, cz),   # -X  (1)
+                FreeCAD.Vector(cx, cy + size, cz),   # +Y  (2)
+                FreeCAD.Vector(cx, cy - size, cz),   # -Y  (3)
+                FreeCAD.Vector(cx, cy, cz + size),   # +Z  (4)
+                FreeCAD.Vector(cx, cy, cz - size),   # -Z  (5)
+            ]
+            # 8 triangular faces
+            face_indices = [
+                (0, 2, 4), (2, 1, 4), (1, 3, 4), (3, 0, 4),
+                (0, 5, 2), (2, 5, 1), (1, 5, 3), (3, 5, 0),
+            ]
+            faces = []
+            for i0, i1, i2 in face_indices:
+                wire = Part.makePolygon([
+                    verts[i0], verts[i1], verts[i2], verts[i0]
+                ])
+                faces.append(Part.Face(wire))
+            shell = Part.makeShell(faces)
+            return Part.makeSolid(shell)
+        except Exception:
+            return None
+
     # -- duplicate secondary endpoint check ---------------------------------
 
     @staticmethod
@@ -484,6 +659,10 @@ if FreeCAD.GuiUp:
             return os.path.join(_ICON_DIR, "timber_joint.svg")
 
         def updateData(self, obj, prop):
+            # Dynamic color based on broken/joint-type state.
+            if prop in ("IsBroken", "JointType", "Shape"):
+                self._update_color(obj)
+
             panel = getattr(self, '_active_panel', None)
             if panel is not None:
                 try:
@@ -491,6 +670,21 @@ if FreeCAD.GuiUp:
                 except (RuntimeError, AttributeError):
                     # Panel widget was deleted (dialog closed).
                     self._active_panel = None
+
+        def _update_color(self, obj):
+            """Set ShapeColor based on broken state and joint type."""
+            vobj = obj.ViewObject
+            if vobj is None:
+                return
+            try:
+                if getattr(obj, "IsBroken", False):
+                    vobj.ShapeColor = (0.90, 0.10, 0.10)   # red — broken
+                elif getattr(obj, "JointType", "placeholder") == "placeholder":
+                    vobj.ShapeColor = (1.0, 0.65, 0.0)     # orange — needs assignment
+                else:
+                    vobj.ShapeColor = (0.40, 0.50, 0.60)    # blue-gray — assigned
+            except Exception:
+                pass
 
         def onChanged(self, vobj, prop):
             pass
