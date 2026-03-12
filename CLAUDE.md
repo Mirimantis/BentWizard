@@ -500,6 +500,17 @@ Opens from Bent context panel. 2D elevation view. Members shown as rectangles. D
 - Layout drawing output
 - PDF structural report export
 
+### Phase 9 — Visual Design and User Preferences
+- Polish all UI panels, dialogs, and editors for visual consistency
+- Custom icons for toolbar actions, joint picker, and model tree items
+- Timber material textures and grain direction visualization in 3D viewport
+- Color theme support (respect FreeCAD's light/dark preferences throughout)
+- User preferences panel: default grid spacing, snap tolerances, member colors, datum line styles, label visibility
+- Bent Designer visual refinements: improved handle styling, selection highlights, hover effects
+- Structural overlay color scheme customization
+- Splash/about dialog with workbench branding
+- Tooltip and status bar polish for all interactive elements
+
 ---
 
 ## Dependencies
