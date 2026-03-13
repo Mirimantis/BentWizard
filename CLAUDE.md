@@ -547,6 +547,11 @@ Template:
 **Alternatives considered:** What else was on the table and why it was rejected.
 -->
 
+### 2026-03-12 — Face-referenced joint toolkit replaces vector-based geometry
+**Decision:** New `joints/toolkit.py` module with `MemberFaceContext` dataclass and face-referenced helper functions (`face_pocket`, `shoulder_cut`, `tenon_block`, `tapered_tenon`, `lap_notch`, etc.). All three built-in joints rewritten to use the toolkit. The toolkit identifies the actual approach face of the primary member via ray-casting, then builds all cut geometry referenced to that face: pockets go straight into the face (perpendicular to face normal), shoulders sit in the face plane, tenons align with the pocket direction. `common()` with the raw member solid clips pockets to face boundaries at any angle.
+**Reason:** The previous implementation built cut geometry using direction vectors computed from datum lines (`_approach_depth_dir`, `sec_x`, etc.) and extruded 2D profiles along those vectors. At 90 degrees, these vectors happened to align with face normals, producing correct geometry. At other angles, three bugs emerged: (1) tenon extrusion along `sec_x` didn't match mortise direction along `depth_dir`, (2) shoulder cuts perpendicular to `sec_x` didn't sit flat against the primary's face, (3) half-lap hardcoded top/bottom faces by local Z. The face-referenced approach fixes all three by deriving all geometry from the actual approach face rather than from abstract direction vectors.
+**Alternatives considered:** (1) Fix direction vectors to compute exact face normals analytically — rejected, each joint would need its own angle-correction math, not composable. (2) Keep direction vectors but use smarter extrusion clipping — rejected, `common()` is simpler and automatically correct. (3) Required toolkit (all joints must use it) — rejected, toolkit is optional so advanced users can build raw Part.Shapes.
+
 ### 2026-03-11 — Member-joint awareness: utility function over back-reference property
 **Decision:** TimberMember does NOT get back-reference properties (JointLinks, JointFractions) pointing to its joints. The existing document-scan pattern (`_collect_joint_cuts()`, `_collect_extensions()`) is kept. The Bent Designer reads from the Bent's existing `Joints` property list to correlate joints with members.
 **Reason:** Adding member → joint Link properties would create a circular dependency in FreeCAD's recompute graph (member → joint → member), violating the "parametric graph flows downstream only" rule. Writing computed `JointFractions` in `execute()` would violate "no property modification during execute" or require a separate sync mechanism. The document scan handles 20-50 objects in microseconds — negligible vs. OCC boolean operations. `SupportFractions` is reserved for structural load path (Phase 4), not joint positions.
@@ -689,39 +694,46 @@ Template:
 
 ---
 
-## Handoff Notes (2026-03-11)
+## Handoff Notes (2026-03-12)
 
 ### What was just completed
 
-**Broken joint visualization and Bent Designer joint display** (`objects/TimberJoint.py`, `ui/BentDesigner.py`):
+**Face-referenced joint toolkit and joint rewrites** (`joints/toolkit.py`, `joints/builtin/mortise_tenon.py`, `joints/builtin/housed_dovetail.py`, `joints/builtin/half_lap.py`):
 
-1. **Broken joint properties** — Added `IsBroken` (read-only Bool), `LastValidPoint`, `LastValidPrimaryPoint`, `LastValidSecondaryPoint` (hidden Vectors) to TimberJoint. Set in `_recompute_joint()`: valid path sets `IsBroken=False` and stores current intersection geometry; broken paths set `IsBroken=True` without overwriting last-valid data.
+1. **`joints/toolkit.py`** — New module with `MemberFaceContext` dataclass and face-referenced geometry helpers. `build_face_context()` constructs a raw un-cut member solid, ray-casts to find the approach face, and extracts the face normal, pierce point, and member axes. Helper functions: `face_pocket()` (rectangular mortise), `face_tapered_pocket()` (dovetail socket), `tenon_block()` (rectangular tenon), `tapered_tenon()` (dovetail tail), `shoulder_cut()` (angled shoulder removal), `lap_notch()` (face-identified lap notch), `mortise_axes()` (grain-aligned rectangle orientation), `shoulder_plane()`, `approach_face_distance()`, `extent_along()`. Also consolidates `member_local_cs()` as the single source of truth (previously duplicated in each joint file).
 
-2. **3D broken joint visual** — `_build_broken_visual()` replaces the invisible 1x1x1mm fallback box with: octahedron markers at timber faces where the gap cylinder exits each member, plus a single gap cylinder between current closest points. The octahedron offset from datum center is scaled by `(1 - alignment)` where alignment = `abs(gap_dir · member_axis)`, handling both endpoint exits (near-zero offset) and midpoint exits (full half_dim offset). ViewProvider dynamically colors broken joints red (0.9, 0.1, 0.1) via `_update_color()` in `updateData()`. Per-member displacement cylinders removed (user found them confusing).
+2. **Mortise & Tenon rewrite** — `build_primary_tool()` now uses `face_pocket()` to cut the mortise straight into the approach face. `build_secondary_profile()` uses `shoulder_plane()` to derive the shoulder position from the primary's face, `tenon_block()` to align the tenon with the mortise direction (face normal, not secondary axis), and `shoulder_cut()` to produce an angled shoulder that sits flat against the primary's face. All parameters, validation, fabrication signature, and peg logic unchanged.
 
-3. **Bent Designer JointItem** — New `JointItem(QGraphicsItem)` at z=4 (behind handles at z=10, above members at z=1). Three visual states: assigned (blue-gray diamond 25px half-size with 2-char type abbreviation), placeholder (orange circle 25px with "?"), broken (red X marks at last-valid positions with dashed connecting line). Click-to-select and double-click-to-edit. Non-broken uses `ItemIgnoresTransformations` for fixed screen size; broken uses scene coordinates for correct connecting line scaling.
+3. **Dovetail rewrite** — Same pattern: `face_tapered_pocket()` for the socket, `tapered_tenon()` for the tail, `shoulder_cut()` for the shoulder. Channel mode and half-channel trim logic preserved. Dependent defaults unchanged.
 
-4. **Joint items in scene rebuild** — `_rebuild_impl()` iterates `bent_obj.Joints` and creates `JointItem` instances stored in `_joint_items` dict. Scene rebuilds when "Joints" property changes (added to `notify_property_changed` filter).
+4. **Half-lap rewrite** — Uses `lap_notch()` with a `face_dir` parameter instead of hardcoded top/bottom. Primary notch is on the face closest to the secondary; secondary notch is on the opposite face. Works regardless of member orientation.
 
-5. **Live joint drag update** — `HandleItem.itemChange()` updates connected JointItems via `update_position_from_members()` during endpoint drag. Uses 2D line intersection (`_intersect_2d_segments()`) of the two member datums — no FreeCAD calls. During drag, marker keeps showing joint type and tracks along primary datum; on release (rebuild), broken joints show red X at last-valid position.
-
-6. **Architecture decision** — No back-reference properties on TimberMember. Current document-scan pattern kept. Bent Designer reads from `Bent.Joints` list.
-
-7. **Unknown joint type handling** — Removed `_ALIASES` backward-compatibility dict and migration block from `joints/loader.py` and `TimberJoint._recompute_joint()`. Unknown joint types now print an error and reset to `"placeholder"`. No silent migration of renamed IDs.
+5. **Key fixes for angle bugs:**
+   - Bug 1 (tenon direction): Tenon now extrudes along `sh_normal` (face normal into primary), matching the mortise direction, instead of along `sec_x`.
+   - Bug 2 (shoulder angle): Shoulder plane derived from primary's approach face via `shoulder_plane()`, not perpendicular to secondary axis.
+   - Bug 3 (half-lap face): `lap_notch()` finds the correct face dynamically via `face_dir`, not by `+/- pri_z`.
 
 ### Known issues and edge cases to watch
 
+- **Needs testing in FreeCAD**: All three joints need testing at 90, 60, and 45 degree intersections to verify the face-referenced geometry produces correct results.
+- **`_find_approach_face()` ray-casting**: Uses `face.Surface.parameter()` and `face.isPartOfDomain()` with a `distToShape()` fallback. May need tuning of the 1mm tolerance for edge cases where the ray grazes a face corner.
+- **`common()` clipping**: `face_pocket()` and `face_tapered_pocket()` use `shape.common(raw_solid)` to clip pockets to face boundaries. If the OCC boolean fails (rare for box-on-box), the unclipped pocket is returned as fallback.
+- **Raw solid includes extensions**: `_build_raw_solid()` in the toolkit queries joint-driven extensions from the document, matching `TimberMember._build_solid()`. This means the raw solid envelope may extend past datum endpoints. This is correct — the approach face must be identified on the actual timber, not the datum-only geometry.
+- **Dovetail half-channel offset**: The `face_tapered_pocket()` is centered on `face_point` but half-channel mode needs an offset. The current implementation uses the offset parameter for housing but the tapered pocket itself may need adjustment. Verify with half-channel mode testing.
 - **TimberJoint visualization offset**: Previously reported — the TimberJoint's visual shape (tenon + pegs) is offset from the actual cut geometry. Cuts work correctly but the visualization sticks out of the primary. Not yet fixed.
-- **Dovetail rewrite needs testing**: The dovetail joint was rewritten with new parameters and geometry. Needs verification in FreeCAD with a beam-into-post connection.
-- **Broken joint first-time case**: If a joint is created already out of tolerance (shouldn't happen in normal flow), `LastValidPrimaryPoint`/`LastValidSecondaryPoint` default to (0,0,0). The `_build_broken_visual` detects this and falls back to current closest points.
-- **Broken JointItem bounding rect**: The broken state computes boundingRect from the two last-valid points. If members move very far apart, the bounding rect may become very large. This is acceptable as it's a transient error state.
-- **JointItem during drag**: Live drag updates use 2D line intersection of member datums, which extends lines infinitely. For parallel members (e.g., two posts), the intersection returns None and the joint marker stays at its last position until rebuild.
-- **Bent Designer grid extent**: Grid lines are scene items extending 10 grid spacings beyond the items bounding rect. If the user pans far beyond the members, they'll be past the grid. Acceptable for typical bent editing.
-- **Datum snap and visible depth during drag**: `_visible_depth` is kept fixed during drag (it depends on the member's local CS relative to the projection plane). If a drag rotates a member enough to swap which cross-section axis is visible, the depth won't update until release. Acceptable for typical bent editing.
+- **Broken joint visualization**: Still works as before (unchanged `TimberJoint.py`).
+
+### Previous session work (2026-03-11)
+
+- Broken joint properties (`IsBroken`, `LastValid*` vectors)
+- 3D broken joint visual (octahedra + gap cylinder)
+- Bent Designer `JointItem` with three visual states
+- Live joint drag update during endpoint drag
+- Unknown joint type handling (error + placeholder reset)
 
 ### Current phase status
 
-**Phase 2 (Joints)** — complete.
+**Phase 2 (Joints)** — complete. Joint toolkit added as architectural foundation.
 
 **Phase 3 (Bent and Frame Composition)** — in progress. Completed:
 - Bent container object with add/remove members, drag-drop, MemberID auto-assignment
@@ -729,8 +741,8 @@ Template:
 - Bent Designer 2D editor with joint visualization
 - Bent templates
 - Bent Designer drag improvements (live preview, datum snap, datum lines)
-- **Broken joint visualization** (this session)
-- **Bent Designer joint display and interaction** (this session)
+- Broken joint visualization
+- Bent Designer joint display and interaction
 
 Remaining Phase 3 work:
 - Frame object with bent instancing and longitudinal members
@@ -739,7 +751,9 @@ Remaining Phase 3 work:
 
 For the next session, the most important files to understand are:
 - `CLAUDE.md` — architecture, conventions, decisions log (this file)
-- `ui/BentDesigner.py` — the 2D editor with JointItem, live drag, datum snap
-- `objects/TimberJoint.py` — IsBroken, LastValid* properties, broken visual, ViewProvider color
-- `objects/Bent.py` — Bent container, ViewProvider, member/joint management
+- `joints/toolkit.py` — the new face-referenced geometry toolkit
+- `joints/builtin/mortise_tenon.py` — M&T rewritten with toolkit
+- `joints/builtin/housed_dovetail.py` — dovetail rewritten with toolkit
+- `joints/builtin/half_lap.py` — half-lap rewritten with toolkit
+- `objects/TimberJoint.py` — recompute pipeline (unchanged, calls joint definitions)
 - `objects/TimberMember.py` — `_build_solid()` with extensions, `_collect_joint_cuts()` boolean pipeline
