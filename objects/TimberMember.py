@@ -55,6 +55,78 @@ ROLE_PREFIX = {
 
 REFERENCE_FACES = ["Top", "Bottom", "Left", "Right"]
 
+# ---------------------------------------------------------------------------
+# Face numbering system
+# ---------------------------------------------------------------------------
+# Faces are numbered 1-4 around the cross-section.  Face 1 is always the
+# reference face (ReferenceFace property).  Faces 2-4 follow clockwise
+# when looking from End A (butt) toward End B (top/tip).
+#
+# The member's local coordinate system:
+#   X = along datum (A_StartPoint -> B_EndPoint)
+#   Y = width direction (perpendicular to datum, from up-hint cross product)
+#   Z = height direction (perpendicular to both X and Y)
+#
+# For a horizontal beam with ReferenceFace = "Bottom", looking from A -> B:
+#
+#          Face 3 (+Z)
+#         +------------------+
+#         |                  |
+# Face 4  |     datum .      | Face 2
+# (+Y)    |                  | (-Y)
+#         +------------------+
+#          Face 1 (-Z)  <- Reference Face
+#
+# End A (butt) = A_StartPoint   — look from here to establish CW numbering
+# End B (top/tip) = B_EndPoint
+
+# Maps ReferenceFace value -> (axis, sign) for the outward normal of that face.
+# axis is 'y' or 'z' in the member's local CS.
+_REFFACE_NORMAL = {
+    "Top":    ("z", +1),
+    "Bottom": ("z", -1),
+    "Right":  ("y", +1),
+    "Left":   ("y", -1),
+}
+
+# Clockwise rotation order (looking from A toward B) for each starting face.
+# Given Face 1, Face 2/3/4 follow this sequence.
+_CW_ORDER = {
+    "Bottom": ["Bottom", "Left", "Top", "Right"],
+    "Top":    ["Top", "Right", "Bottom", "Left"],
+    "Right":  ["Right", "Bottom", "Left", "Top"],
+    "Left":   ["Left", "Top", "Right", "Bottom"],
+}
+
+
+def face_numbering(obj):
+    """Return the 4 outward-normal vectors in face-number order [1, 2, 3, 4].
+
+    Face 1 is the reference face.  Faces 2-4 follow clockwise when
+    looking from the A end toward the B end.
+
+    Parameters
+    ----------
+    obj : App::FeaturePython
+        A TimberMember document object.
+
+    Returns
+    -------
+    list[FreeCAD.Vector]
+        Four unit vectors, each being the outward normal of Face 1..4.
+    """
+    _, x_axis, y_axis, z_axis = TimberMember.get_member_local_cs(obj)
+    axes = {"y": y_axis, "z": z_axis}
+
+    ref = obj.ReferenceFace if obj.ReferenceFace else "Bottom"
+    order = _CW_ORDER.get(ref, _CW_ORDER["Bottom"])
+
+    normals = []
+    for face_name in order:
+        axis_key, sign = _REFFACE_NORMAL[face_name]
+        normals.append(axes[axis_key] * sign)
+    return normals
+
 # Placeholder species list — will be replaced by CSV lookup in later phases.
 SPECIES = [
     "Douglas Fir",
@@ -374,27 +446,236 @@ class TimberMember:
 if FreeCAD.GuiUp:
     import os
     import FreeCADGui
+    from pivy import coin
 
     _ICON_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)),
                              "resources", "icons")
 
+    # -- colors ---------------------------------------------------------------
+    _COLOR_TIMBER = (0.76, 0.60, 0.37)       # standard timber face
+    _COLOR_REF_FACE = (0.55, 0.38, 0.20)     # darker tint for reference face
+    _COLOR_CHALK = (1.0, 1.0, 0.85)          # chalk line on reference face
+    _COLOR_LABEL = (0.25, 0.25, 0.25)        # dark gray for A/B labels
+    _COLOR_FACE_NUM = (0.45, 0.45, 0.45)     # medium gray for face numbers
+    _LABEL_FONT_SIZE = 14
+    _FACE_NUM_FONT_SIZE = 10
+    _NORMAL_THRESHOLD = 0.7  # dot product threshold for face identification
+
     class TimberMemberViewProvider:
-        """View provider for TimberMember objects."""
+        """View provider for TimberMember objects.
+
+        Provides visual landmarks:
+        - Per-face coloring with reference face (Face 1) tinted darker
+        - Chalk line along the center of the reference face
+        - "A" / "B" labels at datum endpoints
+        - "1"-"4" face number labels at face centers
+        - All annotations togglable via ShowAnnotations property
+        """
 
         def __init__(self, vobj):
             vobj.Proxy = self
+            self._setup_view_properties(vobj)
+
+        @staticmethod
+        def _setup_view_properties(vobj):
+            if not hasattr(vobj, "ShowAnnotations"):
+                vobj.addProperty(
+                    "App::PropertyBool", "ShowAnnotations", "Display",
+                    "Show face numbers, endpoint labels, and chalk line",
+                )
+                vobj.ShowAnnotations = True
 
         def attach(self, vobj):
             self.Object = vobj.Object
+            self._setup_view_properties(vobj)
+            self._build_coin_nodes(vobj)
+
+        def _build_coin_nodes(self, vobj):
+            """Create Coin3D nodes for annotations."""
+            # Root separator for all annotation geometry
+            self._anno_root = coin.SoSeparator()
+            self._anno_root.setName("TimberAnnotations")
+
+            # -- A / B endpoint labels --
+            self._label_a = self._make_text_node(
+                "A", _COLOR_LABEL, _LABEL_FONT_SIZE)
+            self._label_b = self._make_text_node(
+                "B", _COLOR_LABEL, _LABEL_FONT_SIZE)
+            self._anno_root.addChild(self._label_a["sep"])
+            self._anno_root.addChild(self._label_b["sep"])
+
+            # -- Face number labels 1-4 --
+            self._face_labels = []
+            for i in range(4):
+                node = self._make_text_node(
+                    str(i + 1), _COLOR_FACE_NUM, _FACE_NUM_FONT_SIZE)
+                self._face_labels.append(node)
+                self._anno_root.addChild(node["sep"])
+
+            # -- Chalk line on reference face --
+            self._chalk_sep = coin.SoSeparator()
+            self._chalk_sep.setName("ChalkLine")
+            mat = coin.SoMaterial()
+            mat.diffuseColor.setValue(*_COLOR_CHALK)
+            mat.emissiveColor.setValue(*_COLOR_CHALK)
+            self._chalk_sep.addChild(mat)
+            style = coin.SoDrawStyle()
+            style.lineWidth.setValue(2.0)
+            self._chalk_sep.addChild(style)
+            self._chalk_coords = coin.SoCoordinate3()
+            self._chalk_coords.point.setNum(2)
+            self._chalk_sep.addChild(self._chalk_coords)
+            line = coin.SoLineSet()
+            line.numVertices.setValue(2)
+            self._chalk_sep.addChild(line)
+            self._anno_root.addChild(self._chalk_sep)
+
+            # Add to the ViewProvider's root node
+            vobj.RootNode.addChild(self._anno_root)
+
+        @staticmethod
+        def _make_text_node(text, color, size):
+            """Create a SoSeparator with SoText2 for a screen-space label."""
+            sep = coin.SoSeparator()
+            trans = coin.SoTranslation()
+            sep.addChild(trans)
+            mat = coin.SoMaterial()
+            mat.diffuseColor.setValue(*color)
+            mat.emissiveColor.setValue(*color)
+            sep.addChild(mat)
+            font = coin.SoFont()
+            font.size.setValue(size)
+            font.name.setValue("Arial")
+            sep.addChild(font)
+            txt = coin.SoText2()
+            txt.string.setValue(text)
+            sep.addChild(txt)
+            return {"sep": sep, "trans": trans, "text": txt}
 
         def getIcon(self):
             return os.path.join(_ICON_DIR, "timber_member.svg")
 
         def updateData(self, obj, prop):
-            pass
+            """Refresh visuals when data properties change."""
+            if prop in ("A_StartPoint", "B_EndPoint", "Width", "Height",
+                        "ReferenceFace", "Shape"):
+                try:
+                    self._update_annotations(obj)
+                except Exception as e:
+                    FreeCAD.Console.PrintWarning(
+                        f"TimberMember annotation update failed: {e}\n"
+                    )
+                try:
+                    self._apply_face_colors(obj)
+                except Exception as e:
+                    FreeCAD.Console.PrintWarning(
+                        f"TimberMember face color update failed: {e}\n"
+                    )
 
         def onChanged(self, vobj, prop):
-            pass
+            if prop == "ShowAnnotations":
+                show = vobj.ShowAnnotations
+                if hasattr(self, "_anno_root") and hasattr(vobj, "RootNode"):
+                    root = vobj.RootNode
+                    idx = root.findChild(self._anno_root)
+                    if show and idx < 0:
+                        root.addChild(self._anno_root)
+                    elif not show and idx >= 0:
+                        root.removeChild(self._anno_root)
+                # Re-apply face colors (uniform when annotations off)
+                if hasattr(self, "Object") and self.Object is not None:
+                    try:
+                        self._apply_face_colors(self.Object)
+                    except Exception:
+                        pass
+
+        def _update_annotations(self, obj):
+            """Reposition all Coin3D annotation nodes."""
+            if not hasattr(self, "_anno_root"):
+                return
+            vobj = obj.ViewObject
+            if not getattr(vobj, "ShowAnnotations", True):
+                return
+
+            _, x_axis, y_axis, z_axis = TimberMember.get_member_local_cs(obj)
+            start = FreeCAD.Vector(obj.A_StartPoint)
+            end = FreeCAD.Vector(obj.B_EndPoint)
+            w = float(obj.Width)
+            h = float(obj.Height)
+            midpoint = (start + end) * 0.5
+
+            # Offset labels slightly above the member
+            label_offset = z_axis * (h / 2.0 + 15.0)
+
+            # A label at start
+            pos_a = start + label_offset
+            self._label_a["trans"].translation.setValue(
+                pos_a.x, pos_a.y, pos_a.z)
+
+            # B label at end
+            pos_b = end + label_offset
+            self._label_b["trans"].translation.setValue(
+                pos_b.x, pos_b.y, pos_b.z)
+
+            # Face number labels at face centers
+            normals = face_numbering(obj)
+            for i, normal in enumerate(normals):
+                # Face center = midpoint + normal * half-extent + small offset
+                if abs(normal.dot(y_axis)) > 0.5:
+                    half_ext = w / 2.0
+                else:
+                    half_ext = h / 2.0
+                pos = midpoint + normal * (half_ext + 10.0)
+                self._face_labels[i]["trans"].translation.setValue(
+                    pos.x, pos.y, pos.z)
+
+            # Chalk line along center of reference face (Face 1)
+            ref_normal = normals[0]
+            if abs(ref_normal.dot(y_axis)) > 0.5:
+                half_ext = w / 2.0
+            else:
+                half_ext = h / 2.0
+            chalk_offset = ref_normal * (half_ext + 0.5)  # just above surface
+            p1 = start + chalk_offset
+            p2 = end + chalk_offset
+            self._chalk_coords.point.set1Value(0, p1.x, p1.y, p1.z)
+            self._chalk_coords.point.set1Value(1, p2.x, p2.y, p2.z)
+
+        def _apply_face_colors(self, obj):
+            """Set per-face DiffuseColor based on face numbering."""
+            vobj = obj.ViewObject
+            if vobj is None:
+                return
+            if not hasattr(obj, "Shape") or obj.Shape.isNull():
+                return
+
+            faces = obj.Shape.Faces
+            if not faces:
+                return
+
+            # If annotations are off, use uniform color
+            if not getattr(vobj, "ShowAnnotations", True):
+                vobj.DiffuseColor = [_COLOR_TIMBER + (0.0,)] * len(faces)
+                return
+
+            normals = face_numbering(obj)
+            ref_normal = normals[0]  # Face 1 = reference face
+
+            colors = []
+            for occ_face in faces:
+                try:
+                    # Get outward normal at face center
+                    uv = occ_face.Surface.parameter(occ_face.CenterOfMass)
+                    fn = occ_face.normalAt(uv[0], uv[1])
+                    # Check if this face matches the reference face normal
+                    if fn.dot(ref_normal) > _NORMAL_THRESHOLD:
+                        colors.append(_COLOR_REF_FACE + (0.0,))
+                    else:
+                        colors.append(_COLOR_TIMBER + (0.0,))
+                except Exception:
+                    colors.append(_COLOR_TIMBER + (0.0,))
+
+            vobj.DiffuseColor = colors
 
         def getDisplayModes(self, vobj):
             return ["Flat Lines"]
@@ -407,6 +688,12 @@ if FreeCAD.GuiUp:
 
         def onDelete(self, vobj, subelements):
             return True
+
+        def onDocumentRestored(self, vobj):
+            """Re-setup after document load."""
+            self._setup_view_properties(vobj)
+            self.Object = vobj.Object
+            self._build_coin_nodes(vobj)
 
         def dumps(self):
             return None

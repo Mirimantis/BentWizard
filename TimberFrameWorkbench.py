@@ -83,14 +83,19 @@ class TimberFrameWorkbench(FreeCADGui.Workbench):
         from commands import AddMember  # noqa: F401
         from commands import AddJoint   # noqa: F401
         from commands import AddBent    # noqa: F401
+        from commands import ToggleAnnotations  # noqa: F401
         from joints import loader
         loader.load_all()
 
         self.appendToolbar("Timber Frame", [
             "TF_AddMember", "TF_AddJoint", "TF_AddBent",
+            "Separator",
+            "TF_ToggleAnnotations",
         ])
         self.appendMenu("Timber Frame", [
             "TF_AddMember", "TF_AddJoint", "TF_AddBent",
+            "Separator",
+            "TF_ToggleAnnotations",
         ])
 
         self._selection_observer = None
