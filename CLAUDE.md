@@ -156,6 +156,45 @@ Never modify an object's own properties inside `execute()`. This causes infinite
 
 ---
 
+## Spatial Reference Terminology
+
+When describing timbers and their relationships, use this vocabulary consistently. The primary timber in a joint is the reference — every description of a second timber is relative to it.
+
+### Single-Timber Orientation
+
+- **Plumb** — perfectly vertical (a post). **Level** — perfectly horizontal (a beam, plate).
+- **Pitch angle** — angle a timber makes with the horizontal, in degrees. "8-in-12 pitch" or "33.7°".
+- **Roll** — rotation around the timber's own length axis. A "square" timber has its faces plumb and level; a "diamond" orientation means it's rolled 45°.
+- **Skew angle** — deviation from perpendicular in plan (top-down view). A brace running diagonally across a bent has a skew angle.
+
+### Two-Timber Relationships
+
+- **Coaxial / inline** — both timbers share the same long axis (end-to-end, like a spliced sill).
+- **Orthogonal** — at 90°. Specify the plane: "orthogonal in plan" (floor joist into beam) vs "orthogonal in elevation" (post into plate).
+- **Oblique** — any angle other than 90° or 0°. Always specify the angle and the plane it's measured in.
+- **Coplanar** — both timbers lie in the same flat plane (two rafters in the same roof plane).
+- **Offset** — perpendicular distance between centerlines of two parallel timbers.
+- **Bearing face / bearing surface** — which face of the receiving timber the incoming timber rests on or connects to. Say "the top face," "the side face," or "the end grain."
+
+### Face and End Numbering
+
+Faces are numbered 1–4 around the cross-section. Ends are labeled A (butt) and B (top/tip).
+
+- **Face 1** — the reference face (set by `ReferenceFace` property)
+- **Face 2** — 90° clockwise from Face 1 when looking from End A
+- **Face 3** — opposite Face 1
+- **Face 4** — opposite Face 2
+- **End A (butt)** — the starting end (`A_StartPoint`). This is where you look from to establish the clockwise numbering.
+- **End B (top/tip)** — the far end (`B_EndPoint`)
+
+### Connection Location
+
+- **At the end** — within one timber width of the end (tenon, bridle, mortise).
+- **Intermediate** — somewhere along the length, not at an end (tying joint, lapped dovetail).
+- **Centerline** — the imaginary line running down the center of the timber's long axis. "The centerlines intersect at point X."
+
+---
+
 ## Key Object: TimberMember
 
 The fundamental building block. Every timber in the frame is a `TimberMember`.
@@ -547,6 +586,11 @@ Template:
 **Alternatives considered:** What else was on the table and why it was rejected.
 -->
 
+### 2026-03-13 — Numbered face vocabulary and visual landmarks
+**Decision:** Faces are numbered 1-4, with Face 1 always being the reference face (`ReferenceFace` property). Faces 2-4 follow clockwise when looking from the A end toward the B end. Ends are labeled A/B matching the property prefixes `A_StartPoint`/`B_EndPoint`. Visual landmarks: Face 1 gets a darker brown tint via `DiffuseColor` + a chalk line (Coin3D `SoLineSet`), "A"/"B" `SoText2` labels at datum endpoints, "1"-"4" `SoText2` labels at face centers. All togglable via `ShowAnnotations` view property.
+**Reason:** The user needed a formal vocabulary to describe timber faces and orientations when communicating about the 3D view. Numbered faces anchored to the reference face are unambiguous regardless of member orientation. The A/B end labels match existing property naming. Visual landmarks make the numbering system self-documenting in the viewport.
+**Alternatives considered:** (1) Geometric names (Top/Bottom/Left/Right) — rejected, these are relative to the local CS and can be confusing for vertical members where "Top" doesn't point world-up. (2) Traditional framing terms (layout face, near cheek) — rejected, too domain-specific for a mixed audience. (3) "S"/"E" for endpoints — rejected in favor of "A"/"B" to match property prefixes. (4) Per-face distinct colors for all 4 faces — rejected, too visually busy; only the reference face needs highlighting.
+
 ### 2026-03-12 — Face-referenced joint toolkit replaces vector-based geometry
 **Decision:** New `joints/toolkit.py` module with `MemberFaceContext` dataclass and face-referenced helper functions (`face_pocket`, `shoulder_cut`, `tenon_block`, `tapered_tenon`, `lap_notch`, etc.). All three built-in joints rewritten to use the toolkit. The toolkit identifies the actual approach face of the primary member via ray-casting, then builds all cut geometry referenced to that face: pockets go straight into the face (perpendicular to face normal), shoulders sit in the face plane, tenons align with the pocket direction. `common()` with the raw member solid clips pockets to face boundaries at any angle.
 **Reason:** The previous implementation built cut geometry using direction vectors computed from datum lines (`_approach_depth_dir`, `sec_x`, etc.) and extruded 2D profiles along those vectors. At 90 degrees, these vectors happened to align with face normals, producing correct geometry. At other angles, three bugs emerged: (1) tenon extrusion along `sec_x` didn't match mortise direction along `depth_dir`, (2) shoulder cuts perpendicular to `sec_x` didn't sit flat against the primary's face, (3) half-lap hardcoded top/bottom faces by local Z. The face-referenced approach fixes all three by deriving all geometry from the actual approach face rather than from abstract direction vectors.
@@ -694,9 +738,21 @@ Template:
 
 ---
 
-## Handoff Notes (2026-03-12)
+## Handoff Notes (2026-03-13)
 
 ### What was just completed
+
+**Face numbering vocabulary and visual landmarks** (`objects/TimberMember.py`, `commands/ToggleAnnotations.py`, `TimberFrameWorkbench.py`):
+
+1. **Face numbering system** — `face_numbering(obj)` utility function returns 4 outward-normal vectors in face-number order. Face 1 = reference face, Faces 2-4 clockwise looking from A end. Constants `_REFFACE_NORMAL` and `_CW_ORDER` drive the mapping from `ReferenceFace` property to numbered face normals.
+
+2. **Per-face coloring** — ViewProvider uses `DiffuseColor` with normal-matching to tint Face 1 (reference face) darker `(0.55, 0.38, 0.20)`. Other faces keep standard timber color. Works correctly after boolean joint cuts (fragmented faces still match by normal direction).
+
+3. **Coin3D annotations** — "A"/"B" `SoText2` labels at datum endpoints, "1"-"4" face number labels at face centers, chalk line `SoLineSet` along center of Face 1. All positioned via `updateData()` when datum/section properties change.
+
+4. **ShowAnnotations toggle** — Boolean view property on `TimberMemberViewProvider`. When False, hides all Coin3D annotation nodes and reverts to uniform timber color. `TF_ToggleAnnotations` toolbar command toggles selected members (or all members if none selected).
+
+### Previous session: face-referenced joint toolkit
 
 **Face-referenced joint toolkit and joint rewrites** (`joints/toolkit.py`, `joints/builtin/mortise_tenon.py`, `joints/builtin/housed_dovetail.py`, `joints/builtin/half_lap.py`):
 
