@@ -2,16 +2,26 @@
 
 A rectangular tenon on the secondary member passes into a matching
 mortise in the primary member.  Supports through mortise (tenon exits
-far face), blind mortise (tenon stops inside primary), and housed
-mortise (rectangular housing pocket around the tenon opening).
+far face), blind mortise (tenon stops inside primary, the default),
+and housed mortise (rectangular housing pocket around the tenon opening).
+
+Both the mortise and tenon are perpendicular to the primary's approach
+face --- the traditional timber framing approach.  At non-90° angles
+the perpendicular tenon block intersects the angled secondary body,
+naturally producing a skewed trapezoidal tenon with two trimmed corners.
+There is a triangular gap at the back of the mortise where the tenon
+doesn't fill the full pocket; this is normal and traditional.
 
 The shoulder is anchored at the primary member's approach face.
 Changing ``tenon_length`` only moves the tenon tip; the shoulder
-stays fixed.
+stays fixed.  ``tenon_length`` is measured perpendicular to the face.
 
 The mortise rectangle is always oriented so that its height (long
 dimension) runs along the primary member's grain direction.  This
 prevents the mortise from cutting across the primary.
+
+The optional housing pocket follows the secondary member's axis
+(a sheared prism) so it matches the brace/rafter body footprint.
 
 This module must work headless --- no FreeCADGui / Qt imports.
 """
@@ -31,104 +41,19 @@ from joints.base import (
     TimberJointDefinition,
     ValidationResult,
 )
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _member_local_cs(obj):
-    """Return the member local coordinate system (origin, x, y, z).
-
-    Duplicates the logic in ``TimberMember._build_solid`` so this module
-    can remain independent of the objects package.
-    """
-    start = FreeCAD.Vector(obj.A_StartPoint)
-    end = FreeCAD.Vector(obj.B_EndPoint)
-    direction = end - start
-    length = direction.Length
-
-    if length < 1e-6:
-        return (start,
-                FreeCAD.Vector(1, 0, 0),
-                FreeCAD.Vector(0, 1, 0),
-                FreeCAD.Vector(0, 0, 1))
-
-    x_axis = FreeCAD.Vector(direction)
-    x_axis.normalize()
-
-    world_z = FreeCAD.Vector(0, 0, 1)
-    if abs(x_axis.dot(world_z)) > 0.999:
-        up_hint = FreeCAD.Vector(0, 1, 0)
-    else:
-        up_hint = world_z
-
-    y_axis = x_axis.cross(up_hint)
-    y_axis.normalize()
-    z_axis = y_axis.cross(x_axis)
-    z_axis.normalize()
-
-    return start, x_axis, y_axis, z_axis
-
-
-def _approach_depth_dir(primary, secondary, joint_cs):
-    """Return a unit vector pointing from the approach face INTO the primary.
-
-    ``sec_x`` points from secondary start toward secondary end.  When the
-    joint is at the *start* end, ``sec_x`` points **away** from the primary,
-    so we negate the projected direction.  When the joint is at the *end*
-    end, ``sec_x`` already points toward the primary.
-    """
-    _pri_o, pri_x, pri_y, _pri_z = _member_local_cs(primary)
-    _sec_o, sec_x, _sec_y, _sec_z = _member_local_cs(secondary)
-
-    sec_start = FreeCAD.Vector(secondary.A_StartPoint)
-    sec_end = FreeCAD.Vector(secondary.B_EndPoint)
-    dist_start = (joint_cs.origin - sec_start).Length
-    dist_end = (joint_cs.origin - sec_end).Length
-
-    # Project secondary datum into primary cross-section plane.
-    sec_in_plane = sec_x - pri_x * sec_x.dot(pri_x)
-    if sec_in_plane.Length < 1e-6:
-        sec_in_plane = pri_y
-    else:
-        sec_in_plane.normalize()
-
-    # When joint is at the start end, sec_x (and its projection) points
-    # away from the primary --- flip to get the INTO direction.
-    if dist_start <= dist_end:
-        return sec_in_plane * -1.0
-    return FreeCAD.Vector(sec_in_plane)
-
-
-def _mortise_axes(primary, secondary, joint_cs):
-    """Return (width_dir, height_dir) for the mortise/tenon rectangle.
-
-    The height direction is always aligned with the primary member's grain
-    (length axis), projected into the cross-section plane perpendicular to
-    the approach direction.  The width direction is perpendicular to both
-    the approach direction and the height direction.
-
-    This ensures the long axis of the mortise runs with the primary grain,
-    never across it.
-    """
-    _pri_o, pri_x, pri_y, pri_z = _member_local_cs(primary)
-    depth_dir = _approach_depth_dir(primary, secondary, joint_cs)
-
-    # Project primary grain direction into the plane perpendicular to
-    # the approach direction.
-    h_dir = pri_x - depth_dir * pri_x.dot(depth_dir)
-    if h_dir.Length < 1e-6:
-        # Primary grain is parallel to approach direction (degenerate ---
-        # fall back to secondary's axes).
-        _sec_o, _sec_x, sec_y, sec_z = _member_local_cs(secondary)
-        return sec_y, sec_z
-
-    h_dir.normalize()
-    w_dir = depth_dir.cross(h_dir)
-    w_dir.normalize()
-
-    return w_dir, h_dir
+from joints.toolkit import (
+    MemberFaceContext,
+    build_face_context,
+    member_local_cs,
+    mortise_axes,
+    shoulder_plane,
+    face_pocket,
+    tenon_block,
+    shoulder_cut,
+    approach_face_distance,
+    secondary_extension_for_tenon,
+    extent_along,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -158,24 +83,6 @@ class MortiseTenonDefinition(TimberJointDefinition):
     MIN_ANGLE = 45.0
     MAX_ANGLE = 135.0
 
-    # -- approach face helpers ----------------------------------------------
-
-    @staticmethod
-    def _approach_face_distance(primary, secondary, joint_cs):
-        """Distance from the primary centerline to its approach face.
-
-        This is the distance along the secondary's approach direction
-        from the intersection point (centerline) to the near surface
-        of the primary member.  Equal to ``through_extent / 2``.
-        """
-        _pri_o, pri_x, pri_y, pri_z = _member_local_cs(primary)
-        depth_dir = _approach_depth_dir(primary, secondary, joint_cs)
-        pri_w = float(primary.Width)
-        pri_h = float(primary.Height)
-        through_extent = (abs(depth_dir.dot(pri_y)) * pri_w
-                          + abs(depth_dir.dot(pri_z)) * pri_h)
-        return through_extent / 2.0
-
     # -- parameters ---------------------------------------------------------
 
     def get_parameters(self, primary, secondary, joint_cs):
@@ -187,19 +94,18 @@ class MortiseTenonDefinition(TimberJointDefinition):
         # Clearance per side (1/16" = 1.6 mm)
         clearance = 1.6
 
-        # Approach face distance and through extent.
-        afd = self._approach_face_distance(primary, secondary, joint_cs)
+        # Build face context to get correct approach geometry.
+        pri_ctx = build_face_context(primary, secondary, joint_cs, "primary")
+        afd = approach_face_distance(pri_ctx)
         through_extent = afd * 2.0
 
         # Mortise axes: width perpendicular to primary grain, height along it.
-        m_w_dir, m_h_dir = _mortise_axes(primary, secondary, joint_cs)
+        m_w_dir, m_h_dir = mortise_axes(pri_ctx)
 
-        _pri_o, _pri_x, pri_y, pri_z = _member_local_cs(primary)
-        _sec_o, _sec_x, sec_y, sec_z = _member_local_cs(secondary)
+        _sec_o, _sec_x, sec_y, sec_z = member_local_cs(secondary)
 
         # Primary cross-section extent in the mortise width direction.
-        pri_extent_mw = (abs(m_w_dir.dot(pri_y)) * pri_w
-                         + abs(m_w_dir.dot(pri_z)) * pri_h)
+        pri_extent_mw = extent_along(pri_ctx, m_w_dir)
 
         # Secondary member's extent in mortise width and height directions.
         sec_extent_w = (abs(m_w_dir.dot(sec_y)) * sec_w
@@ -214,9 +120,9 @@ class MortiseTenonDefinition(TimberJointDefinition):
         # Shoulder: 0 = flush with approach face, >0 = housed into primary.
         housing_depth = 0.0
 
-        # Tenon length from shoulder to tip.
-        # Default = through extent (through mortise, flush shoulder).
-        tenon_length = through_extent - housing_depth
+        # Tenon length from shoulder to tip, measured perpendicular to the
+        # primary face.  Default is a blind mortise at 75% of through depth.
+        tenon_length = through_extent * 0.75
 
         # Mortise dimensions (tenon + clearance).
         mortise_width = tenon_width + 2 * clearance
@@ -257,7 +163,8 @@ class MortiseTenonDefinition(TimberJointDefinition):
                            min_value=afd * 0.5,
                            max_value=through_extent + 25.4,
                            group="Tenon",
-                           description="Tenon length from shoulder to tip"),
+                           description="Tenon length from shoulder to tip "
+                                       "(perpendicular to primary face)"),
             # -- Shoulder --
             JointParameter("housing_depth", "length",
                            housing_depth, housing_depth,
@@ -316,12 +223,7 @@ class MortiseTenonDefinition(TimberJointDefinition):
     # -- dependent defaults -------------------------------------------------
 
     def update_dependent_defaults(self, params):
-        """Keep mortise dimensions in sync with tenon dimensions.
-
-        When the user overrides tenon_width or tenon_height, the mortise
-        defaults (tenon + 2x clearance) must follow.  Without this, the
-        mortise stays at the geometry-derived default.
-        """
+        """Keep mortise dimensions in sync with tenon dimensions."""
         clearance = 1.6
 
         tw = params.get("tenon_width")
@@ -342,71 +244,75 @@ class MortiseTenonDefinition(TimberJointDefinition):
     def build_primary_tool(self, params, primary, secondary, joint_cs):
         """Build the mortise void to subtract from the primary member.
 
-        The mortise starts at the primary's approach face and extends
-        inward by ``tenon_length``.  The mortise rectangle is oriented
-        so its height runs along the primary grain.
+        The mortise is a rectangular pocket cut perpendicular to the
+        primary's approach face --- the traditional timber framing approach.
+        At any intersection angle, the pocket goes straight into the
+        timber from the face.  ``common()`` clips to the actual face
+        boundary.
 
-        When ``housing_depth > 0``, a wider housing pocket (matching
-        the secondary's full cross-section) is cut from the approach
-        face inward by ``housing_depth``.
+        At non-90° angles, the tenon (also perpendicular) is trimmed
+        by the angled secondary body into a skewed trapezoid.  There will
+        be a triangular gap at the back of the mortise where the tenon
+        doesn't fill the full pocket --- this is normal and traditional.
+
+        The optional housing pocket follows the secondary member's axis
+        (a sheared prism) so it matches the secondary body's footprint
+        on the primary face.
         """
         mw = params.get("mortise_width")
         mh = params.get("mortise_height")
         tl = params.get("tenon_length")
         sd = params.get("housing_depth")
 
-        _sec_origin, sec_x, sec_y, sec_z = _member_local_cs(secondary)
-        sec_w = float(secondary.Width)
-        sec_h = float(secondary.Height)
+        pri_ctx = build_face_context(primary, secondary, joint_cs, "primary")
+        sec_ctx = build_face_context(secondary, primary, joint_cs, "secondary")
+        m_w_dir, m_h_dir = mortise_axes(pri_ctx)
 
-        # Mortise axes: width perp to primary grain, height along it.
-        m_w_dir, m_h_dir = _mortise_axes(primary, secondary, joint_cs)
+        # Perpendicular rectangular mortise pocket from the shoulder plane.
+        # The pocket depth equals the tenon length.
+        mortise = face_pocket(pri_ctx, mw, mh, tl + sd, m_w_dir, m_h_dir)
 
-        origin = joint_cs.origin
-        afd = self._approach_face_distance(primary, secondary, joint_cs)
-        depth_dir = _approach_depth_dir(primary, secondary, joint_cs)
-
-        # Approach face position (on the secondary's side of the primary).
-        approach_face = origin - depth_dir * afd
-
-        extra = 2.0  # mm overshoot for boolean reliability
-
-        # Mortise: tenon cross-section, from approach face inward by tl.
-        mort_start = approach_face - depth_dir * extra
-        mort_corner = (mort_start
-                       - m_w_dir * (mw / 2.0)
-                       - m_h_dir * (mh / 2.0))
-
-        mp1 = mort_corner
-        mp2 = mort_corner + m_w_dir * mw
-        mp3 = mort_corner + m_w_dir * mw + m_h_dir * mh
-        mp4 = mort_corner + m_h_dir * mh
-
-        mort_wire = Part.makePolygon([mp1, mp2, mp3, mp4, mp1])
-        mort_face = Part.Face(mort_wire)
-        mortise = mort_face.extrude(depth_dir * (tl + 2 * extra))
-
-        # Housing pocket: full secondary cross-section + clearance.
-        # Housing uses the secondary's own axes since it accommodates
-        # the secondary member's physical cross-section.
+        # Housing pocket: accommodates the secondary member's full
+        # cross-section from the face to the shoulder.  This is a sheared
+        # prism along the secondary's axis so it follows the brace/rafter
+        # body where it seats against the primary.
         if sd > 0.1:
             clearance = 1.6
-            hw = sec_w + 2 * clearance
-            hh = sec_h + 2 * clearance
+            hw = sec_ctx.width + 2 * clearance
+            hh = sec_ctx.height + 2 * clearance
 
-            hous_start = approach_face - depth_dir * extra
-            hous_corner = (hous_start
-                           - sec_y * (hw / 2.0)
-                           - sec_z * (hh / 2.0))
+            # Secondary direction toward primary (tenon_dir for housing).
+            if sec_ctx.at_start:
+                tenon_dir = sec_ctx.axis * -1.0
+            else:
+                tenon_dir = FreeCAD.Vector(sec_ctx.axis)
+            cos_alpha = tenon_dir.dot(pri_ctx.face_normal)
+            if cos_alpha < 0.1:
+                cos_alpha = 0.1
 
-            hp1 = hous_corner
-            hp2 = hous_corner + sec_y * hw
-            hp3 = hous_corner + sec_y * hw + sec_z * hh
-            hp4 = hous_corner + sec_z * hh
+            overshoot = 2.0
+            housing_start = pri_ctx.face_point - pri_ctx.face_normal * overshoot
+            h_corner = (housing_start
+                        - sec_ctx.y_dir * (hw / 2.0)
+                        - sec_ctx.z_dir * (hh / 2.0))
+            hp1 = h_corner
+            hp2 = h_corner + sec_ctx.y_dir * hw
+            hp3 = h_corner + sec_ctx.y_dir * hw + sec_ctx.z_dir * hh
+            hp4 = h_corner + sec_ctx.z_dir * hh
 
-            hous_wire = Part.makePolygon([hp1, hp2, hp3, hp4, hp1])
-            hous_face = Part.Face(hous_wire)
-            housing = hous_face.extrude(depth_dir * (sd + 2 * extra))
+            h_wire = Part.makePolygon([hp1, hp2, hp3, hp4, hp1])
+            h_face = Part.Face(h_wire)
+
+            # Extrude along secondary axis to cover housing depth.
+            housing_ext = (overshoot + sd) / max(cos_alpha, 0.01)
+            housing = h_face.extrude(tenon_dir * housing_ext)
+
+            try:
+                housing_clipped = housing.common(pri_ctx.raw_solid)
+                if housing_clipped.Volume > 0.01:
+                    housing = housing_clipped
+            except Exception:
+                pass
 
             try:
                 mortise = mortise.fuse(housing)
@@ -420,123 +326,70 @@ class MortiseTenonDefinition(TimberJointDefinition):
     def secondary_extension(self, params, primary, secondary, joint_cs):
         """Distance the secondary member must extend past the datum endpoint.
 
-        The datum endpoint is at the primary's centerline.  The tenon tip
-        is at ``tenon_length - (afd - housing_depth)`` past the centerline.
+        The tenon extends perpendicular to the primary face.  The
+        secondary member's body is angled.  The extension along the
+        secondary axis must cover the perpendicular tenon depth past
+        the primary centerline, projected onto the secondary axis.
         """
-        afd = self._approach_face_distance(primary, secondary, joint_cs)
+        pri_ctx = build_face_context(primary, secondary, joint_cs, "primary")
+        sec_ctx = build_face_context(secondary, primary, joint_cs, "secondary")
         sd = params.get("housing_depth")
         tl = params.get("tenon_length")
-        return max(0.0, tl - (afd - sd))
+
+        if sec_ctx.at_start:
+            tenon_dir = sec_ctx.axis * -1.0
+        else:
+            tenon_dir = FreeCAD.Vector(sec_ctx.axis)
+        cos_alpha = tenon_dir.dot(pri_ctx.face_normal)
+        if cos_alpha < 0.1:
+            cos_alpha = 0.1
+
+        return secondary_extension_for_tenon(pri_ctx, tl, sd, cos_alpha)
 
     # -- secondary profile (tenon + shoulder) -------------------------------
 
     def build_secondary_profile(self, params, primary, secondary, joint_cs):
         """Build the tenon shape and shoulder cut for the secondary member.
 
-        The shoulder is anchored at the primary's approach face (plus
-        ``housing_depth`` into the primary for housed joints).  Changing
-        ``tenon_length`` only moves the tenon tip; the shoulder stays fixed.
+        The shoulder sits flat against the primary's approach face.
+        The tenon extends perpendicular to the face (along ``sh_normal``),
+        matching the mortise direction.
 
-        The tenon rectangle is oriented to match the mortise (height along
-        primary grain).
+        At non-90° angles, the perpendicular tenon block intersects the
+        angled secondary body.  The boolean subtraction of the shoulder
+        cut (which preserves only the tenon block region) naturally
+        produces a skewed trapezoidal tenon --- the two corners where
+        the perpendicular tenon extends beyond the secondary's body are
+        trimmed away.  No special angle math needed.
         """
         tw = params.get("tenon_width")
         th = params.get("tenon_height")
         tl = params.get("tenon_length")
         sd = params.get("housing_depth")
-        shoulder_angle = params.get("shoulder_angle")
 
-        sec_origin, sec_x, sec_y, sec_z = _member_local_cs(secondary)
-        sec_w = float(secondary.Width)
-        sec_h = float(secondary.Height)
+        pri_ctx = build_face_context(primary, secondary, joint_cs, "primary")
+        sec_ctx = build_face_context(secondary, primary, joint_cs, "secondary")
+        m_w_dir, m_h_dir = mortise_axes(pri_ctx)
 
-        # Mortise axes for the tenon rectangle.
-        m_w_dir, m_h_dir = _mortise_axes(primary, secondary, joint_cs)
+        # Shoulder plane: primary face, offset inward by housing_depth.
+        sh_origin, sh_normal = shoulder_plane(pri_ctx, sd)
 
-        sec_start = FreeCAD.Vector(secondary.A_StartPoint)
-        sec_end = FreeCAD.Vector(secondary.B_EndPoint)
+        # Tenon: extends perpendicular to the primary face (sh_normal).
+        # At 90° this is identical to following the secondary axis.
+        # At other angles, the perpendicular tenon block acts as a
+        # keep zone; the angled secondary body trims it into a trapezoid.
+        tenon_shape = tenon_block(sec_ctx, sh_origin, sh_normal,
+                                  tw, th, tl, m_w_dir, m_h_dir)
 
-        # Determine which end of the secondary member is at the joint.
-        dist_start = (joint_cs.origin - sec_start).Length
-        dist_end = (joint_cs.origin - sec_end).Length
-
-        if dist_start <= dist_end:
-            tenon_direction = sec_x * -1.0   # tenon extends beyond start
-            shoulder_origin = sec_start       # datum endpoint
-        else:
-            tenon_direction = sec_x          # tenon extends beyond end
-            shoulder_origin = sec_end        # datum endpoint
-
-        inward_dir = tenon_direction * -1.0
-
-        # Approach face: the primary's near surface.
-        afd = self._approach_face_distance(primary, secondary, joint_cs)
-        approach_face = shoulder_origin + inward_dir * afd
-
-        # Shoulder face: approach face + housing_depth into primary.
-        shoulder_face = approach_face + tenon_direction * sd
-
-        # -- Tenon: starts at shoulder face, extends tl in tenon_direction --
-        # Oriented to match the mortise (m_w_dir, m_h_dir).
-        tenon_corner = (shoulder_face
-                        - m_w_dir * (tw / 2.0)
-                        - m_h_dir * (th / 2.0))
-
-        tp1 = tenon_corner
-        tp2 = tenon_corner + m_w_dir * tw
-        tp3 = tenon_corner + m_w_dir * tw + m_h_dir * th
-        tp4 = tenon_corner + m_h_dir * th
-
-        tenon_wire = Part.makePolygon([tp1, tp2, tp3, tp4, tp1])
-        tenon_face = Part.Face(tenon_wire)
-        tenon_shape = tenon_face.extrude(tenon_direction * tl)
-
-        # -- Shoulder cut: removes material around the tenon from the
-        # shoulder face outward.  Uses the secondary's own cross-section
-        # axes since we're cutting from the secondary member.
-        #
-        # Distance from shoulder_face to the datum endpoint:
-        #   datum_reach = afd - sd
-        # The cut must span max(tl, datum_reach) + overshoot.
-        datum_reach = afd - sd
-        cut_depth = max(tl, datum_reach + 2.0)  # 2.0 mm boolean overshoot
-
-        full_corner = (shoulder_face
-                       - sec_y * (sec_w / 2.0)
-                       - sec_z * (sec_h / 2.0))
-
-        fp1 = full_corner
-        fp2 = full_corner + sec_y * sec_w
-        fp3 = full_corner + sec_y * sec_w + sec_z * sec_h
-        fp4 = full_corner + sec_z * sec_h
-
-        full_wire = Part.makePolygon([fp1, fp2, fp3, fp4, fp1])
-        full_face = Part.Face(full_wire)
-        full_box = full_face.extrude(tenon_direction * cut_depth)
-
-        # Tenon-shaped keep zone: only extends tl (the actual tenon).
-        # Oriented to match the mortise axes.
-        tenon_zone_corner = (shoulder_face
-                             - m_w_dir * (tw / 2.0)
-                             - m_h_dir * (th / 2.0))
-
-        tz1 = tenon_zone_corner
-        tz2 = tenon_zone_corner + m_w_dir * tw
-        tz3 = tenon_zone_corner + m_w_dir * tw + m_h_dir * th
-        tz4 = tenon_zone_corner + m_h_dir * th
-
-        tenon_zone_wire = Part.makePolygon([tz1, tz2, tz3, tz4, tz1])
-        tenon_zone_face = Part.Face(tenon_zone_wire)
-        tenon_zone = tenon_zone_face.extrude(tenon_direction * tl)
-
-        try:
-            shoulder_cut = full_box.cut(tenon_zone)
-        except Exception:
-            shoulder_cut = full_box
+        # Shoulder cut: removes material around the tenon.
+        # The slab face is in the shoulder plane (primary's face),
+        # producing an angled shoulder on the secondary.
+        cut = shoulder_cut(sec_ctx, sh_origin, sh_normal,
+                          keep_shape=tenon_shape)
 
         return SecondaryProfile(
             tenon_shape=tenon_shape,
-            shoulder_cut=shoulder_cut,
+            shoulder_cut=cut,
         )
 
     # -- pegs ---------------------------------------------------------------
@@ -549,29 +402,22 @@ class MortiseTenonDefinition(TimberJointDefinition):
 
         diameter = params.get("peg_diameter")
         spacing = params.get("peg_spacing")
-        edge_dist = params.get("peg_edge_distance")
         th = params.get("tenon_height")
 
-        _pri_origin, pri_x, pri_y, pri_z = _member_local_cs(primary)
-        pri_w = float(primary.Width)
-        pri_h = float(primary.Height)
-
-        # Mortise height direction (along primary grain) for peg spacing.
-        _m_w_dir, m_h_dir = _mortise_axes(primary, secondary, joint_cs)
+        pri_ctx = build_face_context(primary, secondary, joint_cs, "primary")
+        _m_w_dir, m_h_dir = mortise_axes(pri_ctx)
 
         # Peg axis: perpendicular to both the primary grain and the
-        # mortise through-direction.  The drawbore pin is driven across
-        # the grain, locking the tenon in place.
-        depth_dir = _approach_depth_dir(primary, secondary, joint_cs)
-        peg_axis = pri_x.cross(depth_dir)
+        # face normal.  The drawbore pin is driven across the grain,
+        # locking the tenon in place.
+        peg_axis = pri_ctx.axis.cross(pri_ctx.face_normal)
         if peg_axis.Length < 1e-6:
-            peg_axis = pri_y
+            peg_axis = pri_ctx.y_dir
         else:
             peg_axis.normalize()
 
         # Peg length spans the primary member in the peg axis direction.
-        peg_extent = (abs(peg_axis.dot(pri_y)) * pri_w
-                      + abs(peg_axis.dot(pri_z)) * pri_h)
+        peg_extent = extent_along(pri_ctx, peg_axis)
 
         # Pegs are spaced along the mortise height direction (primary grain).
         pegs = []
@@ -611,18 +457,16 @@ class MortiseTenonDefinition(TimberJointDefinition):
         peg_d = params.get("peg_diameter")
         peg_edge = params.get("peg_edge_distance")
 
-        afd = self._approach_face_distance(primary, secondary, joint_cs)
+        pri_ctx = build_face_context(primary, secondary, joint_cs, "primary")
+        afd = approach_face_distance(pri_ctx)
         through_extent = afd * 2.0
 
         # Mortise axes and extents.
-        m_w_dir, m_h_dir = _mortise_axes(primary, secondary, joint_cs)
-        _pri_o, _pri_x, pri_y, pri_z = _member_local_cs(primary)
-        _sec_o, _sec_x, sec_y, sec_z = _member_local_cs(secondary)
+        m_w_dir, m_h_dir = mortise_axes(pri_ctx)
+        _sec_o, _sec_x, sec_y, sec_z = member_local_cs(secondary)
 
-        pri_extent_mw = (abs(m_w_dir.dot(pri_y)) * pri_w
-                         + abs(m_w_dir.dot(pri_z)) * pri_h)
-        pri_extent_mh = (abs(m_h_dir.dot(pri_y)) * pri_w
-                         + abs(m_h_dir.dot(pri_z)) * pri_h)
+        pri_extent_mw = extent_along(pri_ctx, m_w_dir)
+        pri_extent_mh = extent_along(pri_ctx, m_h_dir)
 
         sec_extent_w = (abs(m_w_dir.dot(sec_y)) * sec_w
                         + abs(m_w_dir.dot(sec_z)) * sec_h)

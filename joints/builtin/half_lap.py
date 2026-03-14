@@ -1,10 +1,10 @@
-"""Half Lap — midpoint-to-midpoint crossing joint.
+"""Half Lap --- midpoint-to-midpoint crossing joint.
 
 Both members are notched to half their depth at the crossing point so
 their top surfaces remain flush.  Common for crossing girts, purlins,
 or other members that cross at mid-span.
 
-This module must work headless — no FreeCADGui / Qt imports.
+This module must work headless --- no FreeCADGui / Qt imports.
 """
 
 import FreeCAD
@@ -19,53 +19,30 @@ from joints.base import (
     TimberJointDefinition,
     ValidationResult,
 )
+from joints.toolkit import (
+    MemberFaceContext,
+    build_face_context,
+    member_local_cs,
+    lap_notch,
+    extent_along,
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _member_local_cs(obj):
-    """Return the member local coordinate system (origin, x, y, z)."""
-    start = FreeCAD.Vector(obj.A_StartPoint)
-    end = FreeCAD.Vector(obj.B_EndPoint)
-    direction = end - start
-    length = direction.Length
-
-    if length < 1e-6:
-        return (start,
-                FreeCAD.Vector(1, 0, 0),
-                FreeCAD.Vector(0, 1, 0),
-                FreeCAD.Vector(0, 0, 1))
-
-    x_axis = FreeCAD.Vector(direction)
-    x_axis.normalize()
-
-    world_z = FreeCAD.Vector(0, 0, 1)
-    if abs(x_axis.dot(world_z)) > 0.999:
-        up_hint = FreeCAD.Vector(0, 1, 0)
-    else:
-        up_hint = world_z
-
-    y_axis = x_axis.cross(up_hint)
-    y_axis.normalize()
-    z_axis = y_axis.cross(x_axis)
-    z_axis.normalize()
-
-    return start, x_axis, y_axis, z_axis
-
-
-def _crossing_footprint(host_x, other_obj):
-    """Compute the extent of the other member's cross-section along host_x.
+def _crossing_footprint(host_ctx, other_obj):
+    """Compute the extent of the other member's cross-section along the host's datum.
 
     For a 90-degree crossing of a vertical post (150x200) through a
     horizontal beam, this returns the post's *width* (150) along the
     beam's datum, not the post's height.
     """
-    _o, _ox, oy, oz = _member_local_cs(other_obj)
+    _o, _ox, oy, oz = member_local_cs(other_obj)
     w = float(other_obj.Width)
     h = float(other_obj.Height)
-    return abs(oy.dot(host_x)) * w + abs(oz.dot(host_x)) * h
+    return abs(oy.dot(host_ctx.axis)) * w + abs(oz.dot(host_ctx.axis)) * h
 
 
 # ---------------------------------------------------------------------------
@@ -102,17 +79,17 @@ class HalfLapDefinition(TimberJointDefinition):
         sec_h = float(secondary.Height)
         sec_w = float(secondary.Width)
 
-        _pri_o, pri_x, _pri_y, _pri_z = _member_local_cs(primary)
-        _sec_o, sec_x, _sec_y, _sec_z = _member_local_cs(secondary)
+        pri_ctx = build_face_context(primary, secondary, joint_cs, "primary")
+        sec_ctx = build_face_context(secondary, primary, joint_cs, "secondary")
 
         clearance = 1.6  # 1/16 inch
 
         # The notch width along each host's datum is the crossing member's
         # footprint projected onto that axis.
-        sec_footprint = _crossing_footprint(pri_x, secondary)
-        pri_footprint = _crossing_footprint(sec_x, primary)
+        sec_footprint = _crossing_footprint(pri_ctx, secondary)
+        pri_footprint = _crossing_footprint(sec_ctx, primary)
 
-        # Fallback: if footprint is near-zero (parallel datums — shouldn't
+        # Fallback: if footprint is near-zero (parallel datums --- shouldn't
         # happen for a valid joint), use the crossing member's width.
         if sec_footprint < 1.0:
             sec_footprint = sec_w
@@ -150,42 +127,21 @@ class HalfLapDefinition(TimberJointDefinition):
     def build_primary_tool(self, params, primary, secondary, joint_cs):
         """Build the notch to subtract from the primary member.
 
-        The notch is constructed entirely in the primary member's local
-        coordinate system (pri_x, pri_y, pri_z) to avoid degeneracy when
-        the crossing member's direction is parallel to the host's height.
+        Uses the toolkit's ``lap_notch()`` to cut from the face closest
+        to the secondary member, rather than hardcoding "top" or "bottom".
         """
         lap_depth = params.get("lap_depth_primary")
         lap_width = params.get("lap_width_primary")
 
-        _pri_o, pri_x, pri_y, pri_z = _member_local_cs(primary)
-        pri_w = float(primary.Width)
-        pri_h = float(primary.Height)
-        extra = 2.0
+        pri_ctx = build_face_context(primary, secondary, joint_cs, "primary")
 
-        origin = joint_cs.origin
+        # The notch is on the face of the primary that faces the secondary.
+        # Use the joint normal as the face direction hint.
+        # For a standard lap joint, the primary is notched from the face
+        # that the secondary approaches from.
+        face_dir = pri_ctx.face_normal * -1.0  # outward normal toward secondary
 
-        # The notch is a box:
-        #   Along pri_x (datum): lap_width, centred on intersection
-        #   Along pri_y (width): full member width + extra (through-cut)
-        #   Along pri_z (height): lap_depth from the top face downward
-
-        # Corner = bottom-corner of the notch box.
-        # Datum runs through centre, so top face is at +pri_h/2.
-        # Notch goes from (pri_h/2 - lap_depth) to pri_h/2 in local z.
-        corner = (origin
-                  - pri_x * (lap_width / 2.0)
-                  - pri_y * ((pri_w + 2 * extra) / 2.0)
-                  + pri_z * (pri_h / 2.0 - lap_depth))
-
-        # Profile rectangle in the pri_x / pri_z plane.
-        p1 = corner
-        p2 = corner + pri_x * lap_width
-        p3 = corner + pri_x * lap_width + pri_z * lap_depth
-        p4 = corner + pri_z * lap_depth
-
-        wire = Part.makePolygon([p1, p2, p3, p4, p1])
-        face = Part.Face(wire)
-        notch = face.extrude(pri_y * (pri_w + 2 * extra))
+        notch = lap_notch(pri_ctx, lap_width, lap_depth, face_dir)
 
         return notch
 
@@ -194,61 +150,73 @@ class HalfLapDefinition(TimberJointDefinition):
     def build_secondary_profile(self, params, primary, secondary, joint_cs):
         """Build the notch for the secondary member.
 
-        Same approach as primary — entirely in the secondary member's
-        local coordinate system.
+        The secondary is notched from the opposite face (facing away from
+        the primary) so the two halves nest together.
         """
         lap_depth = params.get("lap_depth_secondary")
         lap_width = params.get("lap_width_secondary")
 
-        _sec_o, sec_x, sec_y, sec_z = _member_local_cs(secondary)
-        sec_h = float(secondary.Height)
-        sec_w = float(secondary.Width)
-        extra = 2.0
+        sec_ctx = build_face_context(secondary, primary, joint_cs, "secondary")
 
-        origin = joint_cs.origin
+        # The secondary is notched from the face AWAY from the primary,
+        # so the two halves interlock.
+        face_dir = sec_ctx.face_normal * -1.0  # outward toward primary
+        opposite_dir = face_dir * -1.0         # opposite face
 
-        # The notch is cut from the BOTTOM face (opposite the primary's
-        # top-face notch, so the two halves nest together).
-        # Datum runs through centre, so bottom face is at -sec_h/2.
-        corner = (origin
-                  - sec_x * (lap_width / 2.0)
-                  - sec_y * ((sec_w + 2 * extra) / 2.0)
-                  - sec_z * (sec_h / 2.0))
-
-        # Profile rectangle in the sec_x / sec_z plane.
-        p1 = corner
-        p2 = corner + sec_x * lap_width
-        p3 = corner + sec_x * lap_width + sec_z * lap_depth
-        p4 = corner + sec_z * lap_depth
-
-        wire = Part.makePolygon([p1, p2, p3, p4, p1])
-        face = Part.Face(wire)
-        shoulder_cut = face.extrude(sec_y * (sec_w + 2 * extra))
+        shoulder_cut_shape = lap_notch(sec_ctx, lap_width, lap_depth, opposite_dir)
 
         # The "tenon" for visualization: the remaining half-section that
         # nests into the other member's notch.
-        tenon_corner = (origin
-                        - sec_x * (lap_width / 2.0)
-                        - sec_y * (sec_w / 2.0)
-                        + sec_z * (-sec_h / 2.0 + lap_depth))
-
-        # Tenon extends from lap_depth to full height.
+        # Build it as the intersection zone.
+        sec_h = float(secondary.Height)
+        sec_w = float(secondary.Width)
         remaining_h = sec_h - lap_depth
         if remaining_h < 1.0:
             remaining_h = 1.0
 
-        tp1 = tenon_corner
-        tp2 = tenon_corner + sec_x * lap_width
-        tp3 = tenon_corner + sec_x * lap_width + sec_z * remaining_h
-        tp4 = tenon_corner + sec_z * remaining_h
+        # Build a simple box for the tenon visualization.
+        origin = joint_cs.origin
 
-        tenon_wire = Part.makePolygon([tp1, tp2, tp3, tp4, tp1])
-        tenon_face = Part.Face(tenon_wire)
-        tenon_shape = tenon_face.extrude(sec_y * sec_w)
+        # Use the same face direction logic to figure out which half remains.
+        # The tenon is on the primary-facing side of the secondary.
+        tenon_face_outward = face_dir
+        tenon_face_inward = tenon_face_outward * -1.0
+
+        # Distance from datum center to the face.
+        half_ext = (abs(tenon_face_outward.dot(sec_ctx.y_dir)) * sec_w
+                    + abs(tenon_face_outward.dot(sec_ctx.z_dir)) * sec_h) / 2.0
+
+        # Through direction (perpendicular to datum and face normal).
+        through_dir = sec_ctx.axis.cross(tenon_face_outward)
+        if through_dir.Length < 1e-6:
+            through_dir = sec_ctx.y_dir
+        else:
+            through_dir.normalize()
+        through_extent = (abs(through_dir.dot(sec_ctx.y_dir)) * sec_w
+                          + abs(through_dir.dot(sec_ctx.z_dir)) * sec_h)
+
+        # Tenon: from face inward by remaining_h, centered on intersection.
+        face_pos = origin + tenon_face_outward * half_ext
+        tenon_corner = (face_pos
+                        + tenon_face_inward * remaining_h
+                        - sec_ctx.axis * (lap_width / 2.0)
+                        - through_dir * (through_extent / 2.0))
+
+        tp1 = tenon_corner
+        tp2 = tenon_corner + sec_ctx.axis * lap_width
+        tp3 = tenon_corner + sec_ctx.axis * lap_width + tenon_face_outward * remaining_h
+        tp4 = tenon_corner + tenon_face_outward * remaining_h
+
+        try:
+            tenon_wire = Part.makePolygon([tp1, tp2, tp3, tp4, tp1])
+            tenon_face = Part.Face(tenon_wire)
+            tenon_shape = tenon_face.extrude(through_dir * through_extent)
+        except Exception:
+            tenon_shape = Part.makeBox(1, 1, 1)
 
         return SecondaryProfile(
             tenon_shape=tenon_shape,
-            shoulder_cut=shoulder_cut,
+            shoulder_cut=shoulder_cut_shape,
         )
 
     # -- validation ---------------------------------------------------------
@@ -280,7 +248,7 @@ class HalfLapDefinition(TimberJointDefinition):
             results.append(ValidationResult(
                 "error",
                 f"Intersection angle ({joint_cs.angle:.1f} deg) is outside "
-                f"the valid range ({self.MIN_ANGLE}–{self.MAX_ANGLE} deg).",
+                f"the valid range ({self.MIN_ANGLE}\u2013{self.MAX_ANGLE} deg).",
                 "ANGLE_OUT_OF_RANGE",
             ))
 
