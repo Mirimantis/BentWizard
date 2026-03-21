@@ -455,10 +455,10 @@ if FreeCAD.GuiUp:
     _COLOR_TIMBER = (0.76, 0.60, 0.37)       # standard timber face
     _COLOR_REF_FACE = (0.55, 0.38, 0.20)     # darker tint for reference face
     _COLOR_CHALK = (1.0, 1.0, 0.85)          # chalk line on reference face
-    _COLOR_LABEL = (0.25, 0.25, 0.25)        # dark gray for A/B labels
-    _COLOR_FACE_NUM = (0.45, 0.45, 0.45)     # medium gray for face numbers
-    _LABEL_FONT_SIZE = 14
-    _FACE_NUM_FONT_SIZE = 10
+    _COLOR_LABEL = (1.0, 1.0, 1.0)           # white for A/B labels
+    _COLOR_FACE_NUM = (0.95, 0.85, 0.55)     # warm gold for face numbers
+    _LABEL_FONT_SIZE = 20
+    _FACE_NUM_FONT_SIZE = 16
     _NORMAL_THRESHOLD = 0.7  # dot product threshold for face identification
 
     class TimberMemberViewProvider:
@@ -604,16 +604,18 @@ if FreeCAD.GuiUp:
             h = float(obj.Height)
             midpoint = (start + end) * 0.5
 
-            # Offset labels slightly above the member
-            label_offset = z_axis * (h / 2.0 + 15.0)
+            # Offset labels above and inward from the member endpoints
+            # so they don't overlap with snap handles at the datum tips.
+            label_offset = z_axis * (h / 2.0 + 40.0)
+            inward_nudge = x_axis * (w * 0.4)
 
-            # A label at start
-            pos_a = start + label_offset
+            # A label at start, nudged inward toward member center
+            pos_a = start + label_offset + inward_nudge
             self._label_a["trans"].translation.setValue(
                 pos_a.x, pos_a.y, pos_a.z)
 
-            # B label at end
-            pos_b = end + label_offset
+            # B label at end, nudged inward toward member center
+            pos_b = end + label_offset - inward_nudge
             self._label_b["trans"].translation.setValue(
                 pos_b.x, pos_b.y, pos_b.z)
 
@@ -625,7 +627,7 @@ if FreeCAD.GuiUp:
                     half_ext = w / 2.0
                 else:
                     half_ext = h / 2.0
-                pos = midpoint + normal * (half_ext + 10.0)
+                pos = midpoint + normal * (half_ext + 30.0)
                 self._face_labels[i]["trans"].translation.setValue(
                     pos.x, pos.y, pos.z)
 

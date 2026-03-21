@@ -65,7 +65,6 @@ DATUM_LINE_COLOR = HANDLE_COLOR
 GRID_DEFAULT_SPACING = 50.0
 GRID_MIN_EXTENT = 10000.0  # minimum half-extent for grid (20000 mm total)
 GROUND_LINE_COLOR = QtGui.QColor(80, 180, 80)  # muted green for Z=0 datum
-CLUSTER_TOLERANCE = 1.0   # mm — endpoints within this form a cluster
 
 ZOOM_MIN = 0.05
 ZOOM_MAX = 20.0
@@ -918,9 +917,8 @@ def _intersect_2d_segments(p1, p2, p3, p4):
 class HandleItem(QtWidgets.QGraphicsEllipseItem):
     """Draggable circle at a datum endpoint.
 
-    Supports endpoint clusters: handles sharing the same 3D position
-    (within CLUSTER_TOLERANCE) move together.  On mouse release,
-    writes the new position to FreeCAD objects within a transaction.
+    On mouse release, writes the new position to FreeCAD objects
+    within a transaction.
     """
 
     def __init__(self, member_obj, endpoint, designer_scene):
@@ -929,7 +927,6 @@ class HandleItem(QtWidgets.QGraphicsEllipseItem):
         self._member = member_obj
         self._endpoint = endpoint      # "start" or "end"
         self._scene_ref = designer_scene
-        self._cluster = []             # other HandleItems in same cluster
         self._batch_moving = False
         self._drag_start_pos = None
         self._original_pos = None      # set after placement
@@ -974,7 +971,6 @@ class HandleItem(QtWidgets.QGraphicsEllipseItem):
             if self._batch_moving:
                 return value
 
-            # Build exclusion sets from this handle + cluster
             exclude = set()
             if self._original_pos is not None:
                 exclude.add((
@@ -982,11 +978,6 @@ class HandleItem(QtWidgets.QGraphicsEllipseItem):
                     round(self._original_pos.y(), 1),
                 ))
             exclude_members = {self._member.Name}
-            for other in self._cluster:
-                op = other._original_pos
-                if op is not None:
-                    exclude.add((round(op.x(), 1), round(op.y(), 1)))
-                exclude_members.add(other._member.Name)
 
             snap = self._scene_ref.snap_engine.combined_snap(
                 value, exclude_positions=exclude,
@@ -994,35 +985,18 @@ class HandleItem(QtWidgets.QGraphicsEllipseItem):
             )
             snapped_pos = snap.point
 
-            # Move cluster members
-            for other in self._cluster:
-                other._batch_moving = True
-                other.setPos(snapped_pos)
-                other._batch_moving = False
-
-            # Live update of member rectangles during drag
+            # Live update of member rectangle during drag
             member_item = self._scene_ref._member_items.get(
                 self._member.Name
             )
             if member_item is not None:
                 member_item.update_endpoint_2d(self._endpoint, snapped_pos)
-            for other in self._cluster:
-                other_mi = self._scene_ref._member_items.get(
-                    other._member.Name
-                )
-                if other_mi is not None:
-                    other_mi.update_endpoint_2d(
-                        other._endpoint, snapped_pos
-                    )
 
             # Live update of joint markers during drag
-            affected = {self._member.Name}
-            for other in self._cluster:
-                affected.add(other._member.Name)
             joint_items = getattr(self._scene_ref, '_joint_items', {})
             mi_dict = self._scene_ref._member_items
             for _jname, ji in joint_items.items():
-                if ji._primary_name in affected or ji._secondary_name in affected:
+                if ji._primary_name == self._member.Name or ji._secondary_name == self._member.Name:
                     ji.update_position_from_members(mi_dict)
 
             self._scene_ref.update_snap_feedback(snap)
@@ -1057,10 +1031,6 @@ class HandleItem(QtWidgets.QGraphicsEllipseItem):
         doc.openTransaction("Move Bent Endpoint")
         try:
             self._write_endpoint(self._member, self._endpoint, new_3d)
-            for other in self._cluster:
-                self._write_endpoint(
-                    other._member, other._endpoint, new_3d,
-                )
             doc.recompute()
         except Exception as e:
             FreeCAD.Console.PrintError(
@@ -1150,25 +1120,10 @@ class DatumTranslateHandle(QtWidgets.QGraphicsPathItem):
         if self._original_midpoint is None:
             return value
 
-        # Build exclusion sets from both endpoints + their clusters
         exclude = set()
         exclude_members = {self._member.Name}
         for pos in (self._original_start, self._original_end):
             exclude.add((round(pos.x(), 1), round(pos.y(), 1)))
-        for h in self._start_handle._cluster:
-            if h._original_pos is not None:
-                exclude.add((
-                    round(h._original_pos.x(), 1),
-                    round(h._original_pos.y(), 1),
-                ))
-            exclude_members.add(h._member.Name)
-        for h in self._end_handle._cluster:
-            if h._original_pos is not None:
-                exclude.add((
-                    round(h._original_pos.x(), 1),
-                    round(h._original_pos.y(), 1),
-                ))
-            exclude_members.add(h._member.Name)
 
         snap = self._scene_ref.snap_engine.combined_snap(
             value, exclude_positions=exclude,
@@ -1198,33 +1153,11 @@ class DatumTranslateHandle(QtWidgets.QGraphicsPathItem):
         self._end_handle.setPos(new_end)
         self._end_handle._batch_moving = False
 
-        # Move cluster handles
-        for other in self._start_handle._cluster:
-            other._batch_moving = True
-            other.setPos(new_start)
-            other._batch_moving = False
-        for other in self._end_handle._cluster:
-            other._batch_moving = True
-            other.setPos(new_end)
-            other._batch_moving = False
-
-        # Live-update member rectangles
+        # Live-update member rectangle
         mi = self._scene_ref._member_items.get(self._member.Name)
         if mi is not None:
             mi.update_endpoint_2d("start", new_start)
             mi.update_endpoint_2d("end", new_end)
-        for other in self._start_handle._cluster:
-            other_mi = self._scene_ref._member_items.get(
-                other._member.Name
-            )
-            if other_mi is not None:
-                other_mi.update_endpoint_2d(other._endpoint, new_start)
-        for other in self._end_handle._cluster:
-            other_mi = self._scene_ref._member_items.get(
-                other._member.Name
-            )
-            if other_mi is not None:
-                other_mi.update_endpoint_2d(other._endpoint, new_end)
 
         self._scene_ref.update_snap_feedback(snap)
         return snapped_pos
@@ -1254,16 +1187,6 @@ class DatumTranslateHandle(QtWidgets.QGraphicsPathItem):
         try:
             self._member.A_StartPoint = new_start_3d
             self._member.B_EndPoint = new_end_3d
-
-            for other in self._start_handle._cluster:
-                HandleItem._write_endpoint(
-                    other._member, other._endpoint, new_start_3d,
-                )
-            for other in self._end_handle._cluster:
-                HandleItem._write_endpoint(
-                    other._member, other._endpoint, new_end_3d,
-                )
-
             doc.recompute()
         except Exception as e:
             FreeCAD.Console.PrintError(
@@ -1477,9 +1400,6 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
             except Exception:
                 pass
 
-        # Build endpoint clusters
-        self._build_clusters(handles)
-
         # Create datum translate handles (diamond at midpoint)
         for m in members:
             try:
@@ -1528,26 +1448,6 @@ class BentDesignerScene(QtWidgets.QGraphicsScene):
                 FreeCAD.Console.PrintWarning(
                     f"BentDesigner: skip joint: {e}\n"
                 )
-
-    def _build_clusters(self, handles):
-        """Group handles at the same 2D position into clusters."""
-        assigned = set()
-        for i, h1 in enumerate(handles):
-            if i in assigned:
-                continue
-            cluster = [h1]
-            assigned.add(i)
-            for j, h2 in enumerate(handles):
-                if j in assigned:
-                    continue
-                dx = h1.pos().x() - h2.pos().x()
-                dy = h1.pos().y() - h2.pos().y()
-                if math.hypot(dx, dy) < CLUSTER_TOLERANCE:
-                    cluster.append(h2)
-                    assigned.add(j)
-            # Link each handle to the others in its cluster
-            for h in cluster:
-                h._cluster = [o for o in cluster if o is not h]
 
     # -- snap visual feedback -----------------------------------------------
 
@@ -1885,6 +1785,8 @@ class BentDesignerWidget(QtWidgets.QWidget):
         import FreeCAD
         from objects.TimberMember import create_timber_member
         from objects.Bent import Bent
+        from joints.intersection import _test_pair, INTERSECTION_TOLERANCE
+        from objects.TimberJoint import create_timber_joint
 
         if not self._obj_valid():
             return
@@ -1920,6 +1822,7 @@ class BentDesignerWidget(QtWidgets.QWidget):
         doc = self._obj.Document
         doc.openTransaction(f"Apply Template: {template.name}")
         try:
+            created_members = []
             for tm in template.members:
                 sx = tm.start[0] * span
                 sz = tm.start[1] * height
@@ -1940,9 +1843,39 @@ class BentDesignerWidget(QtWidgets.QWidget):
                 member.Height = tm.height
 
                 Bent.add_member(self._obj, member)
+                created_members.append(member)
 
             self._obj.BentTemplate = template.name
             doc.recompute()
+
+            # Create joints for the specific pairs defined in the
+            # template.  Each pair is tested via intersection detection
+            # to compute primary/secondary assignment and the joint
+            # coordinate system.
+            for tj in template.joints:
+                if tj.member_a >= len(created_members):
+                    continue
+                if tj.member_b >= len(created_members):
+                    continue
+                obj_a = created_members[tj.member_a]
+                obj_b = created_members[tj.member_b]
+                result = _test_pair(obj_a, obj_b, INTERSECTION_TOLERANCE)
+                if result is None:
+                    FreeCAD.Console.PrintWarning(
+                        f"Template joint ({tj.member_a}, {tj.member_b}) "
+                        f"did not intersect within tolerance.\n"
+                    )
+                    continue
+                try:
+                    create_timber_joint(
+                        result.primary_obj,
+                        result.secondary_obj,
+                        result,
+                    )
+                except Exception as exc:
+                    FreeCAD.Console.PrintWarning(
+                        f"Template joint creation failed: {exc}\n"
+                    )
         except Exception as e:
             FreeCAD.Console.PrintError(
                 f"Template apply failed: {e}\n"

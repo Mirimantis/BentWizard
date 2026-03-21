@@ -586,6 +586,21 @@ Template:
 **Alternatives considered:** What else was on the table and why it was rejected.
 -->
 
+### 2026-03-20 — Template-defined joints replace auto-detection; endpoint-to-endpoint eliminated
+**Decision:** Bent templates now declare explicit joint pairs via `TemplateJoint(member_a, member_b)` indices. Template application calls `_test_pair()` for each declared pair instead of `detect_intersections()` on the whole document. Primary/through members are extended by 10% in fractional coordinates past each connection point so secondary endpoints always land at the primary's midpoint (EndpointToMidpoint), never endpoint-to-endpoint.
+**Reason:** Auto-detection via `detect_intersections()` found every pairwise intersection in the document, including spurious ones where 3+ members shared an endpoint. This generated excessive warnings and created joints that weren't structurally meaningful. Endpoint-to-endpoint connections are physically impossible to joint (no overlap for mortise/tenon carving) and create ambiguous primary/secondary assignment in the intersection detector. The 10% overshoot is generous — ensures the secondary has material to land on regardless of section size.
+**Alternatives considered:** (1) Auto-detect with filtering — rejected, the filter logic would duplicate the template's intent and still fail at 3-way junctions. (2) Compute overshoot at apply time from member widths — rejected, adds complexity; a fixed generous fraction is simpler and works for all section sizes. (3) 3% overshoot — rejected by user as too small; 10% ensures plenty of room.
+
+### 2026-03-20 — QDockWidget replaces FreeCADGui.Control.showDialog() for panels
+**Decision:** Both `BentViewProvider.doubleClicked()` and `TimberJointViewProvider.doubleClicked()` now create a `QDockWidget` on the right dock area instead of calling `FreeCADGui.Control.showDialog()`. A `_close_dock()` helper manages cleanup.
+**Reason:** `Control.showDialog()` opens a FreeCAD task panel that automatically disables all toolbar commands until the panel is closed. This prevented users from adding members, joints, or toggling annotations while viewing bent/joint properties. QDockWidget is non-blocking — the panel floats on the side while all toolbar commands remain active.
+**Alternatives considered:** (1) Modifying command `IsActive()` to stay active during task panels — rejected, FreeCAD enforces the disabling at a level below our control. (2) Embedding panels in FreeCAD's properties dock — deferred to the persistent ContextPanel (Phase 3), which will embed panels directly.
+
+### 2026-03-20 — Endpoint cluster mechanic removed from Bent Designer
+**Decision:** Removed `CLUSTER_TOLERANCE`, `_build_clusters()`, and all cluster-related logic from `HandleItem` and `DatumTranslateHandle`. Each endpoint handle now moves independently.
+**Reason:** The cluster mechanic grouped handles at the same position and moved them together. This prevented separating members from shared endpoints — there was no way to select one handle independently or detach a timber from a junction. Users need to be able to move any endpoint freely.
+**Alternatives considered:** (1) Adding a modifier key (Alt) to break cluster — adds complexity for a feature that was more hindrance than help. (2) Keeping clusters but making them optional — YAGNI; endpoint snap already lets users re-join endpoints voluntarily.
+
 ### 2026-03-13 — Numbered face vocabulary and visual landmarks
 **Decision:** Faces are numbered 1-4, with Face 1 always being the reference face (`ReferenceFace` property). Faces 2-4 follow clockwise when looking from the A end toward the B end. Ends are labeled A/B matching the property prefixes `A_StartPoint`/`B_EndPoint`. Visual landmarks: Face 1 gets a darker brown tint via `DiffuseColor` + a chalk line (Coin3D `SoLineSet`), "A"/"B" `SoText2` labels at datum endpoints, "1"-"4" `SoText2` labels at face centers. All togglable via `ShowAnnotations` view property.
 **Reason:** The user needed a formal vocabulary to describe timber faces and orientations when communicating about the 3D view. Numbered faces anchored to the reference face are unambiguous regardless of member orientation. The A/B end labels match existing property naming. Visual landmarks make the numbering system self-documenting in the viewport.
@@ -738,54 +753,44 @@ Template:
 
 ---
 
-## Handoff Notes (2026-03-13)
+## Handoff Notes (2026-03-20)
 
 ### What was just completed
 
-**Face numbering vocabulary and visual landmarks** (`objects/TimberMember.py`, `commands/ToggleAnnotations.py`, `TimberFrameWorkbench.py`):
+**PR #21: Annotations, templates, panels, and Bent Designer UX improvements**
 
-1. **Face numbering system** — `face_numbering(obj)` utility function returns 4 outward-normal vectors in face-number order. Face 1 = reference face, Faces 2-4 clockwise looking from A end. Constants `_REFFACE_NORMAL` and `_CW_ORDER` drive the mapping from `ReferenceFace` property to numbered face normals.
+1. **Annotation visibility improvements** (`objects/TimberMember.py`):
+   - Font sizes increased: A/B labels 14→20pt, face numbers 10→16pt
+   - Brighter colors: A/B labels white `(1,1,1)`, face numbers warm gold `(0.95, 0.85, 0.55)`
+   - A/B labels offset 40mm above member (was 15mm) and nudged inward by 40% of member width to avoid overlap with snap handles at datum endpoints
+   - Face number labels offset 30mm from face surface (was 10mm)
+   - New `toggle_annotations.svg` icon for the toolbar button
 
-2. **Per-face coloring** — ViewProvider uses `DiffuseColor` with normal-matching to tint Face 1 (reference face) darker `(0.55, 0.38, 0.20)`. Other faces keep standard timber color. Works correctly after boolean joint cuts (fragmented faces still match by normal direction).
+2. **Bent template joint system** (`ui/bent_templates.py`, `ui/BentDesigner.py`):
+   - Added `TemplateJoint` dataclass and `joints` field to `BentTemplate`
+   - Each template now declares specific joint pairs by member index instead of relying on auto-detection
+   - Template application uses `_test_pair()` per declared pair instead of `detect_intersections()` on the whole document — eliminates spurious multi-member endpoint collisions
+   - Primary/through members extended by 10% past connection points to eliminate endpoint-to-endpoint coincidences (physically impossible to joint, ambiguous primary/secondary assignment)
+   - King Post: 7 joints, Queen Post: 11 joints, Hammer Beam: 11 joints, Scissors Truss: 10 joints
 
-3. **Coin3D annotations** — "A"/"B" `SoText2` labels at datum endpoints, "1"-"4" face number labels at face centers, chalk line `SoLineSet` along center of Face 1. All positioned via `updateData()` when datum/section properties change.
+3. **Non-blocking panels** (`objects/Bent.py`, `objects/TimberJoint.py`):
+   - Replaced `FreeCADGui.Control.showDialog()` with `QDockWidget` for both Bent and Joint panels
+   - Panels now open on the right dock area without disabling toolbar commands
+   - `_close_dock()` helper handles cleanup on delete or when reopening
 
-4. **ShowAnnotations toggle** — Boolean view property on `TimberMemberViewProvider`. When False, hides all Coin3D annotation nodes and reverts to uniform timber color. `TF_ToggleAnnotations` toolbar command toggles selected members (or all members if none selected).
-
-### Previous session: face-referenced joint toolkit
-
-**Face-referenced joint toolkit and joint rewrites** (`joints/toolkit.py`, `joints/builtin/mortise_tenon.py`, `joints/builtin/housed_dovetail.py`, `joints/builtin/half_lap.py`):
-
-1. **`joints/toolkit.py`** — New module with `MemberFaceContext` dataclass and face-referenced geometry helpers. `build_face_context()` constructs a raw un-cut member solid, ray-casts to find the approach face, and extracts the face normal, pierce point, and member axes. Helper functions: `face_pocket()` (rectangular mortise), `face_tapered_pocket()` (dovetail socket), `tenon_block()` (rectangular tenon), `tapered_tenon()` (dovetail tail), `shoulder_cut()` (angled shoulder removal), `lap_notch()` (face-identified lap notch), `mortise_axes()` (grain-aligned rectangle orientation), `shoulder_plane()`, `approach_face_distance()`, `extent_along()`. Also consolidates `member_local_cs()` as the single source of truth (previously duplicated in each joint file).
-
-2. **Mortise & Tenon rewrite** — `build_primary_tool()` now uses `face_pocket()` to cut the mortise straight into the approach face. `build_secondary_profile()` uses `shoulder_plane()` to derive the shoulder position from the primary's face, `tenon_block()` to align the tenon with the mortise direction (face normal, not secondary axis), and `shoulder_cut()` to produce an angled shoulder that sits flat against the primary's face. All parameters, validation, fabrication signature, and peg logic unchanged.
-
-3. **Dovetail rewrite** — Same pattern: `face_tapered_pocket()` for the socket, `tapered_tenon()` for the tail, `shoulder_cut()` for the shoulder. Channel mode and half-channel trim logic preserved. Dependent defaults unchanged.
-
-4. **Half-lap rewrite** — Uses `lap_notch()` with a `face_dir` parameter instead of hardcoded top/bottom. Primary notch is on the face closest to the secondary; secondary notch is on the opposite face. Works regardless of member orientation.
-
-5. **Key fixes for angle bugs:**
-   - Bug 1 (tenon direction): Tenon now extrudes along `sh_normal` (face normal into primary), matching the mortise direction, instead of along `sec_x`.
-   - Bug 2 (shoulder angle): Shoulder plane derived from primary's approach face via `shoulder_plane()`, not perpendicular to secondary axis.
-   - Bug 3 (half-lap face): `lap_notch()` finds the correct face dynamically via `face_dir`, not by `+/- pri_z`.
+4. **Bent Designer: cluster mechanic removed** (`ui/BentDesigner.py`):
+   - Removed `CLUSTER_TOLERANCE`, `_build_clusters()`, and all cluster references from `HandleItem` and `DatumTranslateHandle`
+   - Each endpoint handle now moves independently — users can detach members from shared positions
 
 ### Known issues and edge cases to watch
 
 - **Needs testing in FreeCAD**: All three joints need testing at 90, 60, and 45 degree intersections to verify the face-referenced geometry produces correct results.
 - **`_find_approach_face()` ray-casting**: Uses `face.Surface.parameter()` and `face.isPartOfDomain()` with a `distToShape()` fallback. May need tuning of the 1mm tolerance for edge cases where the ray grazes a face corner.
 - **`common()` clipping**: `face_pocket()` and `face_tapered_pocket()` use `shape.common(raw_solid)` to clip pockets to face boundaries. If the OCC boolean fails (rare for box-on-box), the unclipped pocket is returned as fallback.
-- **Raw solid includes extensions**: `_build_raw_solid()` in the toolkit queries joint-driven extensions from the document, matching `TimberMember._build_solid()`. This means the raw solid envelope may extend past datum endpoints. This is correct — the approach face must be identified on the actual timber, not the datum-only geometry.
-- **Dovetail half-channel offset**: The `face_tapered_pocket()` is centered on `face_point` but half-channel mode needs an offset. The current implementation uses the offset parameter for housing but the tapered pocket itself may need adjustment. Verify with half-channel mode testing.
+- **Dovetail half-channel offset**: The `face_tapered_pocket()` is centered on `face_point` but half-channel mode needs an offset. Verify with half-channel mode testing.
 - **TimberJoint visualization offset**: Previously reported — the TimberJoint's visual shape (tenon + pegs) is offset from the actual cut geometry. Cuts work correctly but the visualization sticks out of the primary. Not yet fixed.
-- **Broken joint visualization**: Still works as before (unchanged `TimberJoint.py`).
-
-### Previous session work (2026-03-11)
-
-- Broken joint properties (`IsBroken`, `LastValid*` vectors)
-- 3D broken joint visual (octahedra + gap cylinder)
-- Bent Designer `JointItem` with three visual states
-- Live joint drag update during endpoint drag
-- Unknown joint type handling (error + placeholder reset)
+- **Hammer Beam template**: Hammer beams start at z=0.55 while posts end at z=0.5 — no joint between hammer beam and post because they don't intersect (200mm gap at default height). This may need a template geometry fix or the post needs to extend to z=0.55.
+- **BentTaskPanel / JointTaskPanel wrappers**: `ui/BentTaskPanel.py` and `ui/JointTaskPanel.py` are now unused (replaced by direct QDockWidget hosting). Can be deleted in a future cleanup.
 
 ### Current phase status
 
@@ -795,10 +800,12 @@ Template:
 - Bent container object with add/remove members, drag-drop, MemberID auto-assignment
 - BentPanel UI with member list
 - Bent Designer 2D editor with joint visualization
-- Bent templates
+- Bent templates with explicit joint definitions and primary member overshoot
 - Bent Designer drag improvements (live preview, datum snap, datum lines)
 - Broken joint visualization
 - Bent Designer joint display and interaction
+- Non-blocking dock widget panels (Bent and Joint)
+- Independent endpoint handle movement (cluster mechanic removed)
 
 Remaining Phase 3 work:
 - Frame object with bent instancing and longitudinal members
@@ -807,9 +814,10 @@ Remaining Phase 3 work:
 
 For the next session, the most important files to understand are:
 - `CLAUDE.md` — architecture, conventions, decisions log (this file)
-- `joints/toolkit.py` — the new face-referenced geometry toolkit
+- `ui/bent_templates.py` — template definitions with `TemplateJoint` pairs and primary member overshoot
+- `ui/BentDesigner.py` — `_on_apply_template()` uses `_test_pair()` per template joint pair
+- `objects/Bent.py` — `BentViewProvider.doubleClicked()` now uses QDockWidget
+- `objects/TimberJoint.py` — `TimberJointViewProvider.doubleClicked()` now uses QDockWidget
+- `objects/TimberMember.py` — annotation colors/sizes/offsets in ViewProvider
+- `joints/toolkit.py` — the face-referenced geometry toolkit
 - `joints/builtin/mortise_tenon.py` — M&T rewritten with toolkit
-- `joints/builtin/housed_dovetail.py` — dovetail rewritten with toolkit
-- `joints/builtin/half_lap.py` — half-lap rewritten with toolkit
-- `objects/TimberJoint.py` — recompute pipeline (unchanged, calls joint definitions)
-- `objects/TimberMember.py` — `_build_solid()` with extensions, `_collect_joint_cuts()` boolean pipeline
