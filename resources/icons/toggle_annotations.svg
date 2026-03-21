@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Timber member cross-section -->
+  <rect x="16" y="14" width="32" height="36" rx="2" fill="#A0724A" stroke="#6B4226" stroke-width="1.5"/>
+  <!-- Reference face highlight (Face 1 = bottom) -->
+  <line x1="16" y1="50" x2="48" y2="50" stroke="#8B5E3C" stroke-width="3"/>
+  <!-- Face number "1" label below -->
+  <text x="32" y="62" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="#F0D888">1</text>
+  <!-- "A" label top-left -->
+  <text x="8" y="12" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="white">A</text>
+  <!-- "B" label top-right -->
+  <text x="56" y="12" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="white">B</text>
+  <!-- Eye icon overlay (bottom-right) for toggle visibility -->
+  <g transform="translate(46,4)">
+    <ellipse cx="9" cy="9" rx="9" ry="6" fill="none" stroke="#2277DD" stroke-width="1.5"/>
+    <circle cx="9" cy="9" r="3.5" fill="#2277DD"/>
+    <circle cx="9" cy="9" r="1.5" fill="white"/>
+  </g>
+</svg>

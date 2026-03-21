@@ -413,23 +413,43 @@ if FreeCAD.GuiUp:
 
         def onDelete(self, vobj, subelements):
             """Clean up active panel before the object is deleted."""
-            panel = getattr(self, "_active_panel", None)
-            if panel is not None:
-                panel._disconnect()
-                self._active_panel = None
-                try:
-                    FreeCADGui.Control.closeDialog()
-                except Exception:
-                    pass
+            self._close_dock()
             return True
 
-        def doubleClicked(self, vobj):
-            """Open the BentPanel task panel for editing."""
-            from ui.BentTaskPanel import BentTaskPanel
+        def _close_dock(self):
+            """Remove the active dock widget if it exists."""
+            dock = getattr(self, "_active_dock", None)
+            if dock is not None:
+                panel = getattr(self, "_active_panel", None)
+                if panel is not None:
+                    panel._disconnect()
+                    self._active_panel = None
+                dock.close()
+                dock.deleteLater()
+                self._active_dock = None
 
-            panel = BentTaskPanel(vobj.Object)
-            FreeCADGui.Control.showDialog(panel)
-            self._active_panel = panel.panel
+        def doubleClicked(self, vobj):
+            """Open the BentPanel in a dock widget (non-blocking)."""
+            from PySide2 import QtCore, QtWidgets
+            from ui.panels.BentPanel import BentPanel
+
+            self._close_dock()
+
+            panel = BentPanel(vobj.Object)
+            dock = QtWidgets.QDockWidget(
+                f"Bent \u2014 {vobj.Object.BentName or vobj.Object.Label}",
+                FreeCADGui.getMainWindow(),
+            )
+            dock.setWidget(panel)
+            dock.setFeatures(
+                QtWidgets.QDockWidget.DockWidgetClosable
+                | QtWidgets.QDockWidget.DockWidgetMovable
+            )
+            FreeCADGui.getMainWindow().addDockWidget(
+                QtCore.Qt.RightDockWidgetArea, dock,
+            )
+            self._active_panel = panel
+            self._active_dock = dock
             return True
 
         def claimChildren(self):
