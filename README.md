@@ -6,7 +6,7 @@ This is a from-scratch rewrite; an earlier attempt that generated custom-coded g
 
 ## Status
 
-- **Phase 0 — manual workflow definition: complete.** The joinery workflow (parametric timbers, housed mortise & tenon, housed dovetail, pegs/drawbore, assembly, TechDraw sheets, cut list) was proven by hand across twelve modeling sessions. Session artifacts live in `tests/`.
+- **Phase 0 — manual workflow definition: complete.** The joinery workflow (parametric timbers, housed mortise & tenon, housed dovetail, pegs/drawbore, assembly, TechDraw sheets, cut list) was proven by hand across twelve modeling sessions. Session artifacts live in `phase0/`.
 - **Phase 1 — joint library & Apply-Joint tool: next.** The tool reproduces the proven manual recipes programmatically: cloned native sketches/features bound to a shared per-joint VarSet, with expressions written by the tool instead of typed by hand.
 
 ## Documentation
@@ -19,6 +19,6 @@ This is a from-scratch rewrite; an earlier attempt that generated custom-coded g
 
 - `package.xml` + `freecad/bentwizard/` — the workbench, in FreeCAD 1.x addon layout
 - `docs/` — specification documents
-- `tests/` — Phase 0 session models (`.FCStd`) and session macros (`.FCMacro`)
+- `phase0/` — Phase 0 session models (`.FCStd`) and session macros (`.FCMacro`)
 
 A portable FreeCAD install is expected at `FreeCAD_1.1.1-Windows-x86_64-py311/` for development and testing; it is gitignored and not part of the repository.
