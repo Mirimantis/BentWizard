@@ -162,21 +162,23 @@ placements at each checkpoint).
    wood"). The peg ties to the **mortise center**, not the frame center —
    frame-centered only coincides while the setbacks are symmetric, and
    an asymmetric application (barefaced/offset tenon) would silently
-   misplace it. Footprint construction again, edge-on this time:
-   - vertical **construction line** through the origin: midpoint
-     coincident with the origin, length `= <<Joint_MT_0a>>.Housing_Height`
-     (its endpoints are the footprint's top/bottom edges, edge-on)
-   - one circle, drawn on the into-the-wood side:
-     center from the construction line's bottom endpoint
-     `= <<Joint_MT_0a>>.Tenon_Setback_Face1 + <<Joint_MT_0a>>.Tenon_Height / 2`
-     (= mortise center; lands at footprint center with the default
-     symmetric values); center depth from the bearing plane
-     `= <<Joint_MT_0a>>.Peg_Setback` (unsigned, circle on the into-wood
-     side); diameter `= <<Joint_MT_0a>>.Peg_Diameter`
-   **Hole** `P0-1_PegBore_MT_0a`: Depth "Through all" with **Symmetric
-   to profile (Midplane) checked** — the sketch plane is mid-post, so
-   the bore must cut both directions to cross the full post. Diameter
-   `= <<Joint_MT_0a>>.Peg_Diameter`.
+   misplace it. Draw the surrounding joinery edge-on as **construction
+   rectangles** — the housing profile (Housing_Height ×
+   Housing_Depth, against the bearing plane) and the tenon profile
+   (Tenon_Height × Tenon_Length, into the wood, Tenon_Setback_Face1
+   above the footprint bottom). This scaffold makes peg layout visual —
+   one or several pegs placed against visible geometry instead of
+   guessed coordinates — and every dimension stays positive.
+   - one circle per peg, on the into-the-wood side: centered on the
+     tenon profile's vertical centerline; depth from the bearing plane
+     `= <<Joint_MT_0a>>.Peg_Setback`; diameter
+     `= <<Joint_MT_0a>>.Peg_Diameter`
+   **Pocket** `P0-1_PegBore_MT_0a` (a Pocket, not a Hole — the Hole
+   dialog does not expose the symmetric option): Through all with
+   **Symmetric to plane (Midplane) checked** — the sketch plane is
+   mid-post, so the bore must cut both directions to cross the full
+   post. Confirm `Midplane = true` in the property editor; the dialog
+   checkbox has failed to set it.
 
 **Checkpoint C:** lint — expect zero findings. (The Tenon_Width/Height
 naming puts the across-grain dimension — 2 in, 25% — under the severing
@@ -216,7 +218,11 @@ flip — both computed by the tool at apply time.
    - center across `= <<Joint_MT_0a>>.Tenon_Setback_Face1 + <<Joint_MT_0a>>.Tenon_Height / 2`
    - diameter `= <<Joint_MT_0a>>.Peg_Diameter`
    **Hole** `B0-1_PegBore_MT_0a`: Through all, diameter
-   `= <<Joint_MT_0a>>.Peg_Diameter`.
+   `= <<Joint_MT_0a>>.Peg_Diameter`. (A Hole works here — this sketch
+   plane lies on the beam's reference face, not mid-timber, so a
+   one-directional through-all crosses the whole stick. Draw the tenon
+   edge-on as a construction rectangle for the same visual-layout
+   benefit as C.4.)
 
 **Checkpoint D:** lint — same as C plus nothing new strict.
 
