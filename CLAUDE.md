@@ -44,6 +44,7 @@ Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive join
 - **Tooltips mandatory** on every template-defined property: as brief as possible while still informative; always states which face/end it measures from.
 - **Units:** the workbench defers to the user's FreeCAD unit schema (e.g. "Building US" for fractional inches) — never force imperial or metric. Imperial values in docs are example data.
 - **Terminology:** use timber framing terms wherever applicable — names, UI, docs, instructions.
+- **Width horizontal, Depth vertical** in a member's installed orientation, wherever applicable (soft convention — timbers meet in many orientations).
 - **One VarSet per joint instance**, holding parameters for both halves (mated-pair mechanism).
 - **Cross-timber coupling only via the joint VarSet** (workflow doc §4.3): a parameter tracking the mating timber's dimension is a joint VarSet property bound to that timber's Dims; body-internal features never reference a foreign Dims VarSet.
 - **Sketch symmetry:** centerline construction line + half-width constraints, never the Symmetry constraint (finding #13).

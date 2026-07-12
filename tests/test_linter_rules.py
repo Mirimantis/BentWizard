@@ -29,9 +29,16 @@ def synthetic_doc(joint_props, sketch_exprs, pocket_length_expr):
     with `joint_props` on the joint VarSet (name -> value in mm)."""
     sketch_exprs = [_esc(e) for e in sketch_exprs]
     pocket_length_expr = _esc(pocket_length_expr)
+
+    def value_doc(item, name):
+        if isinstance(item, tuple):
+            return item
+        return (item, f"tooltip for {name}")
+
     props = "\n".join(
-        f'<Property name="{n}" type="App::PropertyLength" group="Joint" doc="d">'
-        f'<Float value="{v}" /></Property>'
+        '<Property name="{n}" type="App::PropertyLength" group="Joint" '
+        'doc="{d}"><Float value="{v}" /></Property>'.format(
+            n=n, v=value_doc(v, n)[0], d=value_doc(v, n)[1])
         for n, v in joint_props.items())
     constraints = "\n".join(
         '<Constrain Name="" Type="7" Value="0" IsDriving="1" First="0" '
@@ -134,6 +141,33 @@ class HousingJunctionPattern(unittest.TestCase):
         severing = [f for f in findings if f.rule == "severing-limit"]
         self.assertEqual(len(severing), 1)
         self.assertIn("Tenon_Width", severing[0].message)
+
+
+class DuplicateTooltips(unittest.TestCase):
+    """Identical tooltip text on two properties of one VarSet is flagged
+    (the Tenon_Thickness/Housing_Depth copy-paste from the first
+    template build)."""
+
+    def joint_findings(self, joint_props):
+        doc = synthetic_doc(joint_props, [], "1")
+        return [f for f in lint_document(doc)
+                if f.rule == "duplicate-tooltip" and f.obj == "Joint"]
+
+    def test_copy_pasted_tooltip_flagged(self):
+        hits = self.joint_findings({
+            "Housing_Depth": (12.7, "Depth of the housing into the post."),
+            "Tenon_Thickness": (50.8, "Depth of the housing into the post."),
+            "Tenon_Width": (101.6, "Tenon width off reference Face 1."),
+        })
+        self.assertEqual(len(hits), 1)
+        self.assertIn("Housing_Depth", hits[0].message)
+        self.assertIn("Tenon_Thickness", hits[0].message)
+
+    def test_distinct_tooltips_pass(self):
+        self.assertEqual(self.joint_findings({
+            "Housing_Depth": (12.7, "Depth of the housing into the post."),
+            "Tenon_Thickness": (50.8, "Tenon thickness off Face 2."),
+        }), [])
 
 
 if __name__ == "__main__":

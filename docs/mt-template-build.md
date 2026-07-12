@@ -68,8 +68,8 @@ One **VarSet** labeled `Joint_MT_0a`, properties in group `Joint`.
 | Property | Value | Tooltip |
 |---|---|---|
 | `Joint_Station` | 48 in | Distance from the post's end A (Z=0) to the underside of the housing, along the post's length. |
-| `Housing_Width` | *expression* `= <<TimberDims_B0-1>>.Depth` | Horizontal opening of the housing across the post face; tracks the beam's Depth. Override with a literal to hold the housing off the beam size. |
-| `Housing_Height` | *expression* `= <<TimberDims_B0-1>>.Width` | Vertical opening of the housing along the post; tracks the beam's Width. Override with a literal to hold the housing off the beam size. |
+| `Housing_Width` | *expression* `= <<TimberDims_B0-1>>.Width` | Horizontal opening of the housing across the post face; tracks the beam's Width. Override with a literal to hold the housing off the beam size. |
+| `Housing_Height` | *expression* `= <<TimberDims_B0-1>>.Depth` | Vertical opening of the housing along the post; tracks the beam's Depth. Override with a literal to hold the housing off the beam size. |
 | `Housing_Depth` | 1/2 in | Depth of the housing into the post, measured from the post face opposite reference Face 2. |
 | `Tenon_Thickness` | 2 in | Tenon thickness, measured from the tenon's setback plane off the beam's reference Face 2. |
 | `Tenon_Width` | 6 in | Tenon width, measured from the tenon's setback plane off the beam's reference Face 1. |
@@ -82,10 +82,14 @@ One **VarSet** labeled `Joint_MT_0a`, properties in group `Joint`.
 | `Peg_Drawbore_Offset` | 3/32 in | Drawbore: the tenon bore is displaced this much toward the shoulder relative to true position. |
 | `Peg_Count` | 1 | Number of pegs in this joint, for the hardware schedule. Not geometry. |
 
-> Domain check for Adam: `Housing_Width` ← beam `Depth` and
-> `Housing_Height` ← beam `Width` assumes the beam lands with Face 1 up.
-> Swap the two bindings if the template's landing orientation reads the
-> other way to you.
+Soft convention (decided during this build): **Width reads horizontal
+and Depth vertical in a member's installed orientation** where
+applicable — so the 6×8 beam lands on edge, Width 6 across, Depth 8
+tall. Not a hard rule (timbers meet in many orientations), but hold to
+it wherever it applies.
+
+Rename the VarSet immediately after creating it — a missed rename is
+exactly what the linter's naming/auto-label advisories catch.
 
 **Checkpoint B:** lint — still zero findings (the VarSet-to-Dims
 bindings are the sanctioned junction pattern; the linter exempts them).

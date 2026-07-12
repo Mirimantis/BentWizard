@@ -1,0 +1,60 @@
+# Macro Begin: C:\Users\Adam\Documents\Projects\BentWizard\devBuildMacros\Phase1JointBuild01varsSession.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+
+# Gui.runCommand('Std_DlgMacroRecord',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body001')
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody', None)
+# Gui.Selection.clearSelection()
+### Begin command Std_VarSet
+App.activeDocument().addObject('App::VarSet','VarSet002')
+App.ActiveDocument.getObject('VarSet002').ViewObject.doubleClicked()
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Joint_Station', 'Base', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Joint_Station = '1219.2 mm'
+
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Housing_Width', 'Joint', '')
+App.getDocument('Unnamed').VarSet002.setExpression('Housing_Width', u'<<TimberDims_B0-1>>.Depth')
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Housing_Height', 'Joint', '')
+App.getDocument('Unnamed').VarSet002.setExpression('Housing_Height', u'<<TimberDims_B0-1>>.Depth')
+App.getDocument('Unnamed').VarSet002.setExpression('Housing_Width', u'<<TimberDims_B0-1>>.Width')
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Housing_Depth', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Housing_Depth = '12.7 mm'
+
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Tenon_Thickness', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Tenon_Thickness = '50.8 mm'
+
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Tenon_Width', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Tenon_Width = '152.4 mm'
+
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Tenon_Length', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Tenon_Length = '101.6 mm'
+
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Tenon_Setback_Face1', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Tenon_Setback_Face1 = '0 mm'
+
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Tenon_Setback_Face1 = '25.4 mm'
+
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Tenon_Setback_Face2', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Tenon_Setback_Face2 = '50.8 mm'
+
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Mortise_Relief', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Mortise_Relief = '6.35 mm'
+
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Peg_Diameter', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Peg_Diameter = '25.4 mm'
+
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Peg_Setback', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Peg_Setback = '50.8 mm'
+
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyLength', 'Peg_Drawbore_Offset', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Peg_Drawbore_Offset = '2.38125 mm'
+
+App.getDocument('Unnamed').VarSet002.addProperty('App::PropertyInteger', 'Peg_Count', 'Joint', 'Number of pegs in this joint, for the hardware schedule. Not geometry.')
+FreeCAD.getDocument('Unnamed').getObject('VarSet002').Peg_Count = 1
+
+# Gui.runCommand('Std_DlgPreferences',0)
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Unnamed").save()
+### End command Std_Save
+# Macro End: C:\Users\Adam\Documents\Projects\BentWizard\devBuildMacros\Phase1JointBuild01varsSession.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++

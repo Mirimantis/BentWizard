@@ -14,7 +14,7 @@ Status: Phase 0 complete. This document records the manual workflow proven acros
 
 ## 2. Vocabulary
 
-Faces numbered 1–4: Face 1 is the reference face, 2–4 clockwise viewed from end A. Ends: A (butt, at the body origin, Z=0) and B (tip, at Z=Length). Orientation terms: plumb, level, pitch, roll, skew. Relationship terms: coaxial, orthogonal (in plan / in elevation), oblique, coplanar, offset, bearing face. In this project's models: Face 1 = the XZ-plane face, Face 2 = the YZ-plane face.
+Faces numbered 1–4: Face 1 is the reference face, 2–4 clockwise viewed from end A. Ends: A (butt, at the body origin, Z=0) and B (tip, at Z=Length). Orientation terms: plumb, level, pitch, roll, skew. Relationship terms: coaxial, orthogonal (in plan / in elevation), oblique, coplanar, offset, bearing face. In this project's models: Face 1 = the XZ-plane face, Face 2 = the YZ-plane face. Soft convention (Phase 1): Width reads horizontal and Depth vertical in a member's installed orientation, wherever applicable.
 
 ## 3. Document Structure
 

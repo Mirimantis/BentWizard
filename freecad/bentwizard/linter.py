@@ -668,6 +668,29 @@ def rule_auto_labels(model):
     return findings
 
 
+def rule_duplicate_tooltips(model):
+    """§3 advisory: identical tooltip text on two properties of one
+    VarSet is almost always a copy-paste error (caught live during the
+    first template build: Tenon_Thickness carrying Housing_Depth's
+    tooltip). Tooltips are written per property."""
+    findings = []
+    for vs in model.varsets:
+        by_text = {}
+        for p in vs.properties.values():
+            if p.group is None:
+                continue
+            text = (p.doc or "").strip()
+            if text:
+                by_text.setdefault(text, []).append(p.name)
+        for text, names in by_text.items():
+            if len(names) > 1:
+                findings.append(Finding(
+                    "duplicate-tooltip", ADVISORY, vs.name, vs.label,
+                    f"properties {', '.join(sorted(names))} share identical "
+                    f"tooltip text — copy-paste error?"))
+    return findings
+
+
 def rule_missing_tooltips(model):
     """§3 advisory: tooltips mandatory on every template-defined property.
 
@@ -707,6 +730,7 @@ ADVISORY_RULES = [
     rule_group_binding_deviation,
     rule_stale_attachment_offset,
     rule_auto_labels,
+    rule_duplicate_tooltips,
     rule_missing_tooltips,
 ]
 
