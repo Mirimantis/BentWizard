@@ -20,6 +20,11 @@ Template-wide conventions:
 - Base (non-joint) features: `MemberID_SectionSketch`, `MemberID_Stick`.
 - Pick every attachment reference **from the model tree, never the 3D
   view** (finding #8), and never a solid face.
+- **Double-click the target body to activate it before creating any
+  datum or sketch.** Objects created with no active body land at the
+  document root, where body sketches cannot attach to them (a root-level
+  frame produces "doesn't contain feature with role" attach errors).
+  Fix by dragging the object into the body in the tree.
 - One hand only. The mirrored-hand setback (§4.6) and the end-B drawbore
   sign flip (§4.7) are computed by the tool at apply time — do not model
   them here.
