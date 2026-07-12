@@ -76,8 +76,8 @@ One **VarSet** labeled `Joint_MT_0a`, properties in group `Joint`.
 | `Housing_Width` | *expression* `= <<TimberDims_B0-1>>.Width` | Horizontal opening of the housing across the post face; tracks the beam's Width. Override with a literal to hold the housing off the beam size. |
 | `Housing_Height` | *expression* `= <<TimberDims_B0-1>>.Depth` | Vertical opening of the housing along the post; tracks the beam's Depth. Override with a literal to hold the housing off the beam size. |
 | `Housing_Depth` | 1/2 in | Depth of the housing into the post, measured from the post face opposite reference Face 2. |
-| `Tenon_Thickness` | 2 in | Tenon thickness, measured from the tenon's setback plane off the beam's reference Face 2. |
-| `Tenon_Width` | 6 in | Tenon width, measured from the tenon's setback plane off the beam's reference Face 1. |
+| `Tenon_Width` | 2 in | Tenon width — horizontal across the landed beam, measured from the setback off the beam's reference Face 2. |
+| `Tenon_Height` | 6 in | Tenon height — vertical, along the bearing direction, measured from the setback off the beam's reference Face 1. |
 | `Tenon_Length` | 4 in | Tenon length from the beam's end A to the shoulder plane. |
 | `Tenon_Setback_Face1` | 1 in | Tenon setback from the beam's reference Face 1 (XZ origin plane). |
 | `Tenon_Setback_Face2` | 2 in | Tenon setback from the beam's reference Face 2 (YZ origin plane). |
@@ -151,7 +151,7 @@ placements at each checkpoint).
      left edge `= <<Joint_MT_0a>>.Tenon_Setback_Face2` from the left
      footprint edge; bottom edge `= <<Joint_MT_0a>>.Tenon_Setback_Face1`
      from the bottom footprint edge; extents
-     `= <<Joint_MT_0a>>.Tenon_Thickness` × `= <<Joint_MT_0a>>.Tenon_Width`.
+     `= <<Joint_MT_0a>>.Tenon_Width` × `= <<Joint_MT_0a>>.Tenon_Height`.
    With the default values the mortise lands dead-center of the
    footprint (the tenon is symmetric in the beam) — that's the visual
    check.
@@ -159,19 +159,29 @@ placements at each checkpoint).
    Length `= <<Joint_MT_0a>>.Tenon_Length + <<Joint_MT_0a>>.Mortise_Relief`.
 4. **Peg bore.** Sketch `P0-1_PegBoreSketch_MT_0a` on the frame's
    **YZ plane** (the plane containing "up the post" and "into the
-   wood"): one circle —
-   - center, along the post `= <<Joint_MT_0a>>.Tenon_Setback_Face1 + <<Joint_MT_0a>>.Tenon_Width / 2 - <<Joint_MT_0a>>.Housing_Height / 2` (mortise center height)
-   - center, depth `= -<<Joint_MT_0a>>.Peg_Setback` (into the wood from
-     the bearing plane; flip the sign if the circle lands outside the
-     stick — verify in view)
-   - diameter `= <<Joint_MT_0a>>.Peg_Diameter`
-   **Hole** `P0-1_PegBore_MT_0a`: Through all, diameter
-   `= <<Joint_MT_0a>>.Peg_Diameter`. The bore runs across the post face,
-   through the mortise.
+   wood"). The peg ties to the **mortise center**, not the frame center —
+   frame-centered only coincides while the setbacks are symmetric, and
+   an asymmetric application (barefaced/offset tenon) would silently
+   misplace it. Footprint construction again, edge-on this time:
+   - vertical **construction line** through the origin: midpoint
+     coincident with the origin, length `= <<Joint_MT_0a>>.Housing_Height`
+     (its endpoints are the footprint's top/bottom edges, edge-on)
+   - one circle, drawn on the into-the-wood side:
+     center from the construction line's bottom endpoint
+     `= <<Joint_MT_0a>>.Tenon_Setback_Face1 + <<Joint_MT_0a>>.Tenon_Height / 2`
+     (= mortise center; lands at footprint center with the default
+     symmetric values); center depth from the bearing plane
+     `= <<Joint_MT_0a>>.Peg_Setback` (unsigned, circle on the into-wood
+     side); diameter `= <<Joint_MT_0a>>.Peg_Diameter`
+   **Hole** `P0-1_PegBore_MT_0a`: Depth "Through all" with **Symmetric
+   to profile (Midplane) checked** — the sketch plane is mid-post, so
+   the bore must cut both directions to cross the full post. Diameter
+   `= <<Joint_MT_0a>>.Peg_Diameter`.
 
-**Checkpoint C:** lint — expect zero strict; `caution-threshold` on the
-mortise (`Tenon_Width` = 75% of an 8-in extent) is expected and
-acceptable. I verify resolved frame/sketch placements from the file.
+**Checkpoint C:** lint — expect zero findings. (The Tenon_Width/Height
+naming puts the across-grain dimension — 2 in, 25% — under the severing
+scan and the along-grain height correctly outside it, so no caution
+fires.) I verify resolved frame/sketch placements from the file.
 
 ---
 
@@ -192,7 +202,7 @@ flip — both computed by the tool at apply time.
      own section, which is the same at either end)
    - inner rectangle: from `= <<Joint_MT_0a>>.Tenon_Setback_Face2` (X) and
      `= <<Joint_MT_0a>>.Tenon_Setback_Face1` (Y), extents
-     `= <<Joint_MT_0a>>.Tenon_Thickness` × `= <<Joint_MT_0a>>.Tenon_Width`.
+     `= <<Joint_MT_0a>>.Tenon_Width` × `= <<Joint_MT_0a>>.Tenon_Height`.
    Both setbacks are > 0, so the island stays strictly interior
    (finding #14) — the linter checks this.
    **Pocket** `B0-1_Tenon_MT_0a`, Length `= <<Joint_MT_0a>>.Tenon_Length`.
@@ -203,7 +213,7 @@ flip — both computed by the tool at apply time.
    frame's **YZ plane**: **one circle** (one sketch per instance —
    debt 2) —
    - center along the beam `= <<Joint_MT_0a>>.Tenon_Length - <<Joint_MT_0a>>.Peg_Setback + <<Joint_MT_0a>>.Peg_Drawbore_Offset`
-   - center across `= <<Joint_MT_0a>>.Tenon_Setback_Face1 + <<Joint_MT_0a>>.Tenon_Width / 2`
+   - center across `= <<Joint_MT_0a>>.Tenon_Setback_Face1 + <<Joint_MT_0a>>.Tenon_Height / 2`
    - diameter `= <<Joint_MT_0a>>.Peg_Diameter`
    **Hole** `B0-1_PegBore_MT_0a`: Through all, diameter
    `= <<Joint_MT_0a>>.Peg_Diameter`.
@@ -222,9 +232,10 @@ flip — both computed by the tool at apply time.
    0 engaged, `Mortise_Relief` at the bottom).
 3. Parametric shakedown: change `TimberDims_B0-1.Depth` to 10 in — the
    housing must widen; change `Joint_Station` — everything on both
-   timbers must travel together; change `Tenon_Thickness` — mortise and
-   tenon must move in lockstep. Undo all (or close without saving and
-   re-verify defaults).
+   timbers must travel together; change `Tenon_Width` — mortise and
+   tenon must move in lockstep; make the setbacks asymmetric — the peg
+   must follow the mortise center. Undo all (or close without saving
+   and re-verify defaults).
 4. Final lint + run the test suite. Then commit the template.
 
 When this file is in `library/` and green, I'll add it as a third test
