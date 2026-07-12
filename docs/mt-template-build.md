@@ -137,10 +137,24 @@ placements at each checkpoint).
    Reversed if it grows into the stick — verify with a side orthographic
    view, not wireframe (§5).
 3. **Mortise.** Sketch `P0-1_MortiseSketch_MT_0a` on the frame's XY
-   plane: rectangle in frame-local coordinates (setbacks measure from
-   the landing footprint's edges) —
-   - left edge X `= <<Joint_MT_0a>>.Tenon_Setback_Face2 - <<Joint_MT_0a>>.Housing_Width / 2`, extent `= <<Joint_MT_0a>>.Tenon_Thickness`
-   - bottom edge Y `= <<Joint_MT_0a>>.Tenon_Setback_Face1 - <<Joint_MT_0a>>.Housing_Height / 2`, extent `= <<Joint_MT_0a>>.Tenon_Width`
+   plane. Setbacks measure from the landing footprint's edges, so draw
+   the footprint first, as construction geometry, and dimension from it —
+   this keeps every dimension positive regardless of joint proportions
+   (signed frame-local offsets can resolve negative and fail the
+   solver):
+   - **construction rectangle** = the footprint, centered like the
+     housing: vertical edges `= <<Joint_MT_0a>>.Housing_Width / 2` from
+     the V-axis, horizontal edges `= <<Joint_MT_0a>>.Housing_Height / 2`
+     from the H-axis
+   - mortise rectangle (normal geometry), drawn roughly in place, then
+     dimensioned from the footprint edges:
+     left edge `= <<Joint_MT_0a>>.Tenon_Setback_Face2` from the left
+     footprint edge; bottom edge `= <<Joint_MT_0a>>.Tenon_Setback_Face1`
+     from the bottom footprint edge; extents
+     `= <<Joint_MT_0a>>.Tenon_Thickness` × `= <<Joint_MT_0a>>.Tenon_Width`.
+   With the default values the mortise lands dead-center of the
+   footprint (the tenon is symmetric in the beam) — that's the visual
+   check.
    **Pocket** `P0-1_Mortise_MT_0a`, direction inward,
    Length `= <<Joint_MT_0a>>.Tenon_Length + <<Joint_MT_0a>>.Mortise_Relief`.
 4. **Peg bore.** Sketch `P0-1_PegBoreSketch_MT_0a` on the frame's
