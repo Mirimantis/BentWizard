@@ -24,6 +24,7 @@ Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive join
   - Headless (scripts, file inspection, future CI-style checks): `FreeCAD_1.1.1-Windows-x86_64-py311/bin/freecadcmd.exe <script.py>`
   - Bundled Python 3.11: `FreeCAD_1.1.1-Windows-x86_64-py311/bin/python.exe` (imports `FreeCAD` directly)
 - `.FCStd` files are zip archives; inspect by unzipping and reading `Document.xml` (see Verification below).
+- FreeCAD 1.1 API gotcha: on Pad/Pocket (FeatureExtrude), `Midplane`/`Reversed` are deprecated and ignored — direction/symmetry live in `SideType` (GUI "Mode"; enum index 2 = Symmetric). Read/write `SideType` in tools and file checks.
 
 ## Repo layout
 

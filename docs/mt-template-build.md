@@ -174,11 +174,11 @@ placements at each checkpoint).
      `= <<Joint_MT_0a>>.Peg_Setback`; diameter
      `= <<Joint_MT_0a>>.Peg_Diameter`
    **Pocket** `P0-1_PegBore_MT_0a` (a Pocket, not a Hole — the Hole
-   dialog does not expose the symmetric option): Through all with
-   **Symmetric to plane (Midplane) checked** — the sketch plane is
-   mid-post, so the bore must cut both directions to cross the full
-   post. Confirm `Midplane = true` in the property editor; the dialog
-   checkbox has failed to set it.
+   dialog does not expose the symmetric option): Type **Through all**,
+   Mode **Symmetric** — the sketch plane is mid-post, so the bore must
+   cut both directions to cross the full post. (In the file this is the
+   `SideType` property; the old `Midplane` boolean is deprecated in 1.1
+   and ignored — scripts and file checks must read/write `SideType`.)
 
 **Checkpoint C:** lint — expect zero findings. (The Tenon_Width/Height
 naming puts the across-grain dimension — 2 in, 25% — under the severing
