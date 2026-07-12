@@ -41,7 +41,9 @@ Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive join
 - **VarSet labels:** `Kind_Owner` — `TimberDims_P2-1`, `Joint_MT_B2a`, `Group_LoftDovetail`, `Project_Main`, `Order_Main`.
 - **Property names:** `Part_Attribute[_Qualifier]`, most-significant first — `Tenon_Thickness`, `Housing_Depth`, `Peg_Drawbore_Offset`. Face qualifiers `_Face1`/`_Face2` (Face 1 = XZ-plane face, Face 2 = YZ-plane face).
 - **Joint features in bodies:** body-qualified — `MemberID_Feature_JointID` (e.g. `P2-1_Mortise_MT_B2a`).
-- **Tooltips mandatory** on every template-defined property: full sentence, states which face/end it measures from.
+- **Tooltips mandatory** on every template-defined property: as brief as possible while still informative; always states which face/end it measures from.
+- **Units:** the workbench defers to the user's FreeCAD unit schema (e.g. "Building US" for fractional inches) — never force imperial or metric. Imperial values in docs are example data.
+- **Terminology:** use timber framing terms wherever applicable — names, UI, docs, instructions.
 - **One VarSet per joint instance**, holding parameters for both halves (mated-pair mechanism).
 - **Cross-timber coupling only via the joint VarSet** (workflow doc §4.3): a parameter tracking the mating timber's dimension is a joint VarSet property bound to that timber's Dims; body-internal features never reference a foreign Dims VarSet.
 - **Sketch symmetry:** centerline construction line + half-width constraints, never the Symmetry constraint (finding #13).

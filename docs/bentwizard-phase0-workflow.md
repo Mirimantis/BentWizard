@@ -24,7 +24,7 @@ Naming (decided, supersedes prototype ad-hoc names):
 - **Timber Bodies**: MemberID labels per the adopted convention (`P2-1`).
 - **VarSet labels**: `Kind_Owner` with a descriptive kind prefix — `TimberDims_P2-1`, `Joint_MT_B2a`, `Group_LoftDovetail`, `Project_Main`, `Order_Main`.
 - **Property names**: `Part_Attribute[_Qualifier]`, most-significant first: `Tenon_Thickness`, `Tenon_Setback_Face2`, `Housing_Depth`, `Peg_Drawbore_Offset`, `Peg_Count`. Reference-face qualifiers use `_Face1`/`_Face2` (stable regardless of timber orientation; Face 1 = XZ-plane face, Face 2 = YZ-plane face). Alphabetical property sorting then clusters each part's parameters automatically.
-- **Tooltips**: mandatory on every template-defined property, written by the template author, cloned on apply. Full sentence context including which face/end it measures from. Missing tooltip = advisory linter failure.
+- **Tooltips**: mandatory on every template-defined property, written by the template author, cloned on apply. As brief as possible while still informative; always states which face/end it measures from; timber framing terminology. Missing tooltip = advisory linter failure.
 - **Joint features within bodies**: body-qualified to avoid document-unique label collisions — convention `MemberID_Feature_JointID` (e.g. `P2-1_Mortise_MT_B2a`), to be confirmed in template design.
 
 ## 4. Proven Recipes

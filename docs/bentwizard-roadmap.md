@@ -76,7 +76,7 @@ Always labeled design guidance, not stamped engineering.
 Ground planes and bearing-point projection; auto-generated sill beams; split-level ground planes; frame openings (stairwells, dormers) generating headers/trimmers with load redistribution; wall-opening placeholders; chimney clearance zones; cantilever load paths; bent layout templates (King Post, Queen Post, Hammer Beam) as saved native layouts.
 
 ## Open Items
-- Units/dimensioning convention for TechDraw (fractional inches assumed).
+- Units: decided (Phase 1) — the workbench defers to the user's FreeCAD unit schema (e.g. "Building US" for fractional inches), never forcing imperial or metric. TechDraw dimension style details remain open.
 - Feature label scheme within bodies: `FeatureType_JointID` collides across bodies sharing a joint (labels are document-unique) — needs body-qualified convention.
 - Joint library location (folder vs. addon structure) — decide at Phase 1 start.
 - Single document vs. multi-file for large frames — revisit after the test bent.

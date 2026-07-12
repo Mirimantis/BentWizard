@@ -3,8 +3,10 @@
 The first clean joint template: a housed, pegged, drawbored mortise &
 tenon between a post (mortise role) and a beam (tenon role). This is the
 Phase 0 recipes (§4.4, §4.6, §4.7) rebuilt from scratch with the decided
-conventions and the §4.3 junction-point rule. Enter all values with the
-`in` suffix (`2 in`); FreeCAD stores mm.
+conventions and the §4.3 junction-point rule. Values below are imperial;
+enter them per your FreeCAD unit schema (e.g. "Building US" handles
+fractional inches natively). The workbench defers to the user's unit
+schema — imperial here is example data, not a requirement.
 
 **Acceptance:** `python -m freecad.bentwizard.linter library/Joint_HousedMT.FCStd`
 reports **zero strict findings** and no advisories other than
@@ -29,13 +31,15 @@ Template-wide conventions:
 For each timber, in an empty document saved as `library/Joint_HousedMT.FCStd`:
 
 1. **VarSet** labeled `TimberDims_P0-1`, properties in group `Dims`, all
-   `App::PropertyLength`:
+   `App::PropertyLength`. The post is 10×8, the beam 6×8 — differing
+   sections make the two timbers and their orientations readable in the
+   3D view and surface edge cases that identical sections hide.
 
-   | Property | Value | Tooltip |
-   |---|---|---|
-   | `Width`  | 8 in  | Section extent along local X, measured from reference Face 2 (the YZ origin plane). |
-   | `Depth`  | 8 in  | Section extent along local Y, measured from reference Face 1 (the XZ origin plane). |
-   | `Length` | 96 in | Full stick length from end A (Z=0) to end B, as purchased — tenons and tongues included. |
+   | Property | Post | Beam | Tooltip |
+   |---|---|---|---|
+   | `Width`  | 10 in | 6 in | Section extent along local X, measured from reference Face 2 (the YZ origin plane). |
+   | `Depth`  | 8 in  | 8 in | Section extent along local Y, measured from reference Face 1 (the XZ origin plane). |
+   | `Length` | 96 in | 96 in | Stick length from end A (Z=0) to end B, including tenons, etc. |
 
 2. **Body** labeled `P0-1`.
 3. **Sketch** on the body's `XY_Plane` (tree-selected), labeled
@@ -44,8 +48,12 @@ For each timber, in an empty document saved as `library/Joint_HousedMT.FCStd`:
    vertical `= <<TimberDims_P0-1>>.Depth`.
 4. **Pad** labeled `P0-1_Stick`, Length `= <<TimberDims_P0-1>>.Length`.
 
-Repeat for the beam: `TimberDims_B0-1` (same values/tooltips), body
-`B0-1`, `B0-1_SectionSketch`, `B0-1_Stick`.
+Repeat for the beam: `TimberDims_B0-1` (beam column above, same
+tooltips), body `B0-1`, `B0-1_SectionSketch`, `B0-1_Stick`.
+
+Tooltip style: as brief as possible while still informative — always
+state the face/end the value measures from; use timber framing
+terminology.
 
 **Checkpoint A:** lint — expect only `missing-tooltip`/naming silence,
 i.e. no findings at all yet.
