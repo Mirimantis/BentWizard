@@ -22,3 +22,7 @@ This is a from-scratch rewrite; an earlier attempt that generated custom-coded g
 - `phase0/` — Phase 0 session models (`.FCStd`) and session macros (`.FCMacro`)
 
 A portable FreeCAD install is expected at `FreeCAD_1.1.1-Windows-x86_64-py311/` for development and testing; it is gitignored and not part of the repository.
+
+## License
+
+[LGPL-2.1-or-later](LICENSE), the same license as FreeCAD and its bundled workbenches.
