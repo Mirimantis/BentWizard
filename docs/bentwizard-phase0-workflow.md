@@ -38,6 +38,8 @@ What duplicates vs. stays shared follows intent and the group-layer boundary. Ne
 ### 4.3 Joint instance VarSet
 One VarSet per joint instance, holding all parameters for both halves (the mated-pair mechanism). Properties may pass through by expression to group VarSets (see 4.9). Prototype shortcut to avoid in production: MT1 drove both beam ends; real frames use one instance per joint.
 
+**Junction point for cross-timber coupling (decided at Phase 1 start).** A joint parameter that must track a mating timber's dimension is a property on the joint VarSet, bound by expression to that timber's Dims — e.g. `Joint_MT_B2a.Housing_Width = <<TimberDims_B2-1>>.Depth`. Features inside a body reference only their own timber's Dims and joint VarSets, never another timber's Dims directly (the prototype's housing sketches did, and `PegHole_MT1_sketch2 → PostDims` shows how it fails silently after duplication). Propagation stays fully native — resizing a timber flows through the joint VarSet into both halves with no workbench involvement — while all cross-timber coupling for a joint is enumerated in one visible, auditable, remappable place. Overriding a tracked dimension is the standard group-override move: replace the expression with a literal on the joint VarSet.
+
 ### 4.4 End tenon — island pocket
 Sketch on the end's plane (XY origin plane at end A; offset datum from XY at `Length` for end B). Two loops: outer rectangle = full section (corner at origin, Dims-bound), inner = tenon profile (Setbacks and dimensions bound to the joint VarSet). One Pocket, depth = TenonLength, cutting into the stick. The inner loop survives as the tenon. Requires the island strictly interior to the outer loop.
 

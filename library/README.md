@@ -11,6 +11,9 @@ One ordinary `.FCStd` file per joint template. A template contains:
 Templates must lint clean (strict **and** advisory):
 `python -m freecad.bentwizard.linter library/<template>.FCStd`
 
+First template: the housed mortise & tenon — build recipe in
+[docs/mt-template-build.md](../docs/mt-template-build.md).
+
 A "Save as joint template" tool will validate and register user-authored
 joints here; a user-override directory is planned alongside the Phase 3
 reference-data system. Manifest format is an open item (workflow doc §8).

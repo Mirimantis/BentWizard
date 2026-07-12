@@ -469,6 +469,10 @@ def _severing_ratios(model):
             if model.kind.get(varset.name) != "joint":
                 continue
             flat = propname.replace("_", "").lower()
+            # Housing_* parameters legitimately span the mating timber's
+            # full section; their severing exposure is depth, checked above.
+            if flat.startswith("housing"):
+                continue
             if flat.endswith(("width", "thickness")):
                 yield (feature, sketch, body, varset, propname,
                        value, min_extent, MORTISE_LIMIT)

@@ -43,6 +43,7 @@ Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive join
 - **Joint features in bodies:** body-qualified — `MemberID_Feature_JointID` (e.g. `P2-1_Mortise_MT_B2a`).
 - **Tooltips mandatory** on every template-defined property: full sentence, states which face/end it measures from.
 - **One VarSet per joint instance**, holding parameters for both halves (mated-pair mechanism).
+- **Cross-timber coupling only via the joint VarSet** (workflow doc §4.3): a parameter tracking the mating timber's dimension is a joint VarSet property bound to that timber's Dims; body-internal features never reference a foreign Dims VarSet.
 - **Sketch symmetry:** centerline construction line + half-width constraints, never the Symmetry constraint (finding #13).
 - **Island pockets** require a strictly interior island; if the kept profile touches the section boundary, sketch removal regions directly (finding #14).
 - **Datum strategy:** sketch on native origin planes/faces with zero offset; depth via pocket/pad length, not datum offset; position along the timber via sketch constraint. Reserve offset datums for genuinely floating planes and verify resolved placement (finding #10).
