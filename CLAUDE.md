@@ -1,0 +1,60 @@
+# BentWizard
+
+Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive joinery, all geometry native. A prior attempt (old GitHub repo) failed by generating custom-coded geometry; it is reference-only — this repo starts from scratch on the lessons learned.
+
+**Status:** Phase 0 (manual workflow definition) complete. Phase 1 (joint library + Apply-Joint tool) is next.
+
+## Read first
+
+- [docs/bentwizard-roadmap.md](docs/bentwizard-roadmap.md) — phases, governing rules, adopted designs
+- [docs/bentwizard-phase0-workflow.md](docs/bentwizard-phase0-workflow.md) — the proven manual recipes the tools must reproduce; **this is the spec Phase 1 is built against**
+- [docs/phase0-friction-findings.md](docs/phase0-friction-findings.md) — numbered findings (#1–#14) cited throughout; each maps to an automation requirement
+
+## Governing rules (non-negotiable)
+
+1. **Tier 1 — geometry stays native.** All solid geometry is ordinary FreeCAD objects: Sketches, Part Design features, datums, Assembly joints. Test: uninstall the workbench — the model must open, edit, and recompute identically.
+2. **Tier 2 — data degrades gracefully.** Non-geometric data (species, grade, roles, joint metadata) lives in custom properties on native objects, visible and round-trip-safe without the workbench. Workbench-gated *functionality* is fine; gated geometry is not.
+3. **Subtractive joinery.** Pockets and holes, never pads, for joints. `Length` in a timber's Dims VarSet = the full stick as purchased, tenons included.
+4. **Square rule.** Reference faces on the XZ/YZ origin planes; all joint layout measures from reference faces and stick ends.
+
+## Environment
+
+- Portable FreeCAD 1.1.1 lives at `FreeCAD_1.1.1-Windows-x86_64-py311/` (gitignored — dev/test tool, not repo content).
+  - GUI: `FreeCAD_1.1.1-Windows-x86_64-py311/bin/freecad.exe`
+  - Headless (scripts, file inspection, future CI-style checks): `FreeCAD_1.1.1-Windows-x86_64-py311/bin/freecadcmd.exe <script.py>`
+  - Bundled Python 3.11: `FreeCAD_1.1.1-Windows-x86_64-py311/bin/python.exe` (imports `FreeCAD` directly)
+- `.FCStd` files are zip archives; inspect by unzipping and reading `Document.xml` (see Verification below).
+
+## Repo layout
+
+- `freecad/bentwizard/` — the workbench package (FreeCAD 1.x addon-manager layout; `package.xml` at root)
+- `docs/` — roadmap, workflow spec, findings log
+- `tests/` — currently Phase 0 session artifacts: `.FCStd` models and `.FCMacro` session transcripts. `TimberTemplate.FCStd` is the pristine timber template; the `Joint_HouseMT session N` files are the per-session snapshots. (When a Python test suite arrives, these artifacts should move to `phase0/` or similar.)
+- Joint library location (folder vs. addon structure) is an open item — decide at Phase 1 start.
+
+## Conventions (from the workflow doc — apply to all generated objects)
+
+- **Timber Bodies:** MemberID labels, `[RolePrefix][BentNumber]-[Position]` (e.g. `P2-1`); bay refs for longitudinal members (`PU-B2-3`).
+- **VarSet labels:** `Kind_Owner` — `TimberDims_P2-1`, `Joint_MT_B2a`, `Group_LoftDovetail`, `Project_Main`, `Order_Main`.
+- **Property names:** `Part_Attribute[_Qualifier]`, most-significant first — `Tenon_Thickness`, `Housing_Depth`, `Peg_Drawbore_Offset`. Face qualifiers `_Face1`/`_Face2` (Face 1 = XZ-plane face, Face 2 = YZ-plane face).
+- **Joint features in bodies:** body-qualified — `MemberID_Feature_JointID` (e.g. `P2-1_Mortise_MT_B2a`).
+- **Tooltips mandatory** on every template-defined property: full sentence, states which face/end it measures from.
+- **One VarSet per joint instance**, holding parameters for both halves (mated-pair mechanism).
+- **Sketch symmetry:** centerline construction line + half-width constraints, never the Symmetry constraint (finding #13).
+- **Island pockets** require a strictly interior island; if the kept profile touches the section boundary, sketch removal regions directly (finding #14).
+- **Datum strategy:** sketch on native origin planes/faces with zero offset; depth via pocket/pad length, not datum offset; position along the timber via sketch constraint. Reserve offset datums for genuinely floating planes and verify resolved placement (finding #10).
+- **Never reference solid faces** — sketch supports, assembly joints, and dimensions attach to origin planes/datums selected by object reference, never 3D picks.
+- **Duplication:** new timbers only from the pristine template, never from a jointed body (phantom features, finding #12); audit every expression in any duplicate (finding #2).
+- **Parameter groups:** instance → type → section → project by expression binding, ≤3 layers; override = replace one property's expression with a literal; membership IS the binding.
+
+Linter rules (strict vs. advisory) are enumerated in workflow doc §6 — treat that list as the source of truth when building validation.
+
+## Verification methodology
+
+- In-model: top/side orthographic views (never trust wireframe when profiles align in two axes), clipping planes through joints, Measure tool between mating faces.
+- In-file: unzip the `.FCStd`, read `Document.xml`, and **always resolve the full placement chain** (Body placement × sketch/datum placement) before interpreting sketch coordinates. Read rotations from the placement quaternion (Q0–Q3), not axis/angle attributes. Sketch-local coordinates are NOT global once an offset/rotated datum is involved — this produced the project's one false diagnosis (finding #10).
+- If Adam's viewport contradicts the file analysis, the viewport wins until the analysis is re-derived from resolved frames.
+
+## Division of labor
+
+Adam: FreeCAD driving, joinery domain decisions, testing against real workflow. Claude: all Python development, FreeCAD API research, step-by-step instructions, file-inspection verification.

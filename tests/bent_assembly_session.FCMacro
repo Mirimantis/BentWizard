@@ -1,0 +1,412 @@
+# Macro Begin: C:\Users\Adam\Documents\Projects\BentWizard\bent_assembly_session.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+import PartDesignGui
+import CommandCreateAssembly
+import UtilsAssembly
+import PartDesign
+import CommandCreateJoint
+import JointObject
+
+# Gui.runCommand('Std_DlgMacroRecord',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body001')
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody',App.getDocument('Joint_HouseMT_session_5').getObject('Body001'))
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body001','Origin002.XY_Plane001.')
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::DatumPlane','DatumPlane006')
+App.ActiveDocument.getObject('Body001').addObject(obj)
+
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_DatumPlane006 = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane006')
+# dep_features = _tv_DatumPlane006.get_all_dependent(App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane006'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_DatumPlane006.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_DatumPlane006.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane006').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 101.6000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane006').MapReversed = False
+App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane006').AttachmentSupport = [(App.getDocument('Joint_HouseMT_session_5').getObject('Origin002'),'XY_Plane001.')]
+App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane006').MapPathParameter = 0.000000
+App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane006').MapMode = 'FlatFace'
+App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane006').recompute()
+# _tv_DatumPlane006.restore()
+# del(_tv_DatumPlane006)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body001','DatumPlane006.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body001','Origin002.XY_Plane001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body001','Origin002.XZ_Plane001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body001','Origin002.XY_Plane001.')
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::DatumPlane','DatumPlane007')
+App.ActiveDocument.getObject('Body001').addObject(obj)
+
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_DatumPlane007 = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane007')
+# dep_features = _tv_DatumPlane007.get_all_dependent(App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane007'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_DatumPlane007.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_DatumPlane007.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane007').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 2336.8000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane007').MapReversed = False
+App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane007').AttachmentSupport = [(App.getDocument('Joint_HouseMT_session_5').getObject('Origin002'),'XY_Plane001.')]
+App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane007').MapPathParameter = 0.000000
+App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane007').MapMode = 'FlatFace'
+App.getDocument('Joint_HouseMT_session_5').getObject('DatumPlane007').recompute()
+# _tv_DatumPlane007.restore()
+# del(_tv_DatumPlane007)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body001','DatumPlane007.',847.452,-233.955,2336.8)
+### Begin command Std_Workbench
+# Gui.activateWorkbench("AssemblyWorkbench")
+### End command Std_Workbench
+# Gui.Selection.clearSelection()
+### Begin command Assembly_CreateAssembly
+assembly = App.ActiveDocument.addObject("Assembly::AssemblyObject", "Assembly")
+assembly.Type = "Assembly"
+assembly.newObject("Assembly::JointGroup", "Joints")
+# Gui.ActiveDocument.setEdit(assembly)
+# appDoc = App.getDocument('Joint_HouseMT_session_5')
+# Gui.getDocument(appDoc).ActiveView.setActiveObject('assembly', appDoc.getObject('Assembly'))
+### End command Assembly_CreateAssembly
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body001')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','VarSet005')
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HouseMT_session_5').moveObject(App.getDocument('Joint_HouseMT_session_5').getObject('VarSet005'), True)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body')
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body001')
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Body002')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly')
+# App.getDocument('Joint_HouseMT_session_5').getObject('Body').adjustRelativeLinks(App.getDocument('Joint_HouseMT_session_5').getObject('Assembly'))
+App.getDocument("Joint_HouseMT_session_5").getObject("Assembly").addObject(App.getDocument("Joint_HouseMT_session_5").getObject("Body"))
+# App.getDocument('Joint_HouseMT_session_5').getObject('Body001').adjustRelativeLinks(App.getDocument('Joint_HouseMT_session_5').getObject('Assembly'))
+App.getDocument("Joint_HouseMT_session_5").getObject("Assembly").addObject(App.getDocument("Joint_HouseMT_session_5").getObject("Body001"))
+# App.getDocument('Joint_HouseMT_session_5').getObject('Body002').adjustRelativeLinks(App.getDocument('Joint_HouseMT_session_5').getObject('Assembly'))
+App.getDocument("Joint_HouseMT_session_5").getObject("Assembly").addObject(App.getDocument("Joint_HouseMT_session_5").getObject("Body002"))
+# App.getDocument('Joint_HouseMT_session_5').getObject('Body003').adjustRelativeLinks(App.getDocument('Joint_HouseMT_session_5').getObject('Assembly'))
+App.getDocument("Joint_HouseMT_session_5").getObject("Assembly").addObject(App.getDocument("Joint_HouseMT_session_5").getObject("Body003"))
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body001.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body002.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body003.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.Pocket001.Face2',66.2011,203.2,1829.81)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.')
+# Gui.activateWorkbench('PartDesignWorkbench')
+# Gui.ActiveDocument.ActiveView.setActiveObject('part',App.getDocument('Joint_HouseMT_session_5').getObject('Assembly'))
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody',App.getDocument('Joint_HouseMT_session_5').getObject('Body'))
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Origin008.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.Pocket001.Face6',203.2,109.72,1758.25)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.')
+### Begin command PartDesign_Body
+App.activeDocument().addObject('PartDesign::Body','Body004')
+App.ActiveDocument.getObject('Body004').Label = 'Body'
+App.ActiveDocument.getObject('Body004').AllowCompound = True
+# import PartDesignGui
+App.activeDocument().Assembly.addObject(App.ActiveDocument.Body004)
+# Gui.activateView('Gui::View3DInventor', True)
+# Gui.activeView().setActiveObject('pdbody', App.activeDocument().Body004)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.ActiveDocument.Body004)
+App.ActiveDocument.recompute()
+### End command PartDesign_Body
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body004.')
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.clearSelection()
+### Begin command Std_Workbench
+# Gui.activateWorkbench("AssemblyWorkbench")
+### End command Std_Workbench
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.')
+### Begin command Assembly_ToggleGrounded
+obj = App.ActiveDocument.getObject("Body")
+assembly = UtilsAssembly.activeAssembly()
+joint_group = UtilsAssembly.getJointGroup(assembly)
+ground = joint_group.newObject("App::FeaturePython", "GroundedJoint")
+JointObject.GroundedJoint(ground, obj)
+# JointObject.ViewProviderGroundedJoint(ground.ViewObject)
+UtilsAssembly.activeAssembly().Document.recompute()
+### End command Assembly_ToggleGrounded
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.DatumPlane.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body001.DatumPlane006.')
+### Begin command Assembly_CreateJointFixed
+panel = JointObject.TaskAssemblyCreateJoint(0)
+# dialog = Gui.Control.showDialog(panel)
+### End command Assembly_CreateJointFixed
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.Origin.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.')
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Redo',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body.DatumPlane.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body001.DatumPlane006.')
+### Begin command Assembly_CreateJointFixed
+panel = JointObject.TaskAssemblyCreateJoint(0)
+# dialog = Gui.Control.showDialog(panel)
+### End command Assembly_CreateJointFixed
+obj = App.ActiveDocument.getObject("Joint")
+obj.Detach1 = False
+obj.Detach2 = False
+obj.EnableAngleMax = False
+obj.EnableAngleMin = False
+obj.EnableLengthMax = False
+obj.EnableLengthMin = False
+obj.JointType = "Fixed"
+obj.Label = "Fixed001"
+obj.Label2 = ""
+obj.Offset1 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Offset2 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Placement1 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Placement2 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Suppressed = False
+obj.Visibility = False
+
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Joints.Joint.')
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,2),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,24),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,0),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Distance = '50.8 mm'
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Distance = '609.5999999999999 mm'
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Distance = '0 mm'
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,0,50.8),App.Rotation(App.Vector(0,0,0),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,0,609.5999999999999),App.Rotation(App.Vector(0,0,0),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,0,50.8),App.Rotation(App.Vector(0,0,0),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,0),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,50.8,0),App.Rotation(App.Vector(0,0,0),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,609.5999999999999,0),App.Rotation(App.Vector(0,0,0),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,50.8,0),App.Rotation(App.Vector(0,0,0),0))
+
+App.getDocument('Joint_HouseMT_session_5').Joint.setExpression('.Offset1.Base.y', u'<<MT1>>.JointHeight')
+App.getDocument('Joint_HouseMT_session_5').Joint.setExpression('.Offset1.Base.y', None)
+App.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1.Base.y = 1219.200000
+App.getDocument('Joint_HouseMT_session_5').Joint.setExpression('.Offset1.Base.y', u'<<MT1>>.JointHeight')
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,1219.2,50.8),App.Rotation(App.Vector(0,0,0),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,1219.2,609.5999999999999),App.Rotation(App.Vector(0,0,0),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,1219.2,50.8),App.Rotation(App.Vector(0,0,0),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint').Offset1 = App.Placement(App.Vector(0,1219.2,0),App.Rotation(App.Vector(0,0,0),0))
+
+# Gui.runCommand('Std_ToggleClipPlane',0)
+# Gui.runCommand('Std_ToggleClipPlane',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body003.DatumPlane005.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body001.DatumPlane007.')
+### Begin command Assembly_CreateJointFixed
+panel = JointObject.TaskAssemblyCreateJoint(0)
+# dialog = Gui.Control.showDialog(panel)
+### End command Assembly_CreateJointFixed
+obj = App.ActiveDocument.getObject("Joint001")
+obj.Detach1 = False
+obj.Detach2 = False
+obj.EnableAngleMax = False
+obj.EnableAngleMin = False
+obj.EnableLengthMax = False
+obj.EnableLengthMin = False
+obj.JointType = "Fixed"
+obj.Label = "Fixed002"
+obj.Label2 = ""
+obj.Offset1 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Offset2 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[180.0, 0.0, 0.0]))
+obj.Placement1 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Placement2 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[180.0, 0.0, 0.0]))
+obj.Suppressed = False
+obj.Visibility = False
+
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Joints.Joint001.')
+# App.getDocument('Joint_HouseMT_session_5').getObject('Joint001').ViewObject.doubleClicked()
+obj = App.ActiveDocument.getObject("Joint001")
+obj.Detach1 = False
+obj.Detach2 = False
+obj.EnableAngleMax = False
+obj.EnableAngleMin = False
+obj.EnableLengthMax = False
+obj.EnableLengthMin = False
+obj.JointType = "Fixed"
+obj.Label = "Fixed002"
+obj.Label2 = ""
+obj.Offset1 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Offset2 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[180.0, 0.0, 0.0]))
+obj.Placement1 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Placement2 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[180.0, 0.0, 0.0]))
+obj.Suppressed = False
+obj.Visibility = True
+
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Joints.Joint001.')
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Placement1 = App.Placement(App.Vector(0,50.8,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Placement1 = App.Placement(App.Vector(0,609.5999999999999,0),App.Rotation(App.Vector(0,0,1),0))
+
+# App.getDocument('Joint_HouseMT_session_5').getObject('Joint001').ViewObject.doubleClicked()
+obj = App.ActiveDocument.getObject("Joint001")
+obj.Detach1 = False
+obj.Detach2 = False
+obj.EnableAngleMax = False
+obj.EnableAngleMin = False
+obj.EnableLengthMax = False
+obj.EnableLengthMin = False
+obj.JointType = "Fixed"
+obj.Label = "Fixed002"
+obj.Label2 = ""
+obj.Offset1 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Offset2 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Placement1 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Placement2 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Suppressed = False
+obj.Visibility = True
+
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Joints.Joint001.')
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Placement1 = App.Placement(App.Vector(50.8,0,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Placement1 = App.Placement(App.Vector(609.5999999999999,0,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Placement1 = App.Placement(App.Vector(0,0,50.8),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Placement1 = App.Placement(App.Vector(0,0,609.5999999999999),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Placement2 = App.Placement(App.Vector(0,50.8,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Placement2 = App.Placement(App.Vector(0,609.5999999999999,0),App.Rotation(App.Vector(0,0,1),0))
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body002.DatumPlane002.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Body001.DatumPlane003.')
+### Begin command Assembly_CreateJointFixed
+panel = JointObject.TaskAssemblyCreateJoint(0)
+# dialog = Gui.Control.showDialog(panel)
+### End command Assembly_CreateJointFixed
+obj = App.ActiveDocument.getObject("Joint002")
+obj.Detach1 = False
+obj.Detach2 = False
+obj.EnableAngleMax = False
+obj.EnableAngleMin = False
+obj.EnableLengthMax = False
+obj.EnableLengthMin = False
+obj.JointType = "Fixed"
+obj.Label = "Fixed003"
+obj.Label2 = ""
+obj.Offset1 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Offset2 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[-90.0, 0.0, 0.0]))
+obj.Placement1 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Placement2 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[-90.0, 0.0, 0.0]))
+obj.Suppressed = False
+obj.Visibility = False
+
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Joints.Joint002.')
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint002').Placement1 = App.Placement(App.Vector(50.8,0,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint002').Placement1 = App.Placement(App.Vector(609.5999999999999,0,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint002').Placement1 = App.Placement(App.Vector(50.8,0,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint002').Placement1 = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint002').Offset1 = App.Placement(App.Vector(0,50.8,0),App.Rotation(App.Vector(0,0,1),0))
+
+App.getDocument('Joint_HouseMT_session_5').Joint002.setExpression('.Offset1.Base.y', u'<<DT1>>.TongueLength')
+App.getDocument('Joint_HouseMT_session_5').Joint002.setExpression('.Offset1.Base.y', None)
+App.getDocument('Joint_HouseMT_session_5').getObject('Joint002').Offset1.Base.y = 76.200000
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Joints.Joint002.')
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint002').Offset1 = App.Placement(App.Vector(101.6,76.2,0),App.Rotation(App.Vector(0,0,1),0))
+
+App.getDocument('Joint_HouseMT_session_5').Joint002.setExpression('.Offset1.Base.x', u'<<DT1>>.JointStation')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Joints.Joint002.')
+App.getDocument('Joint_HouseMT_session_5').Joint002.setExpression('.Offset1.Base.y', u'<<DT1>>.TongueLength + <<DT1>>.HousingDepth')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Joints.Joint001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Joints.Joint.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_5','Assembly','Joints.Joint001.')
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Offset1 = App.Placement(App.Vector(50.8,0,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Offset1 = App.Placement(App.Vector(558.8,0,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Offset1 = App.Placement(App.Vector(50.8,0,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Offset1 = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Offset1 = App.Placement(App.Vector(0,50.8,0),App.Rotation(App.Vector(0,0,1),0))
+
+FreeCAD.getDocument('Joint_HouseMT_session_5').getObject('Joint001').Offset1 = App.Placement(App.Vector(0,558.8,0),App.Rotation(App.Vector(0,0,1),0))
+
+App.getDocument('Joint_HouseMT_session_5').Joint001.setExpression('.Offset1.Base.y', u'<<MT1>>.JointHeight')
+# App.getDocument('Joint_HouseMT_session_5').getObject('Joint001').ViewObject.doubleClicked()
+obj = App.ActiveDocument.getObject("Joint001")
+obj.Detach1 = False
+obj.Detach2 = False
+obj.EnableAngleMax = False
+obj.EnableAngleMin = False
+obj.EnableLengthMax = False
+obj.EnableLengthMin = False
+obj.JointType = "Fixed"
+obj.Label = "Fixed002"
+obj.Label2 = ""
+obj.Offset1 = App.Placement(App.Vector(0.00000,1219.20000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Offset2 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Placement1 = App.Placement(App.Vector(0.00000,1219.20000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Placement2 = App.Placement(App.Vector(0.00000,0.00000,0.00000),App.Rotation(*[0.0, 0.0, 0.0]))
+obj.Suppressed = False
+obj.Visibility = True
+
+# Macro End: C:\Users\Adam\Documents\Projects\BentWizard\bent_assembly_session.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++

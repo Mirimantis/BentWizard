@@ -1,0 +1,231 @@
+# Macro Begin: C:\Users\Adam\AppData\Roaming\FreeCAD\v1-1\Macro\timber_template_session.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+import PartDesign
+import PartDesignGui
+import Sketcher
+
+# Gui.runCommand('Std_DlgMacroRecord',0)
+### Begin command Std_VarSet
+App.activeDocument().addObject('App::VarSet','VarSet')
+App.ActiveDocument.getObject('VarSet').ViewObject.doubleClicked()
+App.getDocument('Unnamed').VarSet.addProperty('App::PropertyLength', 'Width', 'Dimensions', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Width = '203.2 mm'
+
+App.getDocument('Unnamed').VarSet.addProperty('App::PropertyLength', 'Depth', 'Dimensions', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Depth = '203.2 mm'
+
+App.getDocument('Unnamed').VarSet.addProperty('App::PropertyLength', 'Length', 'Dimensions', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Length = '2438.4 mm'
+
+### Begin command PartDesign_Body
+App.activeDocument().addObject('PartDesign::Body','Body')
+App.ActiveDocument.getObject('Body').Label = 'Body'
+App.ActiveDocument.getObject('Body').AllowCompound = True
+# import PartDesignGui
+# Gui.activateView('Gui::View3DInventor', True)
+# Gui.activeView().setActiveObject('pdbody', App.activeDocument().Body)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.ActiveDocument.Body)
+App.ActiveDocument.recompute()
+### End command PartDesign_Body
+# Gui.Selection.addSelection('Unnamed','Body')
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('PartDesign_CompSketches',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Origin.XY_Plane.',15.18,13.0304,0)
+App.getDocument('Unnamed').getObject('Body').newObject('Sketcher::SketchObject','Sketch')
+App.getDocument('Unnamed').getObject('Sketch').AttachmentSupport = (App.getDocument('Unnamed').getObject('Origin'),['XY_Plane'])
+App.getDocument('Unnamed').getObject('Sketch').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Unnamed').setEdit(App.getDocument('Unnamed').getObject('Body'), 0, 'Sketch.')
+# import Show
+# ActiveSketch = App.getDocument('Unnamed').getObject('Sketch')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Unnamed').getObject('Body'), 'Sketch.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Unnamed').getObject('Sketch')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CreateRectangle',0)
+# Gui.runCommand('Sketcher_CompCreateRectangles',0)
+ActiveSketch = App.getDocument('Unnamed').getObject('Sketch')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.LineSegment(App.Vector(6.985457, 30.453989, 0.000000),App.Vector(6.985457, 7.456756, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(6.985457, 7.456756, 0.000000),App.Vector(53.921768, 7.456756, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(53.921768, 7.456756, 0.000000),App.Vector(53.921768, 30.453989, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(53.921768, 30.453989, 0.000000),App.Vector(6.985457, 30.453989, 0.000000)))
+App.getDocument('Unnamed').getObject('Sketch').addGeometry(geoList,False)
+del geoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 0, 2, 1, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 1, 2, 2, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 2, 2, 3, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 3, 2, 0, 1))
+constraintList.append(Sketcher.Constraint('Vertical', 0))
+constraintList.append(Sketcher.Constraint('Vertical', 2))
+constraintList.append(Sketcher.Constraint('Horizontal', 1))
+constraintList.append(Sketcher.Constraint('Horizontal', 3))
+App.getDocument('Unnamed').getObject('Sketch').addConstraint(constraintList)
+del constraintList
+
+constraintList = []
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Vertex2',6.98546,7.45676,0.014,False)
+# Gui.runCommand('Sketcher_ConstrainCoincidentUnified',0)
+# Gui.Selection.clearSelection()
+App.getDocument('Unnamed').getObject('Sketch').moveGeometries([(0, 2)], App.Vector(4.47381, 3.92476, 0))
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Redo',0)
+App.getDocument('Unnamed').getObject('Sketch').moveGeometries([(0, 2)], App.Vector(3.53194, 3.6108, 0))
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Edge1',3.53194,4.08174,0.008,False)
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Vertex2',3.53194,3.6108,0.014,False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Unnamed').getObject('Sketch'),['Sketch.Constraint1'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Unnamed').getObject('Sketch'),['Sketch.Constraint2'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Unnamed').getObject('Sketch'),['Sketch.Constraint3'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Unnamed').getObject('Sketch'),['Sketch.Constraint1'])
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Vertex2',3.53194,3.6108,0.014,False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Unnamed').getObject('Body'),['Sketch.Vertex2','Sketch.Vertex3','Sketch.RootPoint'])
+### Begin command Sketcher_ConstrainCoincidentUnified
+App.getDocument('Unnamed').getObject('Sketch').addConstraint(Sketcher.Constraint('Coincident',0,2,-1,1))
+### End command Sketcher_ConstrainCoincidentUnified
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Edge2',39.7938,0,0.008,False)
+# Gui.Selection.removeSelection('Unnamed','Body','Sketch.Edge2')
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Edge2',40.7356,0,0.008,False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Edge2',18.2094,0,0.008,False)
+### Begin command Sketcher_ConstrainDistanceX
+App.getDocument('Unnamed').getObject('Sketch').addConstraint(Sketcher.Constraint('DistanceX',1,1,1,2,53.921768))
+App.getDocument('Unnamed').Sketch.setExpression('Constraints[9]', u'<<TimberDims>>.Depth')
+### End command Sketcher_ConstrainDistanceX
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Edge1',0,21.2123,0.008,False)
+# Gui.Selection.removeSelection('Unnamed','Body','Sketch.Edge1')
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Edge1',0,22.0704,0.008,False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Edge3',203.2,16.7788,0.008,False)
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Edge1',0,20.0682,0.008,False)
+# Gui.runCommand('Sketcher_ConstrainDistanceY',0)
+# Gui.Selection.removeSelection('Unnamed','Body','Sketch.Edge1')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Edge1',0,22.0704,0.008,False)
+# Gui.Selection.removeSelection('Unnamed','Body','Sketch.Edge1')
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.Edge1',0,22.0704,0.008,False)
+### Begin command Sketcher_CompDimensionTools
+App.getDocument('Unnamed').getObject('Sketch').addConstraint(Sketcher.Constraint('Distance',0,1,0,2,30.453989)) 
+### End command Sketcher_CompDimensionTools
+# Gui.Selection.clearSelection()
+App.getDocument('Unnamed').getObject('Sketch').addConstraint(Sketcher.Constraint('DistanceY',0,2,0,1,30.453989)) 
+App.getDocument('Unnamed').Sketch.setExpression('Constraints[10]', u'<<TimberDims>>.Depth')
+# Gui.getDocument('Unnamed').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Unnamed').getObject('Sketch')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.')
+App.getDocument('Unnamed').recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Sketch.')
+### Begin command PartDesign_Pad
+App.getDocument('Unnamed').getObject('Body').newObject('PartDesign::Pad','Pad')
+App.getDocument('Unnamed').getObject('Pad').Profile = (App.getDocument('Unnamed').getObject('Sketch'), ['',])
+App.getDocument('Unnamed').getObject('Pad').Length = 10
+App.ActiveDocument.recompute()
+App.getDocument('Unnamed').getObject('Pad').ReferenceAxis = (App.getDocument('Unnamed').getObject('Sketch'),['N_Axis'])
+App.getDocument('Unnamed').getObject('Sketch').Visibility = False
+App.ActiveDocument.recompute()
+# App.getDocument('Unnamed').getObject('Pad').ViewObject.ShapeAppearance=getattr(App.getDocument('Unnamed').getObject('Body').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Unnamed').getObject('Pad').ViewObject.ShapeAppearance)
+# App.getDocument('Unnamed').getObject('Pad').ViewObject.LineColor=getattr(App.getDocument('Unnamed').getObject('Body').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Unnamed').getObject('Pad').ViewObject.LineColor)
+# App.getDocument('Unnamed').getObject('Pad').ViewObject.PointColor=getattr(App.getDocument('Unnamed').getObject('Body').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Unnamed').getObject('Pad').ViewObject.PointColor)
+# App.getDocument('Unnamed').getObject('Pad').ViewObject.Transparency=getattr(App.getDocument('Unnamed').getObject('Body').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Unnamed').getObject('Pad').ViewObject.Transparency)
+# App.getDocument('Unnamed').getObject('Pad').ViewObject.DisplayMode=getattr(App.getDocument('Unnamed').getObject('Body').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Unnamed').getObject('Pad').ViewObject.DisplayMode)
+# Gui.getDocument('Unnamed').setEdit(App.getDocument('Unnamed').getObject('Body'), 0, 'Pad.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Pad
+# Gui.Selection.clearSelection()
+App.getDocument('Unnamed').Pad.setExpression('Length', u'<<TimberDims>>.Length')
+App.getDocument('Unnamed').getObject('Pad').TaperAngle = 0.000000
+App.getDocument('Unnamed').getObject('Pad').UseCustomVector = 0
+App.getDocument('Unnamed').getObject('Pad').Direction = (0, 0, 1)
+App.getDocument('Unnamed').getObject('Pad').ReferenceAxis = (App.getDocument('Unnamed').getObject('Sketch'), ['N_Axis'])
+App.getDocument('Unnamed').getObject('Pad').AlongSketchNormal = 1
+App.getDocument('Unnamed').getObject('Pad').SideType = 0
+App.getDocument('Unnamed').getObject('Pad').Type = 0
+App.getDocument('Unnamed').getObject('Pad').Type2 = 0
+App.getDocument('Unnamed').getObject('Pad').UpToFace = None
+App.getDocument('Unnamed').getObject('Pad').UpToFace2 = None
+App.getDocument('Unnamed').getObject('Pad').Reversed = 0
+App.getDocument('Unnamed').getObject('Pad').Offset = 0
+App.getDocument('Unnamed').getObject('Pad').Offset2 = 0
+App.getDocument('Unnamed').purgeTouched()
+App.getDocument('Unnamed').recompute()
+# Gui.getDocument('Unnamed').resetEdit()
+App.getDocument('Unnamed').getObject('Sketch').Visibility = False
+# Gui.Selection.addSelection('Unnamed','VarSet')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Width = '25.4 mm'
+
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Width = '254 mm'
+
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Length = '25.4 mm'
+
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Length = '304.8 mm'
+
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Length = '3048 mm'
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Pad.Sketch.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Pad.Face6',113.647,74.6747,3048)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Pad.Face3',203.2,173.64,2322.93)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Pad.Face4',173.488,203.2,2317.18)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Pad.Sketch.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','VarSet')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Width = '25.4 mm'
+
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Width = '304.8 mm'
+
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Width = '25.4 mm'
+
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Width = '254 mm'
+
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Length = '228.6 mm'
+
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Length = '2438.4 mm'
+
+FreeCAD.getDocument('Unnamed').getObject('VarSet').Width = '203.2 mm'
+
+# Macro End: C:\Users\Adam\AppData\Roaming\FreeCAD\v1-1\Macro\timber_template_session.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++

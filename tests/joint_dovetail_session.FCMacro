@@ -1,0 +1,1096 @@
+# Macro Begin: C:\Users\Adam\Documents\Projects\BentWizard\joint_dovetail_session.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+import PartDesign
+import Edit
+import PartDesignGui
+import Sketcher
+
+# Gui.runCommand('Std_DlgMacroRecord',0)
+# Gui.Selection.addSelection('Joint_Dovetail','Body')
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody',App.getDocument('Joint_Dovetail').getObject('Body'))
+### Begin command Std_ViewTop
+# Gui.activeDocument().activeView().viewTop()
+### End command Std_ViewTop
+# Gui.runCommand('Std_ViewGroup',2)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet').Length = '101.6 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet').Length = '1219.2 mm'
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body')
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet')
+### Begin command PartDesign_DuplicateSelection
+FreeCADGui.runCommand('Std_DuplicateSelection')
+App.getDocument('Joint_Dovetail').getObject('Body').addObject(App.getDocument('Joint_Dovetail').getObject('VarSet001'))
+App.getDocument('Joint_Dovetail').getObject('VarSet001').Visibility = False
+App.getDocument('Joint_Dovetail').getObject('Origin002').Visibility = True
+App.ActiveDocument.recompute()
+### End command PartDesign_DuplicateSelection
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','VarSet001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','VarSet001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Pad001.')
+App.getDocument("Joint_Dovetail").getObject("Body").removeObject(App.getDocument("Joint_Dovetail").getObject("VarSet001"))
+# App.getDocument('Joint_Dovetail').getObject('VarSet001').adjustRelativeLinks(App.getDocument('Joint_Dovetail').getObject('Pad001'))
+# App.getDocument('Joint_Dovetail').getObject('Pad001').ViewObject.dropObject(App.getDocument('Joint_Dovetail').getObject('VarSet001'),None,'',[])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Pad001.VarSet001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet001')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001')
+# App.getDocument('Joint_Dovetail').getObject('VarSet001').adjustRelativeLinks(App.getDocument('Joint_Dovetail').getObject('Body001'))
+# App.getDocument('Joint_Dovetail').getObject('Body001').ViewObject.dropObject(App.getDocument('Joint_Dovetail').getObject('VarSet001'),None,'',[])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','VarSet001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001')
+App.getDocument("Joint_Dovetail").getObject("Body001").removeObject(App.getDocument("Joint_Dovetail").getObject("VarSet001"))
+# App.getDocument('Joint_Dovetail').getObject('VarSet001').adjustRelativeLinks(App.getDocument('Joint_Dovetail').getObject('Body001'))
+# App.getDocument('Joint_Dovetail').getObject('Body001').ViewObject.dropObject(App.getDocument('Joint_Dovetail').getObject('VarSet001'),None,'',[])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','VarSet001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','VarSet001.')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet001').Width = '101.6 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet001').Depth = '152.4 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet001').Length = '76.19999999999999 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet001').Length = '914.4 mm'
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','VarSet001.')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet001').Width = '228.6 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet001').Width = '101.6 mm'
+
+# Gui.Selection.clearSelection()
+### Begin command Std_VarSet
+App.activeDocument().addObject('App::VarSet','VarSet002')
+App.ActiveDocument.getObject('VarSet002').ViewObject.doubleClicked()
+App.getDocument('Joint_Dovetail').VarSet002.addProperty('App::PropertyLength', 'DT1', 'Base', '')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').DT1 = '50.8 mm'
+
+# Gui.runCommand('Std_Undo',0)
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').Label = "D"
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').Label = "DT"
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').Label = "DT1"
+
+App.getDocument('Joint_Dovetail').VarSet002.addProperty('App::PropertyLength', 'Neck', 'Base', '')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').Neck = '50.8 mm'
+
+App.getDocument('Joint_Dovetail').VarSet002.addProperty('App::PropertyLength', 'Flare', 'Joint', '')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').Flare = '12.7 mm'
+
+App.getDocument('Joint_Dovetail').VarSet002.addProperty('App::PropertyLength', 'DT_Reach', 'Joint', '')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').DT_Reach = '76.19999999999999 mm'
+
+App.getDocument('Joint_Dovetail').VarSet002.addProperty('App::PropertyLength', 'NearCheek', 'Joint', '')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').NearCheek = '25.4 mm'
+
+App.getDocument('Joint_Dovetail').VarSet002.addProperty('App::PropertyLength', 'JoistOnGirtX', 'Joint', '')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').JoistOnGirtX = '50.8 mm'
+
+App.getDocument('Joint_Dovetail').VarSet002.addProperty('App::PropertyLength', 'JointSeatZ', 'Joint', '')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').JointSeatZ = '1066.8 mm'
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet002')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','VarSet001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet002')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','VarSet001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet002')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001')
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody',App.getDocument('Joint_Dovetail').getObject('Body001'))
+# Gui.runCommand('PartDesign_CompSketches',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.XZ_Plane001.')
+App.getDocument('Joint_Dovetail').getObject('Body001').newObject('Sketcher::SketchObject','Sketch002')
+App.getDocument('Joint_Dovetail').getObject('Sketch002').AttachmentSupport = (App.getDocument('Joint_Dovetail').getObject('Origin002'),['XZ_Plane001'])
+App.getDocument('Joint_Dovetail').getObject('Sketch002').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Joint_Dovetail').setEdit(App.getDocument('Joint_Dovetail').getObject('Body001'), 0, 'Sketch002.')
+# import Show
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch002')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_Dovetail').getObject('Body001'), 'Sketch002.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch002')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CreatePolyline',0)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addGeometry(Part.LineSegment(App.Vector(33.471188,-18.843283,0),App.Vector(12.421448,-90.412376,0)),False)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addGeometry(Part.LineSegment(App.Vector(12.421448,-90.412376,0),App.Vector(99.777824,-84.097458,0)),False)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Coincident',0,2,1,1)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addGeometry(Part.LineSegment(App.Vector(99.777824,-84.097458,0),App.Vector(68.729454,-11.475881,0)),False)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Coincident',1,2,2,1)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addGeometry(Part.LineSegment(App.Vector(68.729454,-11.475881,0),App.Vector(33.471188,-18.843283,0)),False)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Coincident',2,2,3,1)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Coincident',3,2,0,1)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex1',33.4712,-0.0139978,-18.8433,False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Edge1',33.2617,-0.00799767,-19.5556,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex1',33.4712,-0.0139978,-18.8433,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.RootPoint',0,-0.01,-1.19209e-09,False)
+### Begin command Sketcher_ConstrainCoincidentUnified
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('PointOnObject',-1,1,0))
+### End command Sketcher_ConstrainCoincidentUnified
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').moveGeometries([(0, 1)], App.Vector(20.3951, -6.04115, 0))
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.RootPoint',0,-0.01,-1.19209e-09,False)
+# Gui.runCommand('Sketcher_ConstrainHorVer',0)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex1',20.3951,-0.0139993,-6.04115,False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex1',20.3951,-0.0139993,-6.04115,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.RootPoint',0,-0.01,-1.19209e-09,False)
+### Begin command Sketcher_ConstrainCoincidentUnified
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Coincident',0,1,-1,1))
+### End command Sketcher_ConstrainCoincidentUnified
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex1',20.3951,-0.0139993,-6.04115,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.H_Axis',22.9311,-0.002,-2.38419e-10,False)
+### Begin command Sketcher_ConstrainHorVer
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Horizontal',-1))
+### End command Sketcher_ConstrainHorVer
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex1',20.3951,-0.0139993,-6.04115,False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.H_Axis',123.58,-0.002,-2.38419e-10,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex1',20.3951,-0.0139993,-6.04115,False)
+### Begin command Sketcher_ConstrainCoincidentUnified
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('PointOnObject',0,1,-1))
+### End command Sketcher_ConstrainCoincidentUnified
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex6',68.7295,-0.0139986,-11.4759,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.H_Axis',116.13,-0.002,-2.38419e-10,False)
+### Begin command Sketcher_ConstrainCoincidentUnified
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('PointOnObject',2,2,-1))
+### End command Sketcher_ConstrainCoincidentUnified
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex1',20.3951,-0.014,-1.66893e-09,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.RootPoint',0,-0.01,-1.19209e-09,False)
+### Begin command Sketcher_ConstrainHorizontal
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Horizontal',0,1,-1,1))
+### End command Sketcher_ConstrainHorizontal
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex1',20.3951,-0.014,-1.66893e-09,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.RootPoint',0,-0.01,-1.19209e-09,False)
+### Begin command Sketcher_CompDimensionTools
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',0,1,-1,1,20.395100)) 
+### End command Sketcher_CompDimensionTools
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,1,20.395100)) 
+App.getDocument('Joint_Dovetail').Sketch002.setExpression('Constraints[6]', u'<<DT1>>.NearCheek')
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',0,1,-1,1,25.400000)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex1',25.4,0,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',0,1,2,2,43.329454)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex6',68.7295,0,0,False)
+App.getDocument('Joint_Dovetail').Sketch002.setExpression('Constraints[7]', u'<<DT1>>.Neck')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Edge2',58.7524,-0.00798962,-87.0632,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.H_Axis',112.469,-0.002,-2.38419e-10,False)
+### Begin command Sketcher_ConstrainHorizontal
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Horizontal',1))
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Horizontal',-1))
+### End command Sketcher_ConstrainHorizontal
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Edge2',73.5155,-0.00798975,-85.9959,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.H_Axis',131.953,-0.002,-2.38419e-10,False)
+### Begin command Sketcher_ConstrainParallel
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Parallel',1,-1))
+### End command Sketcher_ConstrainParallel
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex2',12.4214,-0.0139896,-86.9259,False)
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CompDimensionTools',0)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,87.808894)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex2',12.4214,-86.9259,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,86.925885)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,87.808894)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,86.925885)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,87.808894)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.RootPoint',0,0,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,86.925885)) 
+App.getDocument('Joint_Dovetail').Sketch002.setExpression('Constraints[9]', u'<<DT1>>.DT_Reach')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.RootPoint',0,0,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,0,2,77.205779)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex2',12.4214,-76.2,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,0,2,77.205779)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,12.421448)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,0,2,77.205779)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,0,2,77.205779)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,0,2,77.205779)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,0,2,77.205779)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,0,2,77.205779)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,12.421448)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,0,2,77.205779)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,12.421448)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,0,2,77.205779)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,12.421448)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,0,2,77.205779)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,12.421448)) 
+App.getDocument('Joint_Dovetail').Sketch002.setExpression('Constraints[10]', u'<<DT1>>.NearCheek - <<DT1>>.Flare')
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,77.251084)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex2',12.7,-76.2,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,77.251084)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',0,2,1,2,87.077824)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.Vertex4',99.7778,-76.2,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceX',0,2,1,2,87.077824)) 
+App.getDocument('Joint_Dovetail').Sketch002.setExpression('Constraints[11]', u'<<DT1>>.Neck + 2 * <<DT1>>.Flare')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Joint_Dovetail').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch002')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Sketch002.')
+App.getDocument('Joint_Dovetail').recompute()
+### Begin command PartDesign_Pad
+App.getDocument('Joint_Dovetail').getObject('Body001').newObject('PartDesign::Pad','Pad002')
+App.getDocument('Joint_Dovetail').getObject('Pad002').Profile = (App.getDocument('Joint_Dovetail').getObject('Sketch002'), ['',])
+App.getDocument('Joint_Dovetail').getObject('Pad002').Length = 10
+App.ActiveDocument.recompute()
+App.getDocument('Joint_Dovetail').getObject('Pad002').ReferenceAxis = (App.getDocument('Joint_Dovetail').getObject('Sketch002'),['N_Axis'])
+App.getDocument('Joint_Dovetail').getObject('Sketch002').Visibility = False
+App.ActiveDocument.recompute()
+# App.getDocument('Joint_Dovetail').getObject('Pad002').ViewObject.ShapeAppearance=getattr(App.getDocument('Joint_Dovetail').getObject('Pad001').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Joint_Dovetail').getObject('Pad002').ViewObject.ShapeAppearance)
+# App.getDocument('Joint_Dovetail').getObject('Pad002').ViewObject.LineColor=getattr(App.getDocument('Joint_Dovetail').getObject('Pad001').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Joint_Dovetail').getObject('Pad002').ViewObject.LineColor)
+# App.getDocument('Joint_Dovetail').getObject('Pad002').ViewObject.PointColor=getattr(App.getDocument('Joint_Dovetail').getObject('Pad001').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Joint_Dovetail').getObject('Pad002').ViewObject.PointColor)
+# App.getDocument('Joint_Dovetail').getObject('Pad002').ViewObject.Transparency=getattr(App.getDocument('Joint_Dovetail').getObject('Pad001').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Joint_Dovetail').getObject('Pad002').ViewObject.Transparency)
+# App.getDocument('Joint_Dovetail').getObject('Pad002').ViewObject.DisplayMode=getattr(App.getDocument('Joint_Dovetail').getObject('Pad001').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Joint_Dovetail').getObject('Pad002').ViewObject.DisplayMode)
+# Gui.getDocument('Joint_Dovetail').setEdit(App.getDocument('Joint_Dovetail').getObject('Body001'), 0, 'Pad002.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Pad
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_Dovetail').Pad002.setExpression('Length', u'<<JoistDims>>.Depth')
+App.getDocument('Joint_Dovetail').getObject('Pad002').TaperAngle = 0.000000
+App.getDocument('Joint_Dovetail').getObject('Pad002').UseCustomVector = 0
+App.getDocument('Joint_Dovetail').getObject('Pad002').Direction = (0, -1, 0)
+App.getDocument('Joint_Dovetail').getObject('Pad002').ReferenceAxis = (App.getDocument('Joint_Dovetail').getObject('Sketch002'), ['N_Axis'])
+App.getDocument('Joint_Dovetail').getObject('Pad002').AlongSketchNormal = 1
+App.getDocument('Joint_Dovetail').getObject('Pad002').SideType = 0
+App.getDocument('Joint_Dovetail').getObject('Pad002').Type = 0
+App.getDocument('Joint_Dovetail').getObject('Pad002').Type2 = 0
+App.getDocument('Joint_Dovetail').getObject('Pad002').UpToFace = None
+App.getDocument('Joint_Dovetail').getObject('Pad002').UpToFace2 = None
+App.getDocument('Joint_Dovetail').getObject('Pad002').Reversed = 1
+App.getDocument('Joint_Dovetail').getObject('Pad002').Offset = 0
+App.getDocument('Joint_Dovetail').getObject('Pad002').Offset2 = 0
+App.getDocument('Joint_Dovetail').purgeTouched()
+App.getDocument('Joint_Dovetail').recompute()
+App.getDocument('Joint_Dovetail').getObject('Pad001').Visibility = False
+# Gui.getDocument('Joint_Dovetail').resetEdit()
+App.getDocument('Joint_Dovetail').getObject('Sketch002').Visibility = False
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Pad002.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet002')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').Flare = '25.4 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').Flare = '76.19999999999999 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').Flare = '0 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').Flare = '12.7 mm'
+
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Joint_Dovetail").save()
+### End command Std_Save
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body')
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody',App.getDocument('Joint_Dovetail').getObject('Body'))
+# Gui.Selection.clearSelection()
+### Begin command Part_DatumPlane
+obj = App.activeDocument().addObject('Part::DatumPlane','DatumPlane')
+App.ActiveDocument.getObject('Body').addObject(obj)
+
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_DatumPlane = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_Dovetail').getObject('DatumPlane')
+# dep_features = _tv_DatumPlane.get_all_dependent(App.getDocument('Joint_Dovetail').getObject('DatumPlane'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_DatumPlane.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_DatumPlane.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_DatumPlane
+# Gui.runCommand('Part_Datums',1)
+App.ActiveDocument.recompute()
+# _tv_DatumPlane.restore()
+# del(_tv_DatumPlane)
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::DatumPlane','DatumPlane')
+App.ActiveDocument.getObject('Body').addObject(obj)
+
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_DatumPlane = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_Dovetail').getObject('DatumPlane')
+# dep_features = _tv_DatumPlane.get_all_dependent(App.getDocument('Joint_Dovetail').getObject('DatumPlane'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_DatumPlane.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_DatumPlane.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').MapReversed = False
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').AttachmentSupport = None
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').MapPathParameter = 0.000000
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').MapMode = 'ObjectXY'
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').recompute()
+# _tv_DatumPlane.restore()
+# del(_tv_DatumPlane)
+# Gui.Selection.addSelection('Joint_Dovetail','Body','DatumPlane.')
+# import Show
+# from Show.Containers import isAContainer
+# _tv_DatumPlane = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_Dovetail').getObject('DatumPlane')
+# dep_features = _tv_DatumPlane.get_all_dependent(App.getDocument('Joint_Dovetail').getObject('Body'), 'DatumPlane.')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_DatumPlane.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_DatumPlane.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','',-164.208,-12.5859,3.64075e-15)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.YZ_Plane001.',-2.9126e-14,200.789,170.986)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Pad.Face2',186.279,0,303.345)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Pad.Face1',0,53.8383,330.648)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.XY_Plane001.',229.203,36.9422,0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.XZ_Plane001.',233.924,-1.48436e-05,124.518)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.XY_Plane001.',207.777,247.042,0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.',212.406,237.613,2.9126e-14)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.XY_Plane001.',453.29,459.063,6.4821e-14)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.',401.184,405.921,0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','',458.381,469.613,0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.XY_Plane001.',406.4,502.002,-3.24105e-14)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.',395.024,533.252,0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.XY_Plane001.',439.521,445.727,8.10263e-15)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.',-103.096,397.326,0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.XY_Plane001.',408.552,447.606,8.10263e-15)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.XY_Plane.',210.822,375.864,2.65355e-14)
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 1066.8000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').MapReversed = False
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').AttachmentSupport = [(App.getDocument('Joint_Dovetail').getObject('Origin'),'XY_Plane.')]
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').MapPathParameter = 0.000000
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').MapMode = 'FlatFace'
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').recompute()
+# _tv_DatumPlane.restore()
+# del(_tv_DatumPlane)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','DatumPlane.')
+### Begin command PartDesign_CompSketches
+App.getDocument('Joint_Dovetail').getObject('Body').newObject('Sketcher::SketchObject','Sketch003')
+App.getDocument('Joint_Dovetail').getObject('Sketch003').AttachmentSupport = (App.getDocument('Joint_Dovetail').getObject('DatumPlane'),[])
+App.getDocument('Joint_Dovetail').getObject('Sketch003').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Joint_Dovetail').setEdit(App.getDocument('Joint_Dovetail').getObject('Body'), 0, 'Sketch003.')
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch003')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_Dovetail').getObject('Body'), 'Sketch003.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch003')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+### End command PartDesign_CompSketches
+# Gui.Selection.clearSelection()
+### Begin command Std_Undo
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch003')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+### End command Std_Undo
+# Gui.Selection.addSelection('Joint_Dovetail','Body','DatumPlane.')
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# import Show
+# from Show.Containers import isAContainer
+# _tv_DatumPlane = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_Dovetail').getObject('DatumPlane')
+# dep_features = _tv_DatumPlane.get_all_dependent(App.getDocument('Joint_Dovetail').getObject('Body'), 'DatumPlane.')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_DatumPlane.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_DatumPlane.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.XZ_Plane.',310.721,-2.79546e-05,234.5)
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 203.2000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').MapReversed = False
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').AttachmentSupport = [(App.getDocument('Joint_Dovetail').getObject('Origin'),'XZ_Plane.')]
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').MapPathParameter = 0.000000
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').MapMode = 'FlatFace'
+App.getDocument('Joint_Dovetail').getObject('DatumPlane').recompute()
+# _tv_DatumPlane.restore()
+# del(_tv_DatumPlane)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','DatumPlane.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet002')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','DatumPlane.')
+### Begin command PartDesign_CompSketches
+App.getDocument('Joint_Dovetail').getObject('Body').newObject('Sketcher::SketchObject','Sketch003')
+App.getDocument('Joint_Dovetail').getObject('Sketch003').AttachmentSupport = (App.getDocument('Joint_Dovetail').getObject('DatumPlane'),[])
+App.getDocument('Joint_Dovetail').getObject('Sketch003').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Joint_Dovetail').setEdit(App.getDocument('Joint_Dovetail').getObject('Body'), 0, 'Sketch003.')
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch003')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_Dovetail').getObject('Body'), 'Sketch003.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch003')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+### End command PartDesign_CompSketches
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CreatePolyline',0)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addGeometry(Part.LineSegment(App.Vector(19.446360,-73.006641,0),App.Vector(111.298759,-45.529453,0)),False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addGeometry(Part.LineSegment(App.Vector(111.298759,-45.529453,0),App.Vector(136.420715,-166.429160,0)),False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Coincident',0,2,1,1)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addGeometry(Part.LineSegment(App.Vector(136.420715,-166.429160,0),App.Vector(32.007404,-157.008418,0)),False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Coincident',1,2,2,1)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addGeometry(Part.LineSegment(App.Vector(32.007404,-157.008418,0),App.Vector(19.446360,-73.006641,0)),False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Coincident',2,2,3,1)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Coincident',3,2,0,1)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex1',19.4464,-0.0139913,130.193,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.V_Axis',0,-0.00199017,120.773,False)
+### Begin command Sketcher_ConstrainCoincidentUnified
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('PointOnObject',0,1,-2))
+### End command Sketcher_ConstrainCoincidentUnified
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex6',32.0074,-0.0139813,46.1916,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.V_Axis',0,-0.00196725,-71.5679,False)
+### Begin command Sketcher_ConstrainCoincidentUnified
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('PointOnObject',2,2,-2))
+### End command Sketcher_ConstrainCoincidentUnified
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Edge2',118.941,-0.00799019,120.892,False)
+### Begin command Sketcher_ConstrainVertical
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Vertical',1))
+### End command Sketcher_ConstrainVertical
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CompDimensionTools',0)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',1,2,-1,1,200.215082)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex4',111.299,-166.429,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,1,2,111.298759)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',1,2,-1,1,200.215082)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,1,2,111.298759)) 
+App.getDocument('Joint_Dovetail').Sketch003.setExpression('Constraints[7]', u'<<DT1>>.DT_Reach')
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex2',76.2,-45.5295,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,45.529453)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,45.529453)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',0,2,-1,1,45.529453)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,88.765822)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Edge2',76.2,-0.00799436,155.866,False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex2',76.2,-0.0139946,157.671,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex1',0,-0.0139913,130.193,False)
+### Begin command Sketcher_CompDimensionTools
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,0,1,81.002690)) 
+### End command Sketcher_CompDimensionTools
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',0,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,0,1,81.002690)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',0,1,0,2,27.477188)) 
+App.getDocument('Joint_Dovetail').Sketch003.setExpression('Constraints[8]', u'<<DT1>>.Flare')
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,-1,1,157.008418)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex6',0,-157.008,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,1,2,76.780143)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex4',76.2,-166.429,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',1,2,2,2,9.420742)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,1,2,76.780143)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',1,2,2,2,9.420742)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,1,2,76.780143)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',1,2,2,2,9.420742)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,1,2,76.780143)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',1,2,2,2,9.420742)) 
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,1,-1,1,73.006641)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex1',0,-73.0066,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,1,2,2,84.001777)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex6',0,-157.008,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',2,2,0,1,84.001777)) 
+App.getDocument('Joint_Dovetail').Sketch003.setExpression('Constraints[8]', u'<<DT1>>.Neck')
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_Dovetail').getObject('Sketch003').moveGeometries([(0, 1)], App.Vector(0, 26.194, 0))
+App.getDocument('Joint_Dovetail').getObject('Sketch003').moveGeometries([(0, 2)], App.Vector(76.2, 67.7673, 0))
+App.getDocument('Joint_Dovetail').getObject('Sketch003').moveGeometries([(1, 2)], App.Vector(79.9567, -52.2163, 0))
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','DatumPlane.')
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CompDimensionTools',0)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,101.974737)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex2',76.2,67.7673,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',-1,1,0,2,67.767300)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,101.974737)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,-1,1,101.974737)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',-1,1,0,2,76.200000)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,2,1,2,119.983600)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex4',76.2,-52.2163,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',1,2,0,2,119.983600)) 
+App.getDocument('Joint_Dovetail').Sketch003.setExpression('Constraints[9]', u'<<DT1>>.Neck + 2 * <<DT1>>.Flare')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Edge4',0,-0.00800149,215.68,False)
+# Gui.Selection.addSelection(App.getDocument('Joint_Dovetail').getObject('Body'),['Sketch003.Vertex1','Sketch003.Vertex8'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Edge4',0,-0.00800157,216.385,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').moveGeometries([(0, 1), (3, 0)], App.Vector(3.38477, 74.4739, 0), True)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').moveGeometries([(0, 2), (3, 0)], App.Vector(-2.97036, 122.068, 0), True)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').moveGeometries([(2, 2), (3, 0)], App.Vector(0, -73.7372, 0), True)
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex6',0,-0.0140117,301.399,False)
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex4',76.2,-0.0140096,284.108,False)
+### Begin command Sketcher_CompDimensionTools
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Symmetric',2,2,1,2,3)) 
+### End command Sketcher_CompDimensionTools
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,-1,1,98.198700)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex6',0,98.1987,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',-1,1,2,2,98.198700)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,1,2,78.137042)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex4',76.2,80.9083,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',1,2,2,2,17.290385)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,1,2,78.137042)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',1,2,2,2,17.290385)) 
+App.getDocument('Joint_Dovetail').Sketch003.setExpression('Constraints[10]', u'<<DT1>>.Flare')
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,-1,1,93.958061)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex6',0,93.9581,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',-1,1,2,2,93.958061)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,-1,1,93.958061)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,-2,0.000000)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.V_Axis',0,-203.051,0,False)
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body')
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,0),0))
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.X_Axis.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.Y_Axis.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.Z_Axis.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.XY_Plane.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.XZ_Plane.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.YZ_Plane.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.Origin001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Pad.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Pad.Sketch.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','DatumPlane.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body')
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,-1,1,93.958061)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Vertex6',0,93.9581,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',-1,1,2,2,93.958061)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,-1,1,93.958061)) 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,2,-1,1,93.958061)) 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.RootPoint',0,0,0,False)
+App.getDocument('Joint_Dovetail').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',-1,1,2,2,93.958061)) 
+App.getDocument('Joint_Dovetail').Sketch003.setExpression('Constraints[11]', u'<<DT1>>.JointSeatZ + <<DT1>>.Neck / 2')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet002')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet002')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body')
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody', None)
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,6),0))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,0),0))
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet').Length = '76.19999999999999 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet').Length = '914.4 mm'
+
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.X_Axis.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.Y_Axis.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.Z_Axis.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.XY_Plane.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.XZ_Plane.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.YZ_Plane.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.Origin001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.YZ_Plane.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.XZ_Plane.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Origin.Z_Axis.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Pad.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Pad.Sketch.')
+App.ActiveDocument.recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.')
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch003')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_Dovetail').getObject('Body'), 'Pad.Sketch.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Joint_Dovetail').getObject('Sketch').setVisibility([0,1,2,3,4,5,6,7,8,9,10], True)
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.addSelection(App.getDocument('Joint_Dovetail').getObject('Sketch'),['Constraint1'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Joint_Dovetail').getObject('Sketch'),['Constraint2'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Joint_Dovetail').getObject('Sketch'),['Constraint4'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Joint_Dovetail').getObject('Sketch'),['Constraint6'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Joint_Dovetail').getObject('Sketch'),['Constraint7'])
+# Gui.getDocument('Joint_Dovetail').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Pad.Sketch.')
+App.getDocument('Joint_Dovetail').recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.')
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch003')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_Dovetail').getObject('Body'), 'Sketch003.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').setVisibility([0,1,2,3,4,5,6,7,8,9,10,11], True)
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch003')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.getDocument('Joint_Dovetail').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch003')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.')
+App.getDocument('Joint_Dovetail').recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Pad.Sketch.')
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_Dovetail').getObject('Body'), 'Pad.Sketch.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Joint_Dovetail').getObject('Sketch').setVisibility([0,1,2,3,4,5,6,7,8,9,10], True)
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.getDocument('Joint_Dovetail').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Pad.Sketch.')
+App.getDocument('Joint_Dovetail').recompute()
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.')
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch003')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_Dovetail').getObject('Body'), 'Sketch003.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Joint_Dovetail').getObject('Sketch003').setVisibility([0,1,2,3,4,5,6,7,8,9,10,11], True)
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch003')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.Constraint12',-137.714,-0.00409146,970.4,False)
+App.getDocument('Joint_Dovetail').Sketch003.setExpression('Constraints[11]', u'<<DT1>>.JointSeatZ - <<DT1>>.Neck / 2')
+# Gui.getDocument('Joint_Dovetail').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_Dovetail').getObject('Sketch003')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.')
+App.getDocument('Joint_Dovetail').recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet002')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').JointSeatZ = '76.19999999999999 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').JointSeatZ = '914.4 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').JointSeatZ = '50.8 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').JointSeatZ = '609.5999999999999 mm'
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Sketch003.')
+### Begin command PartDesign_Pocket
+# Gui.getDocument('Joint_Dovetail').ActiveView.setActiveObject('pdbody',App.getDocument('Joint_Dovetail').getObject('Body'),'')
+App.getDocument('Joint_Dovetail').getObject('Body').newObject('PartDesign::Pocket','Pocket')
+App.getDocument('Joint_Dovetail').getObject('Pocket').Profile = (App.getDocument('Joint_Dovetail').getObject('Sketch003'), ['',])
+App.getDocument('Joint_Dovetail').getObject('Pocket').Length = 5
+App.ActiveDocument.recompute()
+App.getDocument('Joint_Dovetail').getObject('Pocket').ReferenceAxis = (App.getDocument('Joint_Dovetail').getObject('Sketch003'),['N_Axis'])
+App.getDocument('Joint_Dovetail').getObject('Sketch003').Visibility = False
+App.ActiveDocument.recompute()
+# App.getDocument('Joint_Dovetail').getObject('Pocket').ViewObject.ShapeAppearance=getattr(App.getDocument('Joint_Dovetail').getObject('Pad').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Joint_Dovetail').getObject('Pocket').ViewObject.ShapeAppearance)
+# App.getDocument('Joint_Dovetail').getObject('Pocket').ViewObject.LineColor=getattr(App.getDocument('Joint_Dovetail').getObject('Pad').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Joint_Dovetail').getObject('Pocket').ViewObject.LineColor)
+# App.getDocument('Joint_Dovetail').getObject('Pocket').ViewObject.PointColor=getattr(App.getDocument('Joint_Dovetail').getObject('Pad').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Joint_Dovetail').getObject('Pocket').ViewObject.PointColor)
+# App.getDocument('Joint_Dovetail').getObject('Pocket').ViewObject.Transparency=getattr(App.getDocument('Joint_Dovetail').getObject('Pad').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Joint_Dovetail').getObject('Pocket').ViewObject.Transparency)
+# App.getDocument('Joint_Dovetail').getObject('Pocket').ViewObject.DisplayMode=getattr(App.getDocument('Joint_Dovetail').getObject('Pad').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Joint_Dovetail').getObject('Pocket').ViewObject.DisplayMode)
+# Gui.getDocument('Joint_Dovetail').setEdit(App.getDocument('Joint_Dovetail').getObject('Body'), 0, 'Pocket.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Pocket
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_Dovetail').Pocket.setExpression('Length', u'<<JoistDims>>.Depth')
+App.getDocument('Joint_Dovetail').getObject('Pocket').TaperAngle = 0.000000
+App.getDocument('Joint_Dovetail').getObject('Pocket').UseCustomVector = 0
+App.getDocument('Joint_Dovetail').getObject('Pocket').Direction = (0, 1, -0)
+App.getDocument('Joint_Dovetail').getObject('Pocket').ReferenceAxis = (App.getDocument('Joint_Dovetail').getObject('Sketch003'), ['N_Axis'])
+App.getDocument('Joint_Dovetail').getObject('Pocket').AlongSketchNormal = 1
+App.getDocument('Joint_Dovetail').getObject('Pocket').SideType = 0
+App.getDocument('Joint_Dovetail').getObject('Pocket').Type = 0
+App.getDocument('Joint_Dovetail').getObject('Pocket').Type2 = 0
+App.getDocument('Joint_Dovetail').getObject('Pocket').UpToFace = None
+App.getDocument('Joint_Dovetail').getObject('Pocket').UpToFace2 = None
+App.getDocument('Joint_Dovetail').getObject('Pocket').Reversed = 0
+App.getDocument('Joint_Dovetail').getObject('Pocket').Offset = 0
+App.getDocument('Joint_Dovetail').getObject('Pocket').Offset2 = 0
+App.getDocument('Joint_Dovetail').purgeTouched()
+App.getDocument('Joint_Dovetail').recompute()
+App.getDocument('Joint_Dovetail').getObject('Pad').Visibility = False
+# Gui.getDocument('Joint_Dovetail').resetEdit()
+App.getDocument('Joint_Dovetail').getObject('Sketch003').Visibility = False
+# Gui.Selection.addSelection('Joint_Dovetail','Body','Pocket.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','VarSet002')
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').Neck = '25.4 mm'
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('VarSet002').Neck = '50.8 mm'
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001')
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,1),0))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,0),0))
+
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody',App.getDocument('Joint_Dovetail').getObject('Body001'))
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,0),-9))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,0),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,2,0),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,2,2),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,2,24),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,2,2),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,2,0),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,0),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,50.8,0),App.Rotation(App.Vector(0,1,0),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,50.8,50.8),App.Rotation(App.Vector(0,1,0),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,50.8,609.5999999999999),App.Rotation(App.Vector(0,1,0),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,609.5999999999999),App.Rotation(App.Vector(0,1,0),-90))
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','VarSet001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001','Origin002.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_Dovetail','Body001')
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,76.19999999999999),App.Rotation(App.Vector(0,1,0),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,914.4),App.Rotation(App.Vector(0,1,0),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,76.19999999999999),App.Rotation(App.Vector(0,1,0),-90))
+
+FreeCAD.getDocument('Joint_Dovetail').getObject('Body001').Placement = App.Placement(App.Vector(0,0,762),App.Rotation(App.Vector(0,1,0),-90))
+
+# Gui.Selection.clearSelection()
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Joint_Dovetail").save()
+### End command Std_Save
+# Macro End: C:\Users\Adam\Documents\Projects\BentWizard\joint_dovetail_session.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++

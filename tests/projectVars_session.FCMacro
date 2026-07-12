@@ -1,0 +1,26 @@
+# Macro Begin: C:\Users\Adam\Documents\Projects\BentWizard\projectVars_session.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+
+# Gui.runCommand('Std_DlgMacroRecord',0)
+# Gui.Selection.clearSelection()
+### Begin command Std_VarSet
+App.activeDocument().addObject('App::VarSet','VarSet006')
+App.ActiveDocument.getObject('VarSet006').ViewObject.doubleClicked()
+App.getDocument('Joint_HouseMT_session_10').VarSet006.addProperty('App::PropertyLength', 'FloorHeight', 'Base', '')
+FreeCAD.getDocument('Joint_HouseMT_session_10').getObject('VarSet006').FloorHeight = '1219.2 mm'
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_10','VarSet002')
+App.getDocument('Joint_HouseMT_session_10').VarSet002.setExpression('JointHeight', u'<<ProjectVars>>.FloorHeight')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_10','VarSet006')
+FreeCAD.getDocument('Joint_HouseMT_session_10').getObject('VarSet006').FloorHeight = '127 mm'
+
+FreeCAD.getDocument('Joint_HouseMT_session_10').getObject('VarSet006').FloorHeight = '1371.6 mm'
+
+FreeCAD.getDocument('Joint_HouseMT_session_10').getObject('VarSet006').FloorHeight = '177.8 mm'
+
+FreeCAD.getDocument('Joint_HouseMT_session_10').getObject('VarSet006').FloorHeight = '1955.8 mm'
+
+# Gui.runCommand('Std_Undo',0)
+# Macro End: C:\Users\Adam\Documents\Projects\BentWizard\projectVars_session.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++

@@ -1,0 +1,86 @@
+# BentWizard — Phase 0 Workflow Document
+
+Status: Phase 0 complete. This document records the manual workflow proven across twelve modeling sessions in FreeCAD 1.1.1, the conventions that emerged, and the recipes the Phase 1 tools must reproduce. It is the specification the automation is built against. Companions: the roadmap (rev 3) and the friction findings log.
+
+## 1. Governing Rules
+
+**Tier 1 — geometry stays native.** All solid geometry is ordinary FreeCAD: Sketches, Part Design features, datums, Assembly joints. Anything a tool produces must be hand-editable with stock FreeCAD afterward. Test: uninstall the workbench — the model must open, edit, and recompute identically.
+
+**Tier 2 — data degrades gracefully.** Non-geometric data (species, grade, roles, joint metadata, schedule counts) may be workbench-aware, implemented as custom properties on native objects: visible and editable without the workbench, surviving round trips. Workbench-gated functionality (checks, generators, reports) is acceptable; gated geometry is not.
+
+**Subtractive joinery.** Joints are modeled the way wood is cut — pockets and holes, not pads. `Length` in a timber's VarSet is the full stick as purchased; shoulders land at joinery offsets from the stick ends; drawings dimension the way a tape measure reads.
+
+**Square rule.** Every timber's two reference faces lie on its XZ and YZ origin planes (section sketch pinned corner-to-origin). Housings cut to bearing planes referenced from origin planes. Joint layout dimensions always measure from reference faces and stick ends.
+
+## 2. Vocabulary
+
+Faces numbered 1–4: Face 1 is the reference face, 2–4 clockwise viewed from end A. Ends: A (butt, at the body origin, Z=0) and B (tip, at Z=Length). Orientation terms: plumb, level, pitch, roll, skew. Relationship terms: coaxial, orthogonal (in plan / in elevation), oblique, coplanar, offset, bearing face. In this project's models: Face 1 = the XZ-plane face, Face 2 = the YZ-plane face.
+
+## 3. Document Structure
+
+One document per prototype scope (single doc held four timbers, three joints, assembly, drawings, cut list without strain; multi-file split is an open item for large frames). Objects at root: one VarSet per timber (Dims), one VarSet per joint instance, group VarSets (section/project), timber Bodies, the Assembly, TechDraw pages, spreadsheets.
+
+Naming (decided, supersedes prototype ad-hoc names):
+- **Timber Bodies**: MemberID labels per the adopted convention (`P2-1`).
+- **VarSet labels**: `Kind_Owner` with a descriptive kind prefix — `TimberDims_P2-1`, `Joint_MT_B2a`, `Group_LoftDovetail`, `Project_Main`, `Order_Main`.
+- **Property names**: `Part_Attribute[_Qualifier]`, most-significant first: `Tenon_Thickness`, `Tenon_Setback_Face2`, `Housing_Depth`, `Peg_Drawbore_Offset`, `Peg_Count`. Reference-face qualifiers use `_Face1`/`_Face2` (stable regardless of timber orientation; Face 1 = XZ-plane face, Face 2 = YZ-plane face). Alphabetical property sorting then clusters each part's parameters automatically.
+- **Tooltips**: mandatory on every template-defined property, written by the template author, cloned on apply. Full sentence context including which face/end it measures from. Missing tooltip = advisory linter failure.
+- **Joint features within bodies**: body-qualified to avoid document-unique label collisions — convention `MemberID_Feature_JointID` (e.g. `P2-1_Mortise_MT_B2a`), to be confirmed in template design.
+
+## 4. Proven Recipes
+
+### 4.1 Parametric timber
+One Body. Section sketch on XY plane, rectangle in the first quadrant, corner coincident with origin, width/depth bound to the timber's Dims VarSet. Pad to `Dims.Length`. The origin planes are now the reference faces and are indestructible by later features.
+
+### 4.2 Duplication — the ritual
+What duplicates vs. stays shared follows intent and the group-layer boundary. New blank timber: duplicate the Body + its Dims only — never source from a jointed timber (phantom features travel silently). Copying a jointed timber or whole bent is legitimate and intended: Dims AND joint-instance VarSets duplicate (each copy owns its joints), while group bindings are preserved to the same shared group VarSets. In the dialog: the dependency list auto-includes everything — check what should become independent, UNCHECK what must stay shared. After duplication: relocate the copied VarSet in the tree, rename both, and verify independence by changing a dimension. Audit every expression in the copy — sketches, spreadsheet rows, hole features have all been caught still pointing at the source's VarSet.
+
+### 4.3 Joint instance VarSet
+One VarSet per joint instance, holding all parameters for both halves (the mated-pair mechanism). Properties may pass through by expression to group VarSets (see 4.9). Prototype shortcut to avoid in production: MT1 drove both beam ends; real frames use one instance per joint.
+
+### 4.4 End tenon — island pocket
+Sketch on the end's plane (XY origin plane at end A; offset datum from XY at `Length` for end B). Two loops: outer rectangle = full section (corner at origin, Dims-bound), inner = tenon profile (Setbacks and dimensions bound to the joint VarSet). One Pocket, depth = TenonLength, cutting into the stick. The inner loop survives as the tenon. Requires the island strictly interior to the outer loop.
+
+### 4.5 Boundary-touching profiles — removal regions
+When the kept profile touches the section boundary (dovetail tongue at the top face), the island method fails on coincident edges. Sketch the removal regions directly instead — e.g., two flanking quadrilaterals sharing the dovetail's angled sides, then a second through-all cut for the underside. Symmetry via centerline construction line + half-width constraints (never the Symmetry constraint).
+
+### 4.6 Housed cuts on the receiving timber
+Bearing plane as a datum attached to the receiving timber's origin plane, offset by expression (`Width - HousingDepth`). Housing profile and mortise profile sketched on that datum; housing pocket outward (depth HousingDepth), mortise pocket inward (depth TenonLength + MortiseRelief). Handed mates: the mirrored timber's lateral setback = `Depth - SetbackX - TenonThickness`.
+
+### 4.7 Pegs and drawbore
+Hole features (through-all) on sketches on origin planes. Post bores at true position (`PegSetback` from the bearing plane, centered on tenon width). Tenon bores displaced `DrawboreOffset` toward the shoulder — sign flips between ends A and B. Peg solids are not modeled; `PegCount` lives in the joint VarSet for the hardware schedule.
+
+### 4.8 Assembly
+Assembly workbench, one grounded timber, Fixed joints between tree-selected datums only (never 3D-picked solid faces). Shoulder datums on stick ends offset by expression. Expect orientation iteration: a plane mate leaves two orientations (rotate 180° about the connector normal to flip), and rotation pivots at the connector origin, requiring a compensating in-plane offset (often a full timber width). Handedness surfaces here — posts in a bent are often mirror pairs, but bents can be asymmetrical: hand is a per-joint-application property, never assumed from bent symmetry.
+
+### 4.9 Parameter groups
+Instance VarSet properties bound by expression to group VarSets; groups to higher groups (instance → type → section → project, keep it ≤3 layers). Override = replace one property's expression with a literal. Group membership IS the binding — no hidden state. Validated end-to-end: ProjectVars.FloorHeight moved the entire bent.
+
+### 4.10 TechDraw
+Sheets are generated per FabricationSignature by default — one sheet per fabrication group, listing quantity and all MemberIDs in the group — with a per-timber option for shops that travel a sheet with each stick. Projection group per sheet (front + plan minimum), hidden lines on, scale to sheet. Dimensions from stick ends and reference faces per square rule. Dimension/font styles set explicitly per document, never inherited from preferences. Parametric round trip verified: model changes flow to views and dimensions.
+
+### 4.11 Cut list
+Spreadsheet as procurement document: ID, species, grade, moisture, finish, cut type, section, designed length, cut length (= designed + `OrderVars.TrimAllowance`), board feet, order total (`=sum(range)`). Dimension cells bound by expression to the correct timber's own Dims VarSet — cross-referencing a sibling's VarSet is the recurring silent bug. Joinery callouts belong on drawings, not here.
+
+## 5. Verification Methodology
+
+In-model: top/side orthographic views (never trust wireframe when profiles align in two axes), clipping planes through joints, the Measure tool between mating faces. In-file: unzip the FCStd, read Document.xml, and always resolve the full placement chain (Body placement × sketch/datum placement) before interpreting sketch coordinates — assumed axis mappings produced this project's one false diagnosis. Attachment offsets must be read in full; stray values hide in unexamined components.
+
+## 6. Findings → Linter
+
+Strict (breaks the clone mechanism or the model): one VarSet per joint instance; no multi-instance sketches; no cross-timber Dims references; no solid-face references (sketch supports, assembly joints, dimensions); islands strictly interior or removal regions used; expression audit on duplicated objects; parameter values within severing limits (mortise ≤75%, housing ≤50%).
+
+Advisory (style and drift): naming conventions; centerline + half-width in place of Symmetry; parameter values past the 35% caution threshold; instances deviating from their group bindings; stale attachment-offset components; unrenamed auto-labeled features.
+
+## 7. Known Prototype Debts (fix before reuse as templates)
+
+- MT1 drives both beam ends and both posts — split into per-instance VarSets when templatizing.
+- Combined two-circle peg sketch on the beam — one sketch per instance.
+- PegHole_MT1_sketch2 (Post2) references PostDims — should be Post2Dims.
+- Post2's hole feature unnamed (Hole001); tongue-sides pocket renamed?
+- ProjectVars.FloorHeight left at test value 54 in.
+- All prototype VarSets and properties predate the decided naming convention; rename when templatizing.
+
+## 8. Open Items
+
+Units/dimensioning display (fractional inches) for TechDraw; body-qualified feature label convention; joint library location and manifest format; single- vs multi-document frames; skeleton-sketch layout evaluation; provenance/group visualization UI.

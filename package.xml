@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+  <name>BentWizard</name>
+  <description>Timber framing workbench for FreeCAD — square-rule joinery built entirely from native geometry.</description>
+  <version>0.1.0</version>
+  <date>2026-07-12</date>
+  <maintainer email="adam@mirimantis.com">Adam</maintainer>
+  <!-- TODO: confirm license choice and add LICENSE file -->
+  <license file="LICENSE">LGPL-2.1-or-later</license>
+  <content>
+    <workbench>
+      <classname>BentWizardWorkbench</classname>
+      <subdirectory>freecad/bentwizard</subdirectory>
+    </workbench>
+  </content>
+  <freecadmin>1.1</freecadmin>
+</package>

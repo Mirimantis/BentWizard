@@ -1,0 +1,815 @@
+# Macro Begin: C:\Users\Adam\Documents\Projects\BentWizard\techdraw_session.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+import PartDesignGui
+import TechDraw
+
+# Gui.runCommand('Std_DlgMacroRecord',0)
+### Begin command Std_Workbench
+# Gui.activateWorkbench("TechDrawWorkbench")
+### End command Std_Workbench
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body001.')
+# Gui.activateWorkbench('PartDesignWorkbench')
+# Gui.ActiveDocument.ActiveView.setActiveObject('part',App.getDocument('Joint_HouseMT_session_9').getObject('Assembly'))
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody',App.getDocument('Joint_HouseMT_session_9').getObject('Body001'))
+# Gui.Selection.clearSelection()
+### Begin command Std_Workbench
+# Gui.activateWorkbench("TechDrawWorkbench")
+### End command Std_Workbench
+### Begin command TechDraw_PageDefault
+App.ActiveDocument.recompute()
+### End command TechDraw_PageDefault
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Page')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Template')
+### Begin command Std_Undo
+App.ActiveDocument.recompute()
+### End command Std_Undo
+# Gui.Selection.clearSelection()
+### Begin command TechDraw_PageTemplate
+App.ActiveDocument.recompute()
+### End command TechDraw_PageTemplate
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Template')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Page')
+# App.getDocument('Joint_HouseMT_session_9').getObject('Page').ViewObject.doubleClicked()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Page')
+# App.getDocument('Joint_HouseMT_session_9').getObject('Page').ViewObject.doubleClicked()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body001.')
+### Begin command TechDraw_View
+App.activeDocument().addObject('TechDraw::DrawProjGroupItem', 'View')
+App.activeDocument().View.translateLabel('DrawProjGroupItem', 'View', 'View')
+App.activeDocument().Page.addView(App.activeDocument().View)
+App.activeDocument().View.Direction = FreeCAD.Vector(0.000000000000, -1.000000000000, 0.000000000000)
+App.activeDocument().View.RotationVector = FreeCAD.Vector(1.000000000000, 0.000000000000, 0.000000000000)
+App.activeDocument().View.XDirection = FreeCAD.Vector(1.000000000000, 0.000000000000, 0.000000000000)
+App.activeDocument().View.recompute()
+### End command TechDraw_View
+App.activeDocument().View.Scale = 0.083333
+# App.activeDocument().addObject('TechDraw::DrawProjGroup', 'ProjGroup')
+# App.activeDocument().Page.addView(App.activeDocument().ProjGroup)
+App.activeDocument().ProjGroup.addProjection('Right')
+App.activeDocument().ProjGroup.addProjection('Left')
+App.activeDocument().ProjGroup.addProjection('Bottom')
+App.activeDocument().ProjGroup.addProjection('Top')
+App.activeDocument().ProjGroup.addProjection('FrontBottomLeft')
+App.activeDocument().ProjGroup.addProjection('FrontTopRight')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Assembly','Body001.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem004')
+App.ActiveDocument.ProjGroup.X = 152.059585
+App.ActiveDocument.ProjGroup.Y = 80.736399
+App.ActiveDocument.ProjItem004.X = -37.878473
+App.ActiveDocument.ProjItem004.Y = 8.878929
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem004')
+App.ActiveDocument.ProjGroup.X = 160.748705
+App.ActiveDocument.ProjGroup.Y = 94.856218
+App.ActiveDocument.ProjItem004.X = 122.870232
+App.ActiveDocument.ProjItem004.Y = 103.735147
+# Gui.ActiveDocument.resetEdit()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjGroup')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View')
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('View').HardHidden = True
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('View').HardHidden = False
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('View').SmoothVisible = False
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('View').HardHidden = True
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem004')
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('ProjItem004').HardHidden = True
+
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','ProjItem004')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002')
+App.ActiveDocument.ProjGroup.X = 218.676166
+App.ActiveDocument.ProjGroup.Y = 10.861399
+App.ActiveDocument.ProjItem002.Y = 42.794665
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002')
+App.ActiveDocument.ProjGroup.X = 226.641192
+App.ActiveDocument.ProjGroup.Y = 86.529145
+App.ActiveDocument.ProjItem002.Y = 129.323810
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','ProjItem002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem004')
+App.ActiveDocument.ProjGroup.X = 241.847150
+App.ActiveDocument.ProjGroup.Y = 115.854922
+App.ActiveDocument.ProjItem004.X = -174.732100
+App.ActiveDocument.ProjItem004.Y = -42.531693
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','ProjItem004')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002')
+App.ActiveDocument.ProjGroup.X = 153.507772
+App.ActiveDocument.ProjGroup.Y = 5.430699
+App.ActiveDocument.ProjItem002.Y = 134.754510
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','ProjItem002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Face1')
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('ProjItem002').HardHidden = True
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('ProjItem002').HardHidden = False
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('ProjItem002').SmoothHidden = True
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('ProjItem002').SmoothHidden = False
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('ProjItem002').SeamVisible = True
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('ProjItem002').SeamVisible = False
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('ProjItem002').IsoVisible = True
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('ProjItem002').IsoVisible = False
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('ProjItem002').CoarseView = True
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('ProjItem002').CoarseView = False
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('ProjItem002').HardHidden = True
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem003')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002')
+App.ActiveDocument.ProjGroup.X = 9.051166
+App.ActiveDocument.ProjGroup.Y = -61.547927
+App.ActiveDocument.ProjItem002.Y = 73.206583
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','ProjItem002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem004')
+App.ActiveDocument.ProjGroup.X = 254.122087
+App.ActiveDocument.ProjGroup.Y = 162.969599
+App.ActiveDocument.ProjItem004.X = 79.389987
+App.ActiveDocument.ProjItem004.Y = 120.437906
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjGroup')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','ProjGroup')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View')
+App.ActiveDocument.ProjGroup.X = 231.920790
+App.ActiveDocument.ProjGroup.Y = 149.093788
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','View')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem003','Edge12')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem001')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem004')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002')
+App.ActiveDocument.ProjGroup.X = 130.432621
+App.ActiveDocument.ProjGroup.Y = 19.426135
+App.ActiveDocument.ProjItem002.Y = 92.632718
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Page')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Page')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Page')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem004')
+App.ActiveDocument.ProjGroup.X = 233.668653
+App.ActiveDocument.ProjGroup.Y = 130.432621
+App.ActiveDocument.ProjItem004.X = 313.058640
+App.ActiveDocument.ProjItem004.Y = 250.870527
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','ProjItem004')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002')
+App.ActiveDocument.ProjGroup.X = 5.550324
+App.ActiveDocument.ProjGroup.Y = -57.723373
+App.ActiveDocument.ProjItem002.Y = 34.909345
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','ProjItem002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View')
+App.ActiveDocument.ProjGroup.X = 258.645113
+App.ActiveDocument.ProjGroup.Y = 195.371416
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','View')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem004')
+App.ActiveDocument.ProjGroup.X = -171.279539
+App.ActiveDocument.ProjGroup.Y = -122.497392
+App.ActiveDocument.ProjItem004.X = 141.779101
+App.ActiveDocument.ProjItem004.Y = 128.373135
+### Begin command Std_Delete
+App.getDocument('Joint_HouseMT_session_9').removeObject('ProjItem004')
+App.getDocument('Joint_HouseMT_session_9').recompute()
+### End command Std_Delete
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem003')
+App.ActiveDocument.ProjGroup.X = 210.305257
+App.ActiveDocument.ProjGroup.Y = 119.245249
+App.ActiveDocument.ProjItem003.Y = 87.311983
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','ProjItem003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View')
+App.ActiveDocument.ProjGroup.X = 211.389305
+App.ActiveDocument.ProjGroup.Y = 125.749535
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','View')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Edge20')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','ProjItem002','Edge20')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Edge10')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem003','Edge12')
+### Begin command TechDraw_Dimension
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension')
+App.activeDocument().Dimension.translateLabel('DrawViewDimension', 'Dimension', 'Dimension')
+App.activeDocument().Dimension.Type = 'Distance'
+App.activeDocument().Dimension.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension)
+### End command TechDraw_Dimension
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension')
+App.activeDocument().Dimension.translateLabel('DrawViewDimension', 'Dimension', 'Dimension')
+App.activeDocument().Dimension.Type = 'DistanceX'
+App.activeDocument().Dimension.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension')
+App.activeDocument().Dimension.translateLabel('DrawViewDimension', 'Dimension', 'Dimension')
+App.activeDocument().Dimension.Type = 'Distance'
+App.activeDocument().Dimension.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension)
+App.ActiveDocument.Dimension.X = -67.121544
+App.ActiveDocument.Dimension.Y = 175.656997
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Measurements')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Measurements')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem003')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Dimension')
+App.ActiveDocument.Dimension.X = -67.121545
+App.ActiveDocument.Dimension.Y = 175.656995
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Area')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Measurements')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Measurements')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Dimension')
+# Gui.runCommand('Std_DlgPreferences',0)
+# Gui.Selection.clearSelection()
+App.activeDocument().recompute(None,True,True)
+# Gui.runCommand('Std_DlgPreferences',0)
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Dimension')
+### Begin command Std_Delete
+App.getDocument('Joint_HouseMT_session_9').removeObject('Dimension')
+App.getDocument('Joint_HouseMT_session_9').recompute()
+### End command Std_Delete
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Face1')
+### Begin command TechDraw_Dimension
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension')
+App.activeDocument().Dimension.translateLabel('DrawViewDimension', 'Dimension', 'Dimension')
+App.activeDocument().Dimension.Type = 'Area'
+App.activeDocument().Dimension.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension)
+### End command TechDraw_Dimension
+App.ActiveDocument.Dimension.X = 452.744868
+App.ActiveDocument.Dimension.Y = -100.419401
+# Gui.Selection.clearSelection()
+### Begin command Std_Undo
+App.ActiveDocument.recompute()
+### End command Std_Undo
+# Gui.runCommand('Std_DlgPreferences',0)
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Edge10')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension')
+App.activeDocument().Dimension.translateLabel('DrawViewDimension', 'Dimension', 'Dimension')
+App.activeDocument().Dimension.Type = 'Distance'
+App.activeDocument().Dimension.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension')
+App.activeDocument().Dimension.translateLabel('DrawViewDimension', 'Dimension', 'Dimension')
+App.activeDocument().Dimension.Type = 'DistanceX'
+App.activeDocument().Dimension.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension)
+App.ActiveDocument.Dimension.X = 32.716820
+App.ActiveDocument.Dimension.Y = 45.866775
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_DlgPreferences',0)
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem003','Edge0')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension001')
+App.activeDocument().Dimension001.translateLabel('DrawViewDimension', 'Dimension', 'Dimension001')
+App.activeDocument().Dimension001.Type = 'Distance'
+App.activeDocument().Dimension001.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension001)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension001')
+App.activeDocument().Dimension001.translateLabel('DrawViewDimension', 'Dimension', 'Dimension001')
+App.activeDocument().Dimension001.Type = 'DistanceX'
+App.activeDocument().Dimension001.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension001)
+App.ActiveDocument.Dimension001.X = 21.166582
+App.ActiveDocument.Dimension001.Y = -23.622656
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Vertex3')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Vertex1')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension002')
+App.activeDocument().Dimension002.translateLabel('DrawViewDimension', 'Dimension', 'Dimension002')
+App.activeDocument().Dimension002.Type = 'Distance'
+App.activeDocument().Dimension002.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension002)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension002')
+App.activeDocument().Dimension002.translateLabel('DrawViewDimension', 'Dimension', 'Dimension002')
+App.activeDocument().Dimension002.Type = 'DistanceY'
+App.activeDocument().Dimension002.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension002)
+App.ActiveDocument.Dimension002.X = 142.135909
+App.ActiveDocument.Dimension002.Y = -0.000000
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Vertex4')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Vertex6')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension003')
+App.activeDocument().Dimension003.translateLabel('DrawViewDimension', 'Dimension', 'Dimension003')
+App.activeDocument().Dimension003.Type = 'Distance'
+App.activeDocument().Dimension003.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension003)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension003')
+App.activeDocument().Dimension003.translateLabel('DrawViewDimension', 'Dimension', 'Dimension003')
+App.activeDocument().Dimension003.Type = 'DistanceY'
+App.activeDocument().Dimension003.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension003)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension003')
+App.activeDocument().Dimension003.translateLabel('DrawViewDimension', 'Dimension', 'Dimension003')
+App.activeDocument().Dimension003.Type = 'Distance'
+App.activeDocument().Dimension003.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension003)
+App.ActiveDocument.Dimension003.X = -122.175791
+App.ActiveDocument.Dimension003.Y = -7.505876
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem','Vertex4')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem','Vertex5')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension004')
+App.activeDocument().Dimension004.translateLabel('DrawViewDimension', 'Dimension', 'Dimension004')
+App.activeDocument().Dimension004.Type = 'Distance'
+App.activeDocument().Dimension004.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension004)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension004')
+App.activeDocument().Dimension004.translateLabel('DrawViewDimension', 'Dimension', 'Dimension004')
+App.activeDocument().Dimension004.Type = 'DistanceY'
+App.activeDocument().Dimension004.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension004)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension004')
+App.activeDocument().Dimension004.translateLabel('DrawViewDimension', 'Dimension', 'Dimension004')
+App.activeDocument().Dimension004.Type = 'Distance'
+App.activeDocument().Dimension004.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension004)
+App.ActiveDocument.Dimension004.X = -26.932287
+App.ActiveDocument.Dimension004.Y = -12.608648
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem003','Vertex3')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem003','Vertex2')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension005')
+App.activeDocument().Dimension005.translateLabel('DrawViewDimension', 'Dimension', 'Dimension005')
+App.activeDocument().Dimension005.Type = 'Distance'
+App.activeDocument().Dimension005.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension005)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension005')
+App.activeDocument().Dimension005.translateLabel('DrawViewDimension', 'Dimension', 'Dimension005')
+App.activeDocument().Dimension005.Type = 'DistanceX'
+App.activeDocument().Dimension005.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension005)
+App.ActiveDocument.Dimension005.X = -78.316353
+App.ActiveDocument.Dimension005.Y = -21.001405
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem003','Vertex9')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem003','Vertex0')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension006')
+App.activeDocument().Dimension006.translateLabel('DrawViewDimension', 'Dimension', 'Dimension006')
+App.activeDocument().Dimension006.Type = 'Distance'
+App.activeDocument().Dimension006.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension006)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension006')
+App.activeDocument().Dimension006.translateLabel('DrawViewDimension', 'Dimension', 'Dimension006')
+App.activeDocument().Dimension006.Type = 'DistanceY'
+App.activeDocument().Dimension006.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension006)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension006')
+App.activeDocument().Dimension006.translateLabel('DrawViewDimension', 'Dimension', 'Dimension006')
+App.activeDocument().Dimension006.Type = 'Distance'
+App.activeDocument().Dimension006.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension006)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension006')
+App.activeDocument().Dimension006.translateLabel('DrawViewDimension', 'Dimension', 'Dimension006')
+App.activeDocument().Dimension006.Type = 'DistanceY'
+App.activeDocument().Dimension006.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension006)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension006')
+App.activeDocument().Dimension006.translateLabel('DrawViewDimension', 'Dimension', 'Dimension006')
+App.activeDocument().Dimension006.Type = 'Distance'
+App.activeDocument().Dimension006.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension006)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension006')
+App.activeDocument().Dimension006.translateLabel('DrawViewDimension', 'Dimension', 'Dimension006')
+App.activeDocument().Dimension006.Type = 'DistanceY'
+App.activeDocument().Dimension006.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension006)
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem003','Face1')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','ProjItem003','Face1')
+App.ActiveDocument.Dimension006.X = -20.862350
+App.ActiveDocument.Dimension006.Y = -9.682639
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Dimension')
+App.ActiveDocument.Dimension.X = 32.716821
+App.ActiveDocument.Dimension.Y = 45.866776
+### Begin command Std_Delete
+App.getDocument('Joint_HouseMT_session_9').removeObject('Dimension')
+App.getDocument('Joint_HouseMT_session_9').recompute()
+### End command Std_Delete
+# Gui.Selection.clearSelection()
+# Gui.runCommand('TechDraw_Dimension',0)
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Vertex0')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Vertex1')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension')
+App.activeDocument().Dimension.translateLabel('DrawViewDimension', 'Dimension', 'Dimension')
+App.activeDocument().Dimension.Type = 'Distance'
+App.activeDocument().Dimension.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension')
+App.activeDocument().Dimension.translateLabel('DrawViewDimension', 'Dimension', 'Dimension')
+App.activeDocument().Dimension.Type = 'DistanceX'
+App.activeDocument().Dimension.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension)
+App.ActiveDocument.Dimension.X = -6.396807
+App.ActiveDocument.Dimension.Y = 38.699510
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Vertex4')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem002','Vertex8')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension007')
+App.activeDocument().Dimension007.translateLabel('DrawViewDimension', 'Dimension', 'Dimension007')
+App.activeDocument().Dimension007.Type = 'Distance'
+App.activeDocument().Dimension007.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension007)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension007')
+App.activeDocument().Dimension007.translateLabel('DrawViewDimension', 'Dimension', 'Dimension007')
+App.activeDocument().Dimension007.Type = 'DistanceX'
+App.activeDocument().Dimension007.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension007)
+App.ActiveDocument.Dimension007.X = -8.004132
+App.ActiveDocument.Dimension007.Y = 55.834934
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem','Vertex0')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','ProjItem','Vertex1')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension008')
+App.activeDocument().Dimension008.translateLabel('DrawViewDimension', 'Dimension', 'Dimension008')
+App.activeDocument().Dimension008.Type = 'Distance'
+App.activeDocument().Dimension008.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension008)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension008')
+App.activeDocument().Dimension008.translateLabel('DrawViewDimension', 'Dimension', 'Dimension008')
+App.activeDocument().Dimension008.Type = 'DistanceY'
+App.activeDocument().Dimension008.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension008)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension008')
+App.activeDocument().Dimension008.translateLabel('DrawViewDimension', 'Dimension', 'Dimension008')
+App.activeDocument().Dimension008.Type = 'Distance'
+App.activeDocument().Dimension008.MeasureType = 'Projected'
+App.activeDocument().Page.addView(App.activeDocument().Dimension008)
+App.ActiveDocument.Dimension008.X = -41.758413
+App.ActiveDocument.Dimension008.Y = -17.770093
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet005')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet005')
+### Begin command Std_Workbench
+# Gui.activateWorkbench("PartDesignWorkbench")
+### End command Std_Workbench
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Origin008.')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Assembly','Origin008.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body001.Origin002.')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Assembly','Body001.Origin002.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body001.')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Assembly','Body001.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body002.')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Assembly','Body002.')
+# Gui.ActiveDocument.ActiveView.setActiveObject('part',App.getDocument('Joint_HouseMT_session_9').getObject('Assembly'))
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody',App.getDocument('Joint_HouseMT_session_9').getObject('Body002'))
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Area','',475.254,153.796,2013.94)
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Area')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Area','',868.369,287.65,2154.71)
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Area')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Area','',939.901,216.037,2074.42)
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Area')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet005')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet005')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet001')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet001')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Joints.Joint.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Joints.Joint001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet001')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet001')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Joints.Joint002.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet005')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet005')
+### Begin command Std_Workbench
+# Gui.activateWorkbench("PartWorkbench")
+### End command Std_Workbench
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet003')
+### Begin command Std_Workbench
+# Gui.activateWorkbench("SpreadsheetWorkbench")
+### End command Std_Workbench
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet005')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet005')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet005')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet005')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet004')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet001')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet001')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+### Begin command Std_Workbench
+# Gui.activateWorkbench("AssemblyWorkbench")
+### End command Std_Workbench
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet005')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet005')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet003')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','VarSet002')
+### Begin command Std_Workbench
+# Gui.activateWorkbench("TechDrawWorkbench")
+### End command Std_Workbench
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet005')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body.Pocket001.Face3',116.123,0,1916.82)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body002.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body001.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body002.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Assembly','Body003.')
+### Begin command TechDraw_PageDefault
+App.ActiveDocument.recompute()
+### End command TechDraw_PageDefault
+### Begin command TechDraw_View
+App.activeDocument().addObject('TechDraw::DrawProjGroupItem', 'View001')
+App.activeDocument().View001.translateLabel('DrawProjGroupItem', 'View', 'View001')
+App.activeDocument().Page001.addView(App.activeDocument().View001)
+App.activeDocument().View001.Direction = FreeCAD.Vector(0.000000000000, -1.000000000000, 0.000000000000)
+App.activeDocument().View001.RotationVector = FreeCAD.Vector(1.000000000000, 0.000000000000, 0.000000000000)
+App.activeDocument().View001.XDirection = FreeCAD.Vector(1.000000000000, 0.000000000000, 0.000000000000)
+App.activeDocument().View001.recompute()
+### End command TechDraw_View
+App.activeDocument().View001.Scale = 0.083333
+App.activeDocument().View001.Scale = 0.076923
+App.activeDocument().View001.Scale = 0.071429
+App.activeDocument().View001.Scale = 0.066667
+App.activeDocument().View001.Scale = 0.062500
+# Gui.ActiveDocument.resetEdit()
+# Gui.runCommand('TechDraw_Dimension',0)
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Assembly','Body.')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Assembly','Body001.')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Assembly','Body002.')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','Assembly','Body003.')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Vertex1')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Vertex15')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension009')
+App.activeDocument().Dimension009.translateLabel('DrawViewDimension', 'Dimension', 'Dimension009')
+App.activeDocument().Dimension009.Type = 'Distance'
+App.activeDocument().Dimension009.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension009)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension009')
+App.activeDocument().Dimension009.translateLabel('DrawViewDimension', 'Dimension', 'Dimension009')
+App.activeDocument().Dimension009.Type = 'DistanceX'
+App.activeDocument().Dimension009.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension009)
+App.ActiveDocument.Dimension009.X = 11.398452
+App.ActiveDocument.Dimension009.Y = 95.088868
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Vertex7')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Vertex17')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension010')
+App.activeDocument().Dimension010.translateLabel('DrawViewDimension', 'Dimension', 'Dimension010')
+App.activeDocument().Dimension010.Type = 'Distance'
+App.activeDocument().Dimension010.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension010)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension010')
+App.activeDocument().Dimension010.translateLabel('DrawViewDimension', 'Dimension', 'Dimension010')
+App.activeDocument().Dimension010.Type = 'DistanceX'
+App.activeDocument().Dimension010.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension010)
+App.ActiveDocument.Dimension010.X = 7.606784
+App.ActiveDocument.Dimension010.Y = 68.166707
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Vertex5')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Vertex2')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension011')
+App.activeDocument().Dimension011.translateLabel('DrawViewDimension', 'Dimension', 'Dimension011')
+App.activeDocument().Dimension011.Type = 'Distance'
+App.activeDocument().Dimension011.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension011)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension011')
+App.activeDocument().Dimension011.translateLabel('DrawViewDimension', 'Dimension', 'Dimension011')
+App.activeDocument().Dimension011.Type = 'DistanceY'
+App.activeDocument().Dimension011.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension011)
+App.ActiveDocument.Dimension011.X = -12.237505
+App.ActiveDocument.Dimension011.Y = -20.778234
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Vertex15')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Vertex14')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension012')
+App.activeDocument().Dimension012.translateLabel('DrawViewDimension', 'Dimension', 'Dimension012')
+App.activeDocument().Dimension012.Type = 'Distance'
+App.activeDocument().Dimension012.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension012)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension012')
+App.activeDocument().Dimension012.translateLabel('DrawViewDimension', 'Dimension', 'Dimension012')
+App.activeDocument().Dimension012.Type = 'DistanceY'
+App.activeDocument().Dimension012.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension012)
+App.ActiveDocument.Dimension012.X = 101.158436
+App.ActiveDocument.Dimension012.Y = -77.131218
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Vertex6')
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Vertex11')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension013')
+App.activeDocument().Dimension013.translateLabel('DrawViewDimension', 'Dimension', 'Dimension013')
+App.activeDocument().Dimension013.Type = 'Distance'
+App.activeDocument().Dimension013.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension013)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension013')
+App.activeDocument().Dimension013.translateLabel('DrawViewDimension', 'Dimension', 'Dimension013')
+App.activeDocument().Dimension013.Type = 'DistanceX'
+App.activeDocument().Dimension013.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension013)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension013')
+App.activeDocument().Dimension013.translateLabel('DrawViewDimension', 'Dimension', 'Dimension013')
+App.activeDocument().Dimension013.Type = 'Distance'
+App.activeDocument().Dimension013.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension013)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension013')
+App.activeDocument().Dimension013.translateLabel('DrawViewDimension', 'Dimension', 'Dimension013')
+App.activeDocument().Dimension013.Type = 'DistanceX'
+App.activeDocument().Dimension013.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension013)
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Edge4')
+# Gui.Selection.removeSelection('Joint_HouseMT_session_9','View001','Edge4')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension013')
+App.activeDocument().Dimension013.translateLabel('DrawViewDimension', 'Dimension', 'Dimension013')
+App.activeDocument().Dimension013.Type = 'Distance'
+App.activeDocument().Dimension013.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension013)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension013')
+App.activeDocument().Dimension013.translateLabel('DrawViewDimension', 'Dimension', 'Dimension013')
+App.activeDocument().Dimension013.Type = 'DistanceY'
+App.activeDocument().Dimension013.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension013)
+App.ActiveDocument.Dimension013.X = -12.237505
+App.ActiveDocument.Dimension013.Y = 30.457703
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Edge9')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension014')
+App.activeDocument().Dimension014.translateLabel('DrawViewDimension', 'Dimension', 'Dimension014')
+App.activeDocument().Dimension014.Type = 'Distance'
+App.activeDocument().Dimension014.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension014)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension014')
+App.activeDocument().Dimension014.translateLabel('DrawViewDimension', 'Dimension', 'Dimension014')
+App.activeDocument().Dimension014.Type = 'DistanceX'
+App.activeDocument().Dimension014.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension014)
+App.ActiveDocument.Dimension014.X = -58.737500
+App.ActiveDocument.Dimension014.Y = 26.092937
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','View001','Edge8')
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension015')
+App.activeDocument().Dimension015.translateLabel('DrawViewDimension', 'Dimension', 'Dimension015')
+App.activeDocument().Dimension015.Type = 'Distance'
+App.activeDocument().Dimension015.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension015)
+App.activeDocument().addObject('TechDraw::DrawViewDimension', 'Dimension015')
+App.activeDocument().Dimension015.translateLabel('DrawViewDimension', 'Dimension', 'Dimension015')
+App.activeDocument().Dimension015.Type = 'DistanceX'
+App.activeDocument().Dimension015.MeasureType = 'Projected'
+App.activeDocument().Page001.addView(App.activeDocument().Dimension015)
+App.ActiveDocument.Dimension015.X = -27.095622
+App.ActiveDocument.Dimension015.Y = 48.937648
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet002')
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('VarSet002').JointHeight = '76.19999999999999 mm'
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('VarSet002').JointHeight = '914.4 mm'
+
+### Begin command Std_Undo
+App.ActiveDocument.recompute()
+### End command Std_Undo
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Joint_HouseMT_session_9").save()
+### End command Std_Save
+# Macro End: C:\Users\Adam\Documents\Projects\BentWizard\techdraw_session.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++

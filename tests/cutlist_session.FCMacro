@@ -1,0 +1,80 @@
+# Macro Begin: C:\Users\Adam\Documents\Projects\BentWizard\cutlist_session.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+import Spreadsheet
+
+# Gui.runCommand('Std_DlgMacroRecord',0)
+### Begin command Std_Workbench
+# Gui.activateWorkbench("SpreadsheetWorkbench")
+### End command Std_Workbench
+### Begin command Spreadsheet_CreateSheet
+App.activeDocument().addObject('Spreadsheet::Sheet','Spreadsheet')
+# Gui.Selection.clearSelection()
+# 
+# Gui.Selection.addSelection(App.activeDocument().Name,'Spreadsheet')
+### End command Spreadsheet_CreateSheet
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','Spreadsheet')
+# App.getDocument('Joint_HouseMT_session_9').getObject('Spreadsheet').ViewObject.doubleClicked()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+App.ActiveDocument.recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet001')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet')
+App.ActiveDocument.recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HouseMT_session_9','VarSet001')
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('VarSet001').Length = '127 mm'
+
+FreeCAD.getDocument('Joint_HouseMT_session_9').getObject('VarSet001').Length = '1371.6 mm'
+
+### Begin command Std_Undo
+App.ActiveDocument.recompute()
+### End command Std_Undo
+# Macro End: C:\Users\Adam\Documents\Projects\BentWizard\cutlist_session.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++

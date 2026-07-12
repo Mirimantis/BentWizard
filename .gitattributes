@@ -1,0 +1,6 @@
+# FreeCAD documents are zip archives — never touch line endings
+*.FCStd binary
+*.FCBak binary
+
+# Normalize text line endings
+* text=auto
