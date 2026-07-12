@@ -13,10 +13,10 @@ class BentWizardWorkbench(Gui.Workbench):
     ToolTip = "Timber framing — square-rule joinery on native geometry"
 
     def Initialize(self):
-        self.commands = []
-        if self.commands:
-            self.appendToolbar("BentWizard", self.commands)
-            self.appendMenu("BentWizard", self.commands)
+        from freecad.bentwizard import commands
+        commands.register()
+        self.appendToolbar("BentWizard", commands.ALL_COMMANDS)
+        self.appendMenu("BentWizard", commands.ALL_COMMANDS)
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"
