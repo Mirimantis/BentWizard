@@ -1,0 +1,194 @@
+# EnforceNaming.FCMacro — BentWizard dev helper
+#
+# Prompts for a proper label whenever a new object of a watched type is
+# created, so the tree never fills up with Sketch007 / Body003 debris.
+#
+# Run the macro once to enable, run it again to disable. The observer
+# survives across documents for the whole FreeCAD session.
+#
+# How it works: a DocumentObserver's slotCreatedObject fires in the middle
+# of whatever command created the object — the object is half-built and a
+# task dialog may still be open, so prompting there would break commands.
+# Instead, created objects are queued and a timer re-checks until the GUI
+# is idle (no task dialog, nothing in edit), then prompts — and only if
+# the label is still the generic auto-numbered one.
+
+__Name__ = "EnforceNaming"
+__Author__ = "BentWizard"
+__Version__ = "1.0"
+__Comment__ = "Prompt for a proper label on object creation (toggle on/off by re-running)"
+
+import re
+
+import FreeCAD as App
+
+# ---------------------------------------------------------------------------
+# Watched types: (TypeId prefix, short name shown in dialog, naming hint).
+# Checked in order, first match wins — keep specific prefixes above catch-alls.
+# ---------------------------------------------------------------------------
+NAMING_RULES = (
+    ("PartDesign::Body", "timber Body",
+     "MemberID: [RolePrefix][Bent]-[Position] — e.g. P2-1; bay ref for longitudinal members, e.g. PU-B2-3"),
+    ("App::VarSet", "VarSet",
+     "Kind_Owner — e.g. TimberDims_P2-1, Joint_MT_B2a, Project_Main"),
+    ("Sketcher::SketchObject", "Sketch",
+     "body-qualified — MemberID_Feature_JointID, e.g. P2-1_MortiseProfile_MT_B2a"),
+    # FreeCAD 1.x unified datums live in the Part namespace (the body
+    # origin's planes/lines are App::Plane/App::Line, so no collision).
+    ("Part::DatumPlane", "datum plane",
+     "body-qualified, says what it references — e.g. P2-1_BearingPlane_MT_B2a"),
+    ("Part::DatumLine", "datum line",
+     "body-qualified, says what it references"),
+    ("Part::DatumPoint", "datum point",
+     "body-qualified, says what it references"),
+    ("Part::LocalCoordinateSystem", "datum LCS",
+     "body-qualified, says what it references"),
+    ("Spreadsheet::Sheet", "spreadsheet",
+     "Kind_Owner — e.g. Order_Main"),
+    # Catch-all for PartDesign features (Pocket, Pad, Hole, ...). Origin
+    # objects are App::* types, so they never reach this table.
+    ("PartDesign::", "PartDesign feature",
+     "body-qualified — MemberID_Feature_JointID, e.g. P2-1_Mortise_MT_B2a"),
+)
+
+_ATTR = "_bentwizard_enforce_naming"  # singleton slot on the FreeCAD module
+
+
+def _rule_for(type_id):
+    for prefix, kind, hint in NAMING_RULES:
+        if type_id.startswith(prefix):
+            return kind, hint
+    return None
+
+
+def _is_generic_label(obj):
+    """True if the label is still the auto-assigned one (Sketch, Sketch001, ...)."""
+    if obj.Label == obj.Name:
+        return True
+    base = re.sub(r"\d+$", "", obj.Name)
+    return bool(base) and re.fullmatch(re.escape(base) + r"\d*", obj.Label) is not None
+
+
+def _install():
+    import FreeCADGui as Gui
+    from PySide import QtCore, QtWidgets
+
+    def gui_busy():
+        """A task dialog is open or an object is in edit — not safe to prompt."""
+        try:
+            if Gui.Control.activeDialog():
+                return True
+        except Exception:
+            pass
+        try:
+            for doc in App.listDocuments().values():
+                gdoc = Gui.getDocument(doc.Name)
+                if gdoc is not None and gdoc.getInEdit() is not None:
+                    return True
+        except Exception:
+            pass
+        return False
+
+    class LabelPrompter(QtCore.QObject):
+        """Holds the queue of freshly created objects and prompts when idle."""
+
+        RETRY_MS = 500    # poll interval while a task dialog is open
+        SETTLE_MS = 400   # grace period after creation before first attempt
+
+        def __init__(self):
+            super(LabelPrompter, self).__init__()
+            # Store (docName, objName, kind, hint) — never object references:
+            # the command may be aborted and the object deleted before we run.
+            self._pending = []
+            self._prompting = False
+            self._timer = QtCore.QTimer(self)
+            self._timer.setSingleShot(True)
+            self._timer.timeout.connect(self._process)
+
+        def enqueue(self, obj, kind, hint):
+            key = (obj.Document.Name, obj.Name)
+            if any(p[:2] == key for p in self._pending):
+                return
+            self._pending.append((obj.Document.Name, obj.Name, kind, hint))
+            self._timer.start(self.SETTLE_MS)
+
+        def _process(self):
+            if self._prompting:
+                return
+            self._prompting = True
+            try:
+                while self._pending:
+                    if gui_busy():
+                        self._timer.start(self.RETRY_MS)
+                        return
+                    doc_name, obj_name, kind, hint = self._pending.pop(0)
+                    doc = App.listDocuments().get(doc_name)
+                    obj = doc.getObject(obj_name) if doc else None
+                    if obj is None:
+                        continue  # command aborted / object deleted
+                    if not _is_generic_label(obj):
+                        continue  # already renamed (by the user or a script)
+                    self._ask(obj, kind, hint)
+            finally:
+                self._prompting = False
+
+        def _ask(self, obj, kind, hint):
+            prompt = (
+                "New {kind}: {label}  ({type_id})\n"
+                "Convention: {hint}\n\n"
+                "Label (Cancel keeps the default):".format(
+                    kind=kind, label=obj.Label, type_id=obj.TypeId, hint=hint)
+            )
+            text, ok = QtWidgets.QInputDialog.getText(
+                Gui.getMainWindow(), "BentWizard — name this object",
+                prompt, QtWidgets.QLineEdit.Normal, obj.Label)
+            if not ok:
+                return
+            text = text.strip()
+            if not text or text == obj.Label:
+                return
+            obj.Document.openTransaction("Rename " + obj.Label)
+            try:
+                obj.Label = text
+            finally:
+                obj.Document.commitTransaction()
+
+    class NamingObserver(object):
+        def __init__(self, prompter):
+            self._prompter = prompter
+
+        def slotCreatedObject(self, obj):
+            # Never let an exception escape into FreeCAD's notification chain.
+            try:
+                doc = obj.Document
+                if doc is None:
+                    return
+                if getattr(doc, "Restoring", False) or getattr(doc, "Temporary", False):
+                    return  # opening a file, or a transient internal doc
+                rule = _rule_for(obj.TypeId)
+                if rule is not None:
+                    self._prompter.enqueue(obj, rule[0], rule[1])
+            except Exception:
+                pass
+
+    prompter = LabelPrompter()
+    observer = NamingObserver(prompter)
+    App.addDocumentObserver(observer)
+    setattr(App, _ATTR, {"observer": observer, "prompter": prompter})
+    App.Console.PrintMessage("EnforceNaming: ON — will prompt for labels on new objects.\n")
+
+
+def _uninstall(state):
+    App.removeDocumentObserver(state["observer"])
+    delattr(App, _ATTR)
+    App.Console.PrintMessage("EnforceNaming: OFF.\n")
+
+
+if not App.GuiUp:
+    App.Console.PrintWarning("EnforceNaming: GUI not running, nothing to do.\n")
+else:
+    _state = getattr(App, _ATTR, None)
+    if _state is not None:
+        _uninstall(_state)
+    else:
+        _install()
