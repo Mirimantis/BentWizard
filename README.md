@@ -7,7 +7,7 @@ This is a from-scratch rewrite; an earlier attempt that generated custom-coded g
 ## Status
 
 - **Phase 0 — manual workflow definition: complete.** The joinery workflow (parametric timbers, housed mortise & tenon, housed dovetail, pegs/drawbore, assembly, TechDraw sheets, cut list) was proven by hand across twelve modeling sessions. Session artifacts live in `phase0/`.
-- **Phase 1 — joint library & Apply-Joint tool: next.** The tool reproduces the proven manual recipes programmatically: cloned native sketches/features bound to a shared per-joint VarSet, with expressions written by the tool instead of typed by hand.
+- **Phase 1 — joint library & Apply-Joint tool: started.** First piece: a pure-Python model linter (`python -m freecad.bentwizard.linter <file.FCStd>`) implementing the workflow document's strict and advisory rules by reading FCStd files directly — no FreeCAD required. Next: the Apply-Joint tool, which reproduces the proven manual recipes programmatically.
 
 ## Documentation
 
