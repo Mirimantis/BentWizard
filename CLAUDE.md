@@ -30,10 +30,10 @@ Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive join
 - `freecad/bentwizard/` — the workbench package (FreeCAD 1.x addon-manager layout; `package.xml` at root)
   - `fcstd.py` — pure-Python FCStd/Document.xml reader (no FreeCAD import)
   - `linter.py` — workflow doc §6 as executable rules; run with `python -m freecad.bentwizard.linter <file.FCStd>` (exit 1 on strict findings)
+- `library/` — joint template library: one ordinary `.FCStd` per joint, must lint clean (strict and advisory); see `library/README.md`
 - `docs/` — roadmap, workflow spec, findings log
 - `phase0/` — Phase 0 session artifacts: `.FCStd` models and `.FCMacro` session transcripts. `TimberTemplate.FCStd` is the pristine timber template; the `Joint_HouseMT session N` files are the per-session snapshots.
 - `tests/` — stdlib-only unittest suite: `python -m unittest discover -s tests` (bundled python works). `tests/fixtures/Joint_HouseMT_session_12.FCStd` is the ground-truth dirty file (every §7 debt must be caught); `TimberTemplate.FCStd` is the strict-clean control.
-- Joint library location (folder vs. addon structure) is an open item — decide at Phase 1 start.
 
 ## Conventions (from the workflow doc — apply to all generated objects)
 
