@@ -7,8 +7,8 @@
 *.FCStd2
 *.FCStd~
 
-# Local Claude Code settings
-.claude/settings.local.json
+# Local Claude Code settings (any level)
+**/.claude/settings.local.json
 
 # Python
 __pycache__/
