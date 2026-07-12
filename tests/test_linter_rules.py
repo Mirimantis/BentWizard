@@ -170,5 +170,34 @@ class DuplicateTooltips(unittest.TestCase):
         }), [])
 
 
+class JointFitsFootprint(unittest.TestCase):
+    """Setback + extent past the housing opening = impossible joint
+    (Part E live finding: sketch dimensions invert and stick)."""
+
+    def findings(self, joint_props):
+        doc = synthetic_doc(joint_props, [], "1")
+        return [f for f in lint_document(doc)
+                if f.rule == "joint-exceeds-footprint"]
+
+    def test_oversized_tenon_flagged(self):
+        hits = self.findings({
+            "Housing_Height": 101.6,          # 4 in beam after shakedown
+            "Tenon_Setback_Face1": 25.4,
+            "Tenon_Height": 152.4,            # 1 + 6 > 4
+        })
+        self.assertEqual(len(hits), 1)
+        self.assertIn("Tenon_Height", hits[0].message)
+
+    def test_fitting_joint_passes(self):
+        self.assertEqual(self.findings({
+            "Housing_Height": 203.2,
+            "Tenon_Setback_Face1": 25.4,
+            "Tenon_Height": 152.4,            # 1 + 6 <= 8
+            "Housing_Width": 152.4,
+            "Tenon_Setback_Face2": 50.8,
+            "Tenon_Width": 50.8,              # 2 + 2 <= 6
+        }), [])
+
+
 if __name__ == "__main__":
     unittest.main()

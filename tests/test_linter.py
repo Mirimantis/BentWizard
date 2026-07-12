@@ -27,6 +27,7 @@ from freecad.bentwizard.linter import ADVISORY, STRICT, lint  # noqa: E402
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 SESSION_12 = FIXTURES / "Joint_HouseMT_session_12.FCStd"
 TEMPLATE = FIXTURES / "TimberTemplate.FCStd"
+JOINT_TEMPLATE = FIXTURES / "Joint_HousedMT.FCStd"
 
 
 class LinterFixtureTest(unittest.TestCase):
@@ -167,6 +168,18 @@ class TimberTemplateControl(LinterFixtureTest):
         # Pre-convention names are advisory, never strict.
         self.assertTrue(self.matching("naming-convention"))
         self.assertTrue(all(f.severity == ADVISORY for f in self.findings))
+
+
+class HousedMTTemplateControl(LinterFixtureTest):
+    """The first library joint template (built Phase 1, sessions
+    Part A–E) must lint completely clean — strict AND advisory. This is
+    the library acceptance bar; if a linter change breaks this, either
+    the rule is wrong or the template needs updating alongside it."""
+
+    FIXTURE = JOINT_TEMPLATE
+
+    def test_completely_clean(self):
+        self.assertEqual([str(f) for f in self.findings], [])
 
 
 if __name__ == "__main__":

@@ -1,0 +1,1370 @@
+# Macro Begin: C:\Users\Adam\Documents\Projects\BentWizard\devBuildMacros\Phase1PartCSession.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+import PartDesign
+import PartDesignGui
+import Sketcher
+
+# Gui.runCommand('Std_DlgMacroRecord',0)
+### Begin command Part_CoordinateSystem
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS')
+# Object created at document root.
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_HousedMT').getObject('LCS')
+# dep_features = _tv_LCS.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('LCS'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_CoordinateSystem
+# Gui.runCommand('Part_Datums',0)
+# Gui.Selection.clearSelection()
+App.ActiveDocument.recompute()
+# _tv_LCS.restore()
+# del(_tv_LCS)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Origin.YZ_Plane.',0,54.6505,69.8289)
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS')
+# Object created at document root.
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_HousedMT').getObject('LCS')
+# dep_features = _tv_LCS.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('LCS'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+# Gui.Selection.clearSelection()
+App.ActiveDocument.recompute()
+# _tv_LCS.restore()
+# del(_tv_LCS)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Origin.Origin001.')
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS')
+# Object created at document root.
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_HousedMT').getObject('LCS')
+# dep_features = _tv_LCS.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('LCS'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Joint_HousedMT").save()
+### End command Std_Save
+App.ActiveDocument.recompute()
+# _tv_LCS.restore()
+# del(_tv_LCS)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Origin.YZ_Plane.')
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS')
+# Object created at document root.
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_HousedMT').getObject('LCS')
+# dep_features = _tv_LCS.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('LCS'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+App.ActiveDocument.recompute()
+# _tv_LCS.restore()
+# del(_tv_LCS)
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS')
+# Object created at document root.
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_HousedMT').getObject('LCS')
+# dep_features = _tv_LCS.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('LCS'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+App.getDocument('Joint_HousedMT').getObject('LCS').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Joint_HousedMT').getObject('LCS').MapReversed = False
+App.getDocument('Joint_HousedMT').getObject('LCS').AttachmentSupport = [(App.getDocument('Joint_HousedMT').getObject('Body'),'Origin.YZ_Plane.')]
+App.getDocument('Joint_HousedMT').getObject('LCS').MapPathParameter = 0.000000
+App.getDocument('Joint_HousedMT').getObject('LCS').MapMode = 'FlatFace'
+App.getDocument('Joint_HousedMT').getObject('LCS').recompute()
+# _tv_LCS.restore()
+# del(_tv_LCS)
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Joint_HousedMT").save()
+### End command Std_Save
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','LCS')
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_HousedMT').getObject('LCS')
+# dep_features = _tv_LCS.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('LCS'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','LCS','XY_Plane002.',241.3,400.419,1553.75)
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('LCS').AttachmentOffset = App.Placement(App.Vector(101.6000000000, 1320.8000000000, 241.3000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Joint_HousedMT').getObject('LCS').MapReversed = False
+App.getDocument('Joint_HousedMT').getObject('LCS').AttachmentSupport = [(App.getDocument('Joint_HousedMT').getObject('Body'),'Origin.YZ_Plane.')]
+App.getDocument('Joint_HousedMT').getObject('LCS').MapPathParameter = 0.000000
+App.getDocument('Joint_HousedMT').getObject('LCS').MapMode = 'FlatFace'
+App.getDocument('Joint_HousedMT').getObject('LCS').recompute()
+# _tv_LCS.restore()
+# del(_tv_LCS)
+# Gui.Selection.addSelection('Joint_HousedMT','LCS','XY_Plane002.',241.3,241.607,1437.08)
+### Begin command PartDesign_CompSketches
+# Gui.getDocument('Joint_HousedMT').ActiveView.setActiveObject('pdbody',App.getDocument('Joint_HousedMT').getObject('LCS'),'Body.')
+### End command PartDesign_CompSketches
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','LCS','XY_Plane002.',241.3,275.079,1468.06)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','LCS')
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_HousedMT').getObject('LCS')
+# dep_features = _tv_LCS.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('LCS'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+App.ActiveDocument.recompute()
+# _tv_LCS.restore()
+# del(_tv_LCS)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','LCS','XY_Plane002.',241.3,233.294,1446.36)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','LCS')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','LCS','XY_Plane002.')
+# Gui.runCommand('PartDesign_CompSketches',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Origin.XY_Plane.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Origin.XZ_Plane.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Origin.YZ_Plane.')
+App.getDocument('Joint_HousedMT').getObject('Body').newObject('Sketcher::SketchObject','Sketch002')
+App.getDocument('Joint_HousedMT').getObject('Sketch002').AttachmentSupport = (App.getDocument('Joint_HousedMT').getObject('Origin'),['YZ_Plane'])
+App.getDocument('Joint_HousedMT').getObject('Sketch002').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Joint_HousedMT').setEdit(App.getDocument('Joint_HousedMT').getObject('LCS'), 0, 'Body.Sketch002.')
+# import Show
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch002')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('LCS'), 'Body.Sketch002.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch002')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CompCreateConic',0)
+ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch002')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.Circle(App.Vector(-214.440869, 300.128406, 0.000000), App.Vector(0.000000, 0.000000, 1.000000), 329.736573))
+App.getDocument('Joint_HousedMT').getObject('Sketch002').addGeometry(geoList,False)
+del geoList
+
+constraintList = []
+constraintList = []
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch002')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_HousedMT','LCS','Body.Sketch002.')
+App.getDocument('Joint_HousedMT').recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body')
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Joint_HousedMT").save()
+### End command Std_Save
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','LCS')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body')
+# App.getDocument('Joint_HousedMT').getObject('LCS').adjustRelativeLinks(App.getDocument('Joint_HousedMT').getObject('Body'))
+# App.getDocument('Joint_HousedMT').getObject('Body').ViewObject.dropObject(App.getDocument('Joint_HousedMT').getObject('LCS'),None,'',[])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','LCS.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body')
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody',App.getDocument('Joint_HousedMT').getObject('Body'))
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','LCS.XY_Plane002.')
+### Begin command PartDesign_CompSketches
+App.getDocument('Joint_HousedMT').getObject('Body').newObject('Sketcher::SketchObject','Sketch002')
+App.getDocument('Joint_HousedMT').getObject('Sketch002').AttachmentSupport = (App.getDocument('Joint_HousedMT').getObject('LCS'),['XY_Plane002.',])
+App.getDocument('Joint_HousedMT').getObject('Sketch002').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Joint_HousedMT').setEdit(App.getDocument('Joint_HousedMT').getObject('Body'), 0, 'Sketch002.')
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch002')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('Body'), 'Sketch002.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch002')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+### End command PartDesign_CompSketches
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CompCreateRectangles',0)
+ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch002')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.LineSegment(App.Vector(59.038947, 58.023364, 0.000000),App.Vector(-55.303190, 58.023364, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(-55.303190, 58.023364, 0.000000),App.Vector(-55.303190, -63.695630, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(-55.303190, -63.695630, 0.000000),App.Vector(59.038947, -63.695630, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(59.038947, -63.695630, 0.000000),App.Vector(59.038947, 58.023364, 0.000000)))
+App.getDocument('Joint_HousedMT').getObject('Sketch002').addGeometry(geoList,False)
+del geoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 0, 2, 1, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 1, 2, 2, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 2, 2, 3, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 3, 2, 0, 1))
+constraintList.append(Sketcher.Constraint('Horizontal', 0))
+constraintList.append(Sketcher.Constraint('Horizontal', 2))
+constraintList.append(Sketcher.Constraint('Vertical', 1))
+constraintList.append(Sketcher.Constraint('Vertical', 3))
+App.getDocument('Joint_HousedMT').getObject('Sketch002').addConstraint(constraintList)
+del constraintList
+
+constraintList = []
+# Gui.runCommand('Std_DrawStyle',2)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch002.Edge4',241.308,160.639,1365.59,False)
+# Gui.Selection.removeSelection('Joint_HousedMT','Body','Sketch002.Edge4')
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch002.Edge4',241.308,160.639,1329.73,False)
+# Gui.Selection.removeSelection('Joint_HousedMT','Body','Sketch002.Edge4')
+App.getDocument('Joint_HousedMT').getObject('Sketch002').moveGeometries([(3, 0)], App.Vector(0.0472865, -1.35693, 0), True)
+# Gui.runCommand('Sketcher_Dimension',0)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch002.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,3,59.086233)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch002.Edge4',59.0862,2.726,0,False)
+App.getDocument('Joint_HousedMT').Sketch002.setExpression('Constraints[8]', u'<<Joint_MT_0a>>.Housing_Width / 2')
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',1,1,1,2,121.718994)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch002.Edge2',-55.3032,-16.4646,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceY',1,2,1,1,121.718994)) 
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch002.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,1,55.303190)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch002.Edge2',-55.3032,4.85833,0,False)
+App.getDocument('Joint_HousedMT').Sketch002.setExpression('Constraints[9]', u'<<Joint_MT_0a>>.Housing_Width / 2')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch002.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,0,56.666434)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch002.Edge1',15.2776,56.6664,0,False)
+App.getDocument('Joint_HousedMT').Sketch002.setExpression('Constraints[10]', u'<<Joint_MT_0a>>.Housing_Height / 2')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch002.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',-1,1,2,65.052560)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch002.Edge3',-16.7067,-65.0526,0,False)
+App.getDocument('Joint_HousedMT').Sketch002.setExpression('Constraints[11]', u'<<Joint_MT_0a>>.Housing_Height / 2')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch002')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch002.')
+App.getDocument('Joint_HousedMT').recompute()
+# Gui.runCommand('Std_DrawStyle',0)
+# Gui.runCommand('Std_DrawStyle',0)
+### Begin command PartDesign_Pocket
+App.getDocument('Joint_HousedMT').getObject('Body').newObject('PartDesign::Pocket','Pocket')
+App.getDocument('Joint_HousedMT').getObject('Pocket').Profile = (App.getDocument('Joint_HousedMT').getObject('Sketch002'), ['',])
+App.getDocument('Joint_HousedMT').getObject('Pocket').Length = 5
+App.ActiveDocument.recompute()
+App.getDocument('Joint_HousedMT').getObject('Pocket').ReferenceAxis = (App.getDocument('Joint_HousedMT').getObject('Sketch002'),['N_Axis'])
+App.getDocument('Joint_HousedMT').getObject('Sketch002').Visibility = False
+App.ActiveDocument.recompute()
+# App.getDocument('Joint_HousedMT').getObject('Pocket').ViewObject.ShapeAppearance=getattr(App.getDocument('Joint_HousedMT').getObject('Pad').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Joint_HousedMT').getObject('Pocket').ViewObject.ShapeAppearance)
+# App.getDocument('Joint_HousedMT').getObject('Pocket').ViewObject.LineColor=getattr(App.getDocument('Joint_HousedMT').getObject('Pad').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Joint_HousedMT').getObject('Pocket').ViewObject.LineColor)
+# App.getDocument('Joint_HousedMT').getObject('Pocket').ViewObject.PointColor=getattr(App.getDocument('Joint_HousedMT').getObject('Pad').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Joint_HousedMT').getObject('Pocket').ViewObject.PointColor)
+# App.getDocument('Joint_HousedMT').getObject('Pocket').ViewObject.Transparency=getattr(App.getDocument('Joint_HousedMT').getObject('Pad').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Joint_HousedMT').getObject('Pocket').ViewObject.Transparency)
+# App.getDocument('Joint_HousedMT').getObject('Pocket').ViewObject.DisplayMode=getattr(App.getDocument('Joint_HousedMT').getObject('Pad').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Joint_HousedMT').getObject('Pocket').ViewObject.DisplayMode)
+# Gui.getDocument('Joint_HousedMT').setEdit(App.getDocument('Joint_HousedMT').getObject('Body'), 0, 'Pocket.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Pocket
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').Pocket.setExpression('Length', u'<<Joint_MT_0a>>.Housing_Depth')
+App.getDocument('Joint_HousedMT').getObject('Pocket').TaperAngle = 0.000000
+App.getDocument('Joint_HousedMT').getObject('Pocket').UseCustomVector = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket').Direction = (-1, 0, 0)
+App.getDocument('Joint_HousedMT').getObject('Pocket').ReferenceAxis = (App.getDocument('Joint_HousedMT').getObject('Sketch002'), ['N_Axis'])
+App.getDocument('Joint_HousedMT').getObject('Pocket').AlongSketchNormal = 1
+App.getDocument('Joint_HousedMT').getObject('Pocket').SideType = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket').Type = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket').Type2 = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket').UpToFace = None
+App.getDocument('Joint_HousedMT').getObject('Pocket').UpToFace2 = None
+App.getDocument('Joint_HousedMT').getObject('Pocket').Reversed = 1
+App.getDocument('Joint_HousedMT').getObject('Pocket').Offset = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket').Offset2 = 0
+App.getDocument('Joint_HousedMT').purgeTouched()
+App.getDocument('Joint_HousedMT').recompute()
+App.getDocument('Joint_HousedMT').getObject('Pad').Visibility = False
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.getDocument('Joint_HousedMT').getObject('Sketch002').Visibility = False
+# Gui.Selection.addSelection('Joint_HousedMT','Body','LCS.XY_Plane002.')
+### Begin command PartDesign_CompSketches
+App.getDocument('Joint_HousedMT').getObject('Body').newObject('Sketcher::SketchObject','Sketch003')
+App.getDocument('Joint_HousedMT').getObject('Sketch003').AttachmentSupport = (App.getDocument('Joint_HousedMT').getObject('LCS'),['XY_Plane002.',])
+App.getDocument('Joint_HousedMT').getObject('Sketch003').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Joint_HousedMT').setEdit(App.getDocument('Joint_HousedMT').getObject('Body'), 0, 'Sketch003.')
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('Body'), 'Sketch003.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+### End command PartDesign_CompSketches
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CompCreateRectangles',0)
+ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.LineSegment(App.Vector(-39.486032, 50.932178, 0.000000),App.Vector(-39.486032, -40.755933, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(-39.486032, -40.755933, 0.000000),App.Vector(39.214545, -40.755933, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(39.214545, -40.755933, 0.000000),App.Vector(39.214545, 50.932178, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(39.214545, 50.932178, 0.000000),App.Vector(-39.486032, 50.932178, 0.000000)))
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addGeometry(geoList,False)
+del geoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 0, 2, 1, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 1, 2, 2, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 2, 2, 3, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 3, 2, 0, 1))
+constraintList.append(Sketcher.Constraint('Vertical', 0))
+constraintList.append(Sketcher.Constraint('Vertical', 2))
+constraintList.append(Sketcher.Constraint('Horizontal', 1))
+constraintList.append(Sketcher.Constraint('Horizontal', 3))
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(constraintList)
+del constraintList
+
+constraintList = []
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',241.31,101.6,1320.8,False)
+# Gui.runCommand('Sketcher_Dimension',0)
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',-1,1,0,39.486032)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge1',-39.486,10.4187,0,False)
+App.getDocument('Joint_HousedMT').Sketch003.setExpression('Constraints[8]', u'<<Joint_MT_0a>>.Tenon_Setback_Face2 - <<Joint_MT_0a>>.Housing_Width / 2')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','VarSet002')
+# Gui.runCommand('Std_Undo',0)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,1,0,2,91.688111)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge1',-39.486,37.5569,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',0,2,0,1,91.688111)) 
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',-1,1,0,39.486032)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge1',-39.486,5.08812,0,False)
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.')
+App.getDocument('Joint_HousedMT').recompute()
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','LCS.')
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Joint_HousedMT').getObject('LCS')
+# dep_features = _tv_LCS.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('Body'), 'LCS.')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+App.ActiveDocument.recompute()
+# _tv_LCS.restore()
+# del(_tv_LCS)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','LCS.XY_Plane002.')
+### Begin command PartDesign_CompSketches
+App.getDocument('Joint_HousedMT').getObject('Body').newObject('Sketcher::SketchObject','Sketch003')
+App.getDocument('Joint_HousedMT').getObject('Sketch003').AttachmentSupport = (App.getDocument('Joint_HousedMT').getObject('LCS'),['XY_Plane002.',])
+App.getDocument('Joint_HousedMT').getObject('Sketch003').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Joint_HousedMT').setEdit(App.getDocument('Joint_HousedMT').getObject('Body'), 0, 'Sketch003.')
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('Body'), 'Sketch003.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+### End command PartDesign_CompSketches
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CompCreateRectangles',0)
+ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.LineSegment(App.Vector(-40.948343, 66.184497, 0.000000),App.Vector(-40.948343, -56.931470, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(-40.948343, -56.931470, 0.000000),App.Vector(41.918158, -56.931470, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(41.918158, -56.931470, 0.000000),App.Vector(41.918158, 66.184497, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(41.918158, 66.184497, 0.000000),App.Vector(-40.948343, 66.184497, 0.000000)))
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addGeometry(geoList,False)
+del geoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 0, 2, 1, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 1, 2, 2, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 2, 2, 3, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 3, 2, 0, 1))
+constraintList.append(Sketcher.Constraint('Vertical', 0))
+constraintList.append(Sketcher.Constraint('Vertical', 2))
+constraintList.append(Sketcher.Constraint('Horizontal', 1))
+constraintList.append(Sketcher.Constraint('Horizontal', 3))
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(constraintList)
+del constraintList
+
+constraintList = []
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Sketcher_CompCreateRectangles',0)
+ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.LineSegment(App.Vector(-36.598330, 45.682087, 0.000000),App.Vector(-36.598330, -47.590422, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(-36.598330, -47.590422, 0.000000),App.Vector(38.608355, -47.590422, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(38.608355, -47.590422, 0.000000),App.Vector(38.608355, 45.682087, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(38.608355, 45.682087, 0.000000),App.Vector(-36.598330, 45.682087, 0.000000)))
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addGeometry(geoList,False)
+del geoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 0, 2, 1, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 1, 2, 2, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 2, 2, 3, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 3, 2, 0, 1))
+constraintList.append(Sketcher.Constraint('Vertical', 0))
+constraintList.append(Sketcher.Constraint('Vertical', 2))
+constraintList.append(Sketcher.Constraint('Horizontal', 1))
+constraintList.append(Sketcher.Constraint('Horizontal', 3))
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(constraintList)
+del constraintList
+
+constraintList = []
+# Gui.runCommand('Sketcher_Dimension',0)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',-1,1,0,36.598330)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge1',-36.5983,29.7385,0,False)
+App.getDocument('Joint_HousedMT').Sketch003.setExpression('Constraints[8]', u'<<Joint_MT_0a>>.Tenon_Setback_Face2 - <<Joint_MT_0a>>.Housing_Width / 2')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.')
+App.getDocument('Joint_HousedMT').recompute()
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Joint_HousedMT").save()
+### End command Std_Save
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('Body'), 'Sketch003.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Joint_HousedMT').getObject('Sketch003').setVisibility([0,1,2,3,4,5,6,7,8], True)
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').moveGeometries([(0, 1)], App.Vector(-55.7776, 59.0408, 0))
+App.getDocument('Joint_HousedMT').getObject('Sketch003').moveGeometries([(1, 2)], App.Vector(58.4374, -68.2978, 0))
+App.getDocument('Joint_HousedMT').getObject('Sketch003').moveGeometries([(2, 0)], App.Vector(10.0052, -8.18604, 0), True)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge3',241.308,170.043,1262.25,False)
+### Begin command Sketcher_ToggleConstruction
+App.getDocument('Joint_HousedMT').getObject('Sketch003').toggleConstruction(2) 
+### End command Sketcher_ToggleConstruction
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge2',241.308,163.806,1244.32,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge1',0,0,0,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge3',0,0,0,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge4',0,0,0,False)
+### Begin command Sketcher_ToggleConstruction
+App.getDocument('Joint_HousedMT').getObject('Sketch003').toggleConstruction(1) 
+App.getDocument('Joint_HousedMT').getObject('Sketch003').toggleConstruction(0) 
+App.getDocument('Joint_HousedMT').getObject('Sketch003').toggleConstruction(2) 
+App.getDocument('Joint_HousedMT').getObject('Sketch003').toggleConstruction(3) 
+### End command Sketcher_ToggleConstruction
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge3',241.308,170.043,1292.52,False)
+### Begin command Sketcher_ToggleConstruction
+App.getDocument('Joint_HousedMT').getObject('Sketch003').toggleConstruction(2) 
+### End command Sketcher_ToggleConstruction
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',241.31,101.6,1320.8,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge3',241.308,170.043,1307.47,False)
+### Begin command Sketcher_Dimension
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',-1,1,2,68.442600)) 
+### End command Sketcher_Dimension
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').Sketch003.setExpression('Constraints[8]', u'<<Joint_MT_0a>>.Housing_Width / 2')
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.H_Axis',-0.554208,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',-1,1,-1,0.000000)) 
+App.getDocument('Joint_HousedMT').getObject('Sketch003').setDriving(9,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',0,0,0,False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',-1,1,0,55.777600)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge1',-55.7776,9.01494,0,False)
+App.getDocument('Joint_HousedMT').Sketch003.setExpression('Constraints[9]', u'<<Joint_MT_0a>>.Housing_Width / 2')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',-1,1,3,50.854760)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge4',18.5466,50.8548,0,False)
+App.getDocument('Joint_HousedMT').Sketch003.setExpression('Constraints[10]', u'<<Joint_MT_0a>>.Housing_Height / 2')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',0,0,0,False)
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',1,1,1,2,152.400000)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge2',-66.0427,-76.4838,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',1,1,1,2,152.400000)) 
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',1,1,1,2,152.400000)) 
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',1,1,1,2,152.400000)) 
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',-1,1,0,76.200000)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge1',-76.2,18.1105,0,False)
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',241.31,101.6,1320.8,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Vertex2',241.314,45.8224,1244.32,False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',241.31,101.6,1320.8,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge1',241.308,45.8224,1312.01,False)
+### Begin command Sketcher_Dimension
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',-1,1,0,55.777600)) 
+### End command Sketcher_Dimension
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').Sketch003.setExpression('Constraints[9]', u'<<Joint_MT_0a>>.Housing_Width / 2')
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',-1,1,3,50.854760)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge4',0,50.8548,0,False)
+App.getDocument('Joint_HousedMT').Sketch003.setExpression('Constraints[10]', u'<<Joint_MT_0a>>.Housing_Height / 2')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',-1,1,1,76.483840)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge2',-19.6262,-76.4838,0,False)
+App.getDocument('Joint_HousedMT').Sketch003.setExpression('Constraints[11]', u'<<Joint_MT_0a>>.Housing_Height / 2')
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CompCreateRectangles',0)
+ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.LineSegment(App.Vector(-44.422544, 61.804004, 0.000000),App.Vector(-44.422544, -57.991406, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(-44.422544, -57.991406, 0.000000),App.Vector(41.450278, -57.991406, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(41.450278, -57.991406, 0.000000),App.Vector(41.450278, 61.804004, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(41.450278, 61.804004, 0.000000),App.Vector(-44.422544, 61.804004, 0.000000)))
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addGeometry(geoList,False)
+del geoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 4, 2, 5, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 5, 2, 6, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 6, 2, 7, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 7, 2, 4, 1))
+constraintList.append(Sketcher.Constraint('Vertical', 4))
+constraintList.append(Sketcher.Constraint('Vertical', 6))
+constraintList.append(Sketcher.Constraint('Horizontal', 5))
+constraintList.append(Sketcher.Constraint('Horizontal', 7))
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(constraintList)
+del constraintList
+
+constraintList = []
+# Gui.runCommand('Sketcher_Dimension',0)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',4,1,4,2,119.795410)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge5',-44.4225,36.992,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',4,2,4,1,119.795410)) 
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',0,1,4,31.777456)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge1',-76.2,37.7674,0,False)
+App.getDocument('Joint_HousedMT').Sketch003.setExpression('Constraints[20]', u'<<Joint_MT_0a>>.Tenon_Setback_Face2')
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',5,1,5,2,66.850278)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge6',8.02514,-57.9914,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',5,1,5,2,66.850278)) 
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge6',241.308,115.524,1262.81,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge2',241.308,116.881,1219.2,False)
+### Begin command Sketcher_Dimension
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',1,1,5,43.608594)) 
+### End command Sketcher_Dimension
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').Sketch003.setExpression('Constraints[21]', u'<<Joint_MT_0a>>.Tenon_Setback_Face1')
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',6,1,6,2,138.004004)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge7',41.4503,36.0228,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',6,1,6,2,138.004004)) 
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',7,1,7,2,66.850278)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge8',8.02514,61.804,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',7,2,7,1,66.850278)) 
+App.getDocument('Joint_HousedMT').Sketch003.setExpression('Constraints[22]', u'<<Joint_MT_0a>>.Tenon_Width')
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',6,1,6,2,138.004004)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.Edge7',127,41.8382,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',6,1,6,2,138.004004)) 
+App.getDocument('Joint_HousedMT').Sketch003.setExpression('Constraints[23]', u'<<Joint_MT_0a>>.Tenon_Thickness')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch003')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.')
+App.getDocument('Joint_HousedMT').recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','VarSet002')
+FreeCAD.getDocument('Joint_HousedMT').getObject('VarSet002').Tenon_Width = '50.8 mm'
+
+FreeCAD.getDocument('Joint_HousedMT').getObject('VarSet002').Tenon_Thickness = '152.4 mm'
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch003.')
+### Begin command PartDesign_Pocket
+App.getDocument('Joint_HousedMT').getObject('Body').newObject('PartDesign::Pocket','Pocket001')
+App.getDocument('Joint_HousedMT').getObject('Pocket001').Profile = (App.getDocument('Joint_HousedMT').getObject('Sketch003'), ['',])
+App.getDocument('Joint_HousedMT').getObject('Pocket001').Length = 5
+App.ActiveDocument.recompute()
+App.getDocument('Joint_HousedMT').getObject('Pocket001').ReferenceAxis = (App.getDocument('Joint_HousedMT').getObject('Sketch003'),['N_Axis'])
+App.getDocument('Joint_HousedMT').getObject('Sketch003').Visibility = False
+App.ActiveDocument.recompute()
+# App.getDocument('Joint_HousedMT').getObject('Pocket001').ViewObject.ShapeAppearance=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Joint_HousedMT').getObject('Pocket001').ViewObject.ShapeAppearance)
+# App.getDocument('Joint_HousedMT').getObject('Pocket001').ViewObject.LineColor=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Joint_HousedMT').getObject('Pocket001').ViewObject.LineColor)
+# App.getDocument('Joint_HousedMT').getObject('Pocket001').ViewObject.PointColor=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Joint_HousedMT').getObject('Pocket001').ViewObject.PointColor)
+# App.getDocument('Joint_HousedMT').getObject('Pocket001').ViewObject.Transparency=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Joint_HousedMT').getObject('Pocket001').ViewObject.Transparency)
+# App.getDocument('Joint_HousedMT').getObject('Pocket001').ViewObject.DisplayMode=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Joint_HousedMT').getObject('Pocket001').ViewObject.DisplayMode)
+# Gui.getDocument('Joint_HousedMT').setEdit(App.getDocument('Joint_HousedMT').getObject('Body'), 0, 'Pocket001.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Pocket
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').Pocket001.setExpression('Length', u'<<Joint_MT_0a>>.Tenon_Length + <<Joint_MT_0a>>.Mortise_Relief')
+App.getDocument('Joint_HousedMT').getObject('Pocket001').TaperAngle = 0.000000
+App.getDocument('Joint_HousedMT').getObject('Pocket001').UseCustomVector = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket001').Direction = (-1, 0, 0)
+App.getDocument('Joint_HousedMT').getObject('Pocket001').ReferenceAxis = (App.getDocument('Joint_HousedMT').getObject('Sketch003'), ['N_Axis'])
+App.getDocument('Joint_HousedMT').getObject('Pocket001').AlongSketchNormal = 1
+App.getDocument('Joint_HousedMT').getObject('Pocket001').SideType = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket001').Type = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket001').Type2 = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket001').UpToFace = None
+App.getDocument('Joint_HousedMT').getObject('Pocket001').UpToFace2 = None
+App.getDocument('Joint_HousedMT').getObject('Pocket001').Reversed = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket001').Offset = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket001').Offset2 = 0
+App.getDocument('Joint_HousedMT').purgeTouched()
+App.getDocument('Joint_HousedMT').recompute()
+App.getDocument('Joint_HousedMT').getObject('Pocket').Visibility = False
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.getDocument('Joint_HousedMT').getObject('Sketch003').Visibility = False
+# Gui.Selection.addSelection('Joint_HousedMT','Body','LCS.XZ_Plane002.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','LCS.YZ_Plane002.')
+### Begin command PartDesign_CompSketches
+App.getDocument('Joint_HousedMT').getObject('Body').newObject('Sketcher::SketchObject','Sketch004')
+App.getDocument('Joint_HousedMT').getObject('Sketch004').AttachmentSupport = (App.getDocument('Joint_HousedMT').getObject('LCS'),['YZ_Plane002.',])
+App.getDocument('Joint_HousedMT').getObject('Sketch004').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Joint_HousedMT').setEdit(App.getDocument('Joint_HousedMT').getObject('Body'), 0, 'Sketch004.')
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('Body'), 'Sketch004.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+### End command PartDesign_CompSketches
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_DrawStyle',0)
+# Gui.runCommand('Std_DrawStyle',2)
+# Gui.runCommand('Sketcher_CompCreateConic',0)
+ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.Circle(App.Vector(-20.073926, -42.378720, 0.000000), App.Vector(0.000000, 0.000000, 1.000000), 14.597931))
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addGeometry(geoList,False)
+del geoList
+
+constraintList = []
+constraintList = []
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch004.RootPoint',241.3,101.61,1320.8,False)
+# Gui.runCommand('Sketcher_Dimension',0)
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('Distance',0,3,-1,1,46.892626)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch004.Vertex1',-20.0739,-42.3787,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('DistanceY',0,3,-1,1,42.378720)) 
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch004.Edge1',185.038,101.608,1305.24,False)
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').delGeometries([0])
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch004.V_Axis',192.45,101.602,1320.8,False)
+# Gui.runCommand('Sketcher_CompCreateConic',0)
+# Gui.Selection.clearSelection()
+ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.Circle(App.Vector(0.000000, -56.615186, 0.000000), App.Vector(0.000000, 0.000000, 1.000000), 18.728227))
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addGeometry(geoList,False)
+del geoList
+
+constraintList = []
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('PointOnObject', 0, 3, -2))
+
+
+# Gui.Selection.addSelection(App.getDocument('Joint_HousedMT').getObject('Sketch004'),['Sketch004.Constraint1'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Joint_HousedMT').getObject('Sketch004'),['Sketch004.Constraint1'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch004.Edge1',184.685,101.608,1339.53,False)
+### Begin command Sketcher_Dimension
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('Diameter',0,37.456454)) 
+### End command Sketcher_Dimension
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').Sketch004.setExpression('Constraints[1]', u'<<Joint_MT_0a>>.Peg_Diameter')
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch004.V_Axis',0,-2.25786,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('Distance',-1,1,-2,0.000000)) 
+App.getDocument('Joint_HousedMT').getObject('Sketch004').setDriving(2,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch004.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('Symmetric',-1,1,0,3,-2)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch004.Vertex1',0,-56.6152,0,False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch004.RootPoint',0,0,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('Distance',-1,1,0,3,56.615186)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch004.Vertex1',0,-56.6152,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('DistanceY',0,3,-1,1,56.615186)) 
+App.getDocument('Joint_HousedMT').Sketch004.setExpression('Constraints[2]', u'<<Joint_MT_0a>>.Peg_Setback')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch004.')
+App.getDocument('Joint_HousedMT').recompute()
+### Begin command PartDesign_Hole
+App.getDocument('Joint_HousedMT').getObject('Body').newObject('PartDesign::Hole','Hole')
+App.getDocument('Joint_HousedMT').getObject('Hole').Profile = (App.getDocument('Joint_HousedMT').getObject('Sketch004'), ['',])
+App.getDocument('Joint_HousedMT').getObject('Sketch004').Visibility = False
+App.ActiveDocument.recompute()
+# App.getDocument('Joint_HousedMT').getObject('Hole').ViewObject.ShapeAppearance=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket001').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Joint_HousedMT').getObject('Hole').ViewObject.ShapeAppearance)
+# App.getDocument('Joint_HousedMT').getObject('Hole').ViewObject.LineColor=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket001').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Joint_HousedMT').getObject('Hole').ViewObject.LineColor)
+# App.getDocument('Joint_HousedMT').getObject('Hole').ViewObject.PointColor=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket001').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Joint_HousedMT').getObject('Hole').ViewObject.PointColor)
+# App.getDocument('Joint_HousedMT').getObject('Hole').ViewObject.Transparency=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket001').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Joint_HousedMT').getObject('Hole').ViewObject.Transparency)
+# App.getDocument('Joint_HousedMT').getObject('Hole').ViewObject.DisplayMode=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket001').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Joint_HousedMT').getObject('Hole').ViewObject.DisplayMode)
+# Gui.getDocument('Joint_HousedMT').setEdit(App.getDocument('Joint_HousedMT').getObject('Body'), 0, 'Hole.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Hole
+# Gui.Selection.clearSelection()
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Joint_HousedMT").save()
+### End command Std_Save
+# Gui.runCommand('Std_DrawStyle',2)
+# Gui.runCommand('Std_DrawStyle',0)
+App.getDocument('Joint_HousedMT').Hole.setExpression('Diameter', u'<<Joint_MT_0a>>.Peg_Diameter')
+App.getDocument('Joint_HousedMT').getObject('Hole').TaperedAngle = 90.000000
+App.getDocument('Joint_HousedMT').getObject('Hole').Threaded = 0
+App.getDocument('Joint_HousedMT').getObject('Hole').ThreadType = 0
+App.getDocument('Joint_HousedMT').getObject('Hole').HoleCutType = 0
+App.getDocument('Joint_HousedMT').getObject('Hole').HoleCutCustomValues = 0
+App.getDocument('Joint_HousedMT').getObject('Hole').DepthType = 1
+App.getDocument('Joint_HousedMT').getObject('Hole').Tapered = 0
+App.getDocument('Joint_HousedMT').getObject('Hole').BaseProfileType = 7
+App.getDocument('Joint_HousedMT').purgeTouched()
+App.getDocument('Joint_HousedMT').recompute()
+App.getDocument('Joint_HousedMT').getObject('Pocket001').Visibility = False
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').Visibility = False
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Joint_HousedMT").save()
+### End command Std_Save
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Hole.')
+# Gui.ActiveDocument.setEdit(App.getDocument('Joint_HousedMT').getObject('Hole'), 0)
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').Hole.setExpression('Diameter', u'<<Joint_MT_0a>>.Peg_Diameter')
+App.getDocument('Joint_HousedMT').getObject('Hole').ModelThread = 0
+App.getDocument('Joint_HousedMT').getObject('Hole').ThreadType = 0
+App.getDocument('Joint_HousedMT').getObject('Hole').HoleCutType = 0
+App.getDocument('Joint_HousedMT').getObject('Hole').HoleCutCustomValues = 0
+App.getDocument('Joint_HousedMT').getObject('Hole').DepthType = 1
+App.getDocument('Joint_HousedMT').getObject('Hole').Tapered = 0
+App.getDocument('Joint_HousedMT').getObject('Hole').BaseProfileType = 7
+App.getDocument('Joint_HousedMT').purgeTouched()
+App.getDocument('Joint_HousedMT').recompute()
+App.getDocument('Joint_HousedMT').getObject('Pocket001').Visibility = False
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').Visibility = False
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Hole.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Hole.Sketch004.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Hole.')
+### Begin command Std_Delete
+App.getDocument('Joint_HousedMT').getObject('Body').removeObject(App.getDocument('Joint_HousedMT').getObject('Hole'))
+App.getDocument('Joint_HousedMT').removeObject('Hole')
+App.getDocument('Joint_HousedMT').recompute()
+### End command Std_Delete
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Sketch004.')
+### Begin command PartDesign_Pocket
+App.getDocument('Joint_HousedMT').getObject('Body').newObject('PartDesign::Pocket','Pocket002')
+App.getDocument('Joint_HousedMT').getObject('Pocket002').Profile = (App.getDocument('Joint_HousedMT').getObject('Sketch004'), ['',])
+App.getDocument('Joint_HousedMT').getObject('Pocket002').Length = 5
+App.ActiveDocument.recompute()
+App.getDocument('Joint_HousedMT').getObject('Pocket002').ReferenceAxis = (App.getDocument('Joint_HousedMT').getObject('Sketch004'),['N_Axis'])
+App.getDocument('Joint_HousedMT').getObject('Sketch004').Visibility = False
+App.ActiveDocument.recompute()
+# App.getDocument('Joint_HousedMT').getObject('Pocket002').ViewObject.ShapeAppearance=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket001').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Joint_HousedMT').getObject('Pocket002').ViewObject.ShapeAppearance)
+# App.getDocument('Joint_HousedMT').getObject('Pocket002').ViewObject.LineColor=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket001').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Joint_HousedMT').getObject('Pocket002').ViewObject.LineColor)
+# App.getDocument('Joint_HousedMT').getObject('Pocket002').ViewObject.PointColor=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket001').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Joint_HousedMT').getObject('Pocket002').ViewObject.PointColor)
+# App.getDocument('Joint_HousedMT').getObject('Pocket002').ViewObject.Transparency=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket001').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Joint_HousedMT').getObject('Pocket002').ViewObject.Transparency)
+# App.getDocument('Joint_HousedMT').getObject('Pocket002').ViewObject.DisplayMode=getattr(App.getDocument('Joint_HousedMT').getObject('Pocket001').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Joint_HousedMT').getObject('Pocket002').ViewObject.DisplayMode)
+# Gui.getDocument('Joint_HousedMT').setEdit(App.getDocument('Joint_HousedMT').getObject('Body'), 0, 'Pocket002.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Pocket
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Pocket002').TaperAngle = 0.000000
+App.getDocument('Joint_HousedMT').getObject('Pocket002').UseCustomVector = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket002').Direction = (0, -1, 0)
+App.getDocument('Joint_HousedMT').getObject('Pocket002').ReferenceAxis = (App.getDocument('Joint_HousedMT').getObject('Sketch004'), ['N_Axis'])
+App.getDocument('Joint_HousedMT').getObject('Pocket002').AlongSketchNormal = 1
+App.getDocument('Joint_HousedMT').getObject('Pocket002').SideType = 2
+App.getDocument('Joint_HousedMT').getObject('Pocket002').Type = 1
+App.getDocument('Joint_HousedMT').getObject('Pocket002').Type2 = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket002').UpToFace = None
+App.getDocument('Joint_HousedMT').getObject('Pocket002').UpToFace2 = None
+App.getDocument('Joint_HousedMT').getObject('Pocket002').Reversed = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket002').Offset = 0
+App.getDocument('Joint_HousedMT').getObject('Pocket002').Offset2 = 0
+App.getDocument('Joint_HousedMT').purgeTouched()
+App.getDocument('Joint_HousedMT').recompute()
+App.getDocument('Joint_HousedMT').getObject('Pocket001').Visibility = False
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').Visibility = False
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.')
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('Body'), 'Pocket002.Sketch004.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Joint_HousedMT').getObject('Sketch004').setVisibility([0,1,2], True)
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.addSelection(App.getDocument('Joint_HousedMT').getObject('Sketch004'),['Constraint1'])
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').delConstraint(0)
+# Gui.runCommand('Sketcher_CompCreateRectangles',0)
+ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.LineSegment(App.Vector(-36.520337, -11.365765, 0.000000),App.Vector(-36.520337, -91.407224, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(-36.520337, -91.407224, 0.000000),App.Vector(36.374561, -91.407224, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(36.374561, -91.407224, 0.000000),App.Vector(36.374561, -11.365765, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(36.374561, -11.365765, 0.000000),App.Vector(-36.520337, -11.365765, 0.000000)))
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addGeometry(geoList,False)
+del geoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 1, 2, 2, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 2, 2, 3, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 3, 2, 4, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 4, 2, 1, 1))
+constraintList.append(Sketcher.Constraint('Vertical', 1))
+constraintList.append(Sketcher.Constraint('Vertical', 3))
+constraintList.append(Sketcher.Constraint('Horizontal', 2))
+constraintList.append(Sketcher.Constraint('Horizontal', 4))
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(constraintList)
+del constraintList
+
+constraintList = []
+# Gui.runCommand('Sketcher_ToggleConstruction',0)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Edge5',229.934,101.608,1289.48,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Edge2',0,0,0,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Edge3',0,0,0,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Edge4',0,0,0,False)
+### Begin command Sketcher_ToggleConstruction
+App.getDocument('Joint_HousedMT').getObject('Sketch004').toggleConstruction(4) 
+App.getDocument('Joint_HousedMT').getObject('Sketch004').toggleConstruction(1) 
+App.getDocument('Joint_HousedMT').getObject('Sketch004').toggleConstruction(2) 
+App.getDocument('Joint_HousedMT').getObject('Sketch004').toggleConstruction(3) 
+### End command Sketcher_ToggleConstruction
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Sketcher_CompCreateRectangles',0)
+ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+constrGeoList = []
+constrGeoList.append(Part.LineSegment(App.Vector(-41.847852, 0.000000, 0.000000),App.Vector(-41.847852, -97.124463, 0.000000)))
+constrGeoList.append(Part.LineSegment(App.Vector(-41.847852, -97.124463, 0.000000),App.Vector(38.713428, -97.124463, 0.000000)))
+constrGeoList.append(Part.LineSegment(App.Vector(38.713428, -97.124463, 0.000000),App.Vector(38.713428, 0.000000, 0.000000)))
+constrGeoList.append(Part.LineSegment(App.Vector(38.713428, 0.000000, 0.000000),App.Vector(-41.847852, 0.000000, 0.000000)))
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addGeometry(constrGeoList,True)
+del constrGeoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 1, 2, 2, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 2, 2, 3, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 3, 2, 4, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 4, 2, 1, 1))
+constraintList.append(Sketcher.Constraint('Vertical', 1))
+constraintList.append(Sketcher.Constraint('Vertical', 3))
+constraintList.append(Sketcher.Constraint('Horizontal', 2))
+constraintList.append(Sketcher.Constraint('Horizontal', 4))
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(constraintList)
+del constraintList
+
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('PointOnObject', 1, 1, -1))
+
+
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.')
+App.getDocument('Joint_HousedMT').recompute()
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('Body'), 'Pocket002.Sketch004.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Joint_HousedMT').getObject('Sketch004').setVisibility([0,1,2,3,4,5,6,7,8,9,10], True)
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.')
+App.getDocument('Joint_HousedMT').recompute()
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('Body'), 'Pocket002.Sketch004.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Joint_HousedMT').getObject('Sketch004').setVisibility([0,1,2,3,4,5,6,7,8,9,10], True)
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Edge3',144.176,101.608,1338.93,False)
+# Gui.Selection.removeSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Edge3')
+# Gui.runCommand('Sketcher_Dimension',0)
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('Distance',2,1,2,2,80.561280)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Edge3',7.08013,-97.1245,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('DistanceX',2,1,2,2,80.561280)) 
+App.getDocument('Joint_HousedMT').Sketch004.setExpression('Constraints[11]', u'<<Joint_MT_0a>>.Tenon_Height')
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('Distance',1,1,1,2,97.124463)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Edge2',-87.9479,-72.3861,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('DistanceY',1,2,1,1,97.124463)) 
+App.getDocument('Joint_HousedMT').Sketch004.setExpression('Constraints[12]', u'<<Joint_MT_0a>>.Tenon_Length')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.')
+App.getDocument('Joint_HousedMT').recompute()
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Joint_HousedMT').getObject('Body'), 'Pocket002.Sketch004.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Joint_HousedMT').getObject('Sketch004').setVisibility([0,1,2,3,4,5,6,7,8,9,10,11,12], True)
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Vertex2',241.3,101.614,1232.85,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.RootPoint',241.3,101.61,1320.8,False)
+### Begin command Sketcher_Dimension
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('Distance',1,1,-1,1,87.947885)) 
+### End command Sketcher_Dimension
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('DistanceX',1,1,-1,1,87.947885)) 
+App.getDocument('Joint_HousedMT').Sketch004.setExpression('Constraints[13]', u'<<Joint_MT_0a>>.Tenon_Height / 2')
+# Gui.runCommand('Sketcher_CreateLine',0)
+ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+constrGeoList = []
+constrGeoList.append(Part.LineSegment(App.Vector(0.000000, 0.000000, 0.000000),App.Vector(0.000000, -79.468365, 0.000000)))
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addGeometry(constrGeoList,True)
+del constrGeoList
+
+constraintList = []
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 5, 1, -1, 1))
+constraintList.append(Sketcher.Constraint('PointOnObject', 5, 2, -2))
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(constraintList)
+del constraintList
+
+# Gui.runCommand('Sketcher_Dimension',0)
+# Gui.runCommand('Sketcher_Dimension',0)
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('Distance',5,1,5,2,79.468365)) 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Edge6',0,-28.8751,0,False)
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('DistanceY',5,2,5,1,79.468365)) 
+App.getDocument('Joint_HousedMT').Sketch004.setExpression('Constraints[16]', u'<<Joint_MT_0a>>.Peg_Setback')
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').moveGeometries([(0, 0)], App.Vector(20.184, -75.0099, 0))
+App.getDocument('Joint_HousedMT').getObject('Sketch004').moveGeometries([(0, 0)], App.Vector(19.7963, -53.6871, 0))
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Constraint2',216.883,101.604,1367.35,False)
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').delConstraint(1)
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Edge6',201.57,101.608,1320.8,False)
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').delGeometries([5])
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Constraint13',195.173,101.604,1216.54,False)
+# Gui.Selection.removeSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Constraint13')
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Edge3',139.7,101.608,1298.14,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Constraint12',110.269,101.614,1326.64,False)
+# Gui.Selection.removeSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Constraint12')
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').moveGeometries([(0, 0)], App.Vector(7.00261, -50.1979, 0))
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Vertex1',190.5,101.614,1340.49,False)
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Vertex7',241.3,101.614,1397,False)
+### Begin command Sketcher_Dimension
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('Distance',0,3,3,2,75.987286)) 
+### End command Sketcher_Dimension
+# Gui.Selection.clearSelection()
+App.getDocument('Joint_HousedMT').getObject('Sketch004').addConstraint(Sketcher.Constraint('DistanceX',0,3,3,2,56.510421)) 
+App.getDocument('Joint_HousedMT').Sketch004.setExpression('Constraints[14]', u'<<Joint_MT_0a>>.Tenon_Height / 2')
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.Edge3',139.7,101.608,1369.87,False)
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Joint_HousedMT').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Joint_HousedMT').getObject('Sketch004')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Joint_HousedMT','Body','Pocket002.Sketch004.')
+App.getDocument('Joint_HousedMT').recompute()
+# Macro End: C:\Users\Adam\Documents\Projects\BentWizard\devBuildMacros\Phase1PartCSession.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++

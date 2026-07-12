@@ -244,6 +244,19 @@ flip — both computed by the tool at apply time.
    and re-verify defaults).
 4. Final lint + run the test suite. Then commit the template.
 
-When this file is in `library/` and green, I'll add it as a third test
-fixture (template-must-stay-clean regression) and we move to the
-"New Timber from template" command.
+Shakedown expectations (from the live run):
+- `Joint_Station` moves the cuts only. The beam's pose is Body
+  Placement — an assembly-phase binding (shoulder datum to bearing
+  frame), not template geometry. Keep the as-assembled pose in the
+  saved template (finding #7a).
+- Parameter combinations that describe an impossible joint (setback +
+  tenon extent past the housing opening) flip unsigned sketch
+  dimensions to the wrong solver branch, where they stick even after
+  the values are restored — recover by deleting and re-creating the
+  affected dimension. No constraint chain survives impossible values;
+  the guards are the linter's `joint-exceeds-footprint` strict rule on
+  saved files and the apply-dialog's parameter bounds (roadmap).
+
+Built: `library/Joint_HousedMT.FCStd`, mirrored as a test fixture —
+the template must stay completely clean (strict and advisory) for the
+suite to pass. Next: the "New Timber from template" command.

@@ -2,7 +2,7 @@
 
 Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive joinery, all geometry native. A prior attempt (old GitHub repo) failed by generating custom-coded geometry; it is reference-only — this repo starts from scratch on the lessons learned.
 
-**Status:** Phase 0 (manual workflow definition) complete. Phase 1 (joint library + Apply-Joint tool) is next.
+**Status:** Phase 0 complete. Phase 1 in progress: linter done; first joint template (`library/Joint_HousedMT.FCStd`, housed M&T on a landing-frame LCS) built and lint-clean. Next: "New Timber from template" command, then Apply-Joint.
 
 ## Read first
 

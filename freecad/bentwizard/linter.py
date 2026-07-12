@@ -500,6 +500,32 @@ def rule_severing_limits(model):
     return findings
 
 
+def rule_joint_fits_footprint(model):
+    """Roadmap parameter sanity: the joint must fit inside its landing
+    footprint. A setback + extent past the housing opening describes an
+    impossible joint (tenon taller/wider than the beam); sketch
+    dimensions invert and stick when parameters cross that line (live
+    Part E finding). Name-keyed on the template property conventions.
+    """
+    findings = []
+    pairs = (("Tenon_Setback_Face1", "Tenon_Height", "Housing_Height"),
+             ("Tenon_Setback_Face2", "Tenon_Width", "Housing_Width"))
+    for vs in model.joint_varsets():
+        for setback_n, extent_n, opening_n in pairs:
+            props = [vs.prop(n) for n in (setback_n, extent_n, opening_n)]
+            if any(p is None or not isinstance(p.value, float) for p in props):
+                continue
+            setback, extent, opening = (p.value for p in props)
+            if setback + extent > opening + 1e-6:
+                findings.append(Finding(
+                    "joint-exceeds-footprint", STRICT, vs.name, vs.label,
+                    f"{setback_n} + {extent_n} = {setback + extent:.1f} mm "
+                    f"exceeds {opening_n} = {opening:.1f} mm — the joint "
+                    f"does not fit its landing footprint and sketch "
+                    f"dimensions will invert"))
+    return findings
+
+
 # --------------------------------------------------------------------------
 # Advisory rules
 # --------------------------------------------------------------------------
@@ -721,6 +747,7 @@ STRICT_RULES = [
     rule_solid_face_references,
     rule_island_interior,
     rule_severing_limits,
+    rule_joint_fits_footprint,
 ]
 
 ADVISORY_RULES = [
