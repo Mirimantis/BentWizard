@@ -98,60 +98,90 @@ bindings are the sanctioned junction pattern; the linter exempts them).
 
 ## Part C — mortise side, on `P0-1` (§4.6 + §4.7)
 
-1. **Datum plane** labeled `P0-1_BearingPlane_MT_0a`: attach FlatFace to
-   the post's `YZ_Plane` (from the tree), attachment offset in Z
-   `= <<TimberDims_P0-1>>.Width - <<Joint_MT_0a>>.Housing_Depth`.
-   Leave every other offset component zero.
-2. **Housing.** Sketch `P0-1_HousingSketch_MT_0a` on that datum:
-   rectangle —
-   - vertical position of the bottom edge `= <<Joint_MT_0a>>.Joint_Station`
-   - vertical extent `= <<Joint_MT_0a>>.Housing_Height`
-   - horizontal extent `= <<Joint_MT_0a>>.Housing_Width`
-   - horizontal position: centered on the post — constrain the rectangle's
-     left edge `= (<<TimberDims_P0-1>>.Depth - <<Joint_MT_0a>>.Housing_Width) / 2`
-     from the sketch origin (own Dims + joint VarSet only — legal).
-   **Pocket** `P0-1_Housing_MT_0a`, direction outward (toward the removed
-   face), Length `= <<Joint_MT_0a>>.Housing_Depth`. Toggle Reversed if it
-   grows into the stick — verify with a side orthographic view, not
-   wireframe (§5).
-3. **Mortise.** Sketch `P0-1_MortiseSketch_MT_0a` on the same datum:
-   rectangle —
-   - horizontal position from the housing's left edge
-     `+ <<Joint_MT_0a>>.Tenon_Setback_Face2`, extent `= <<Joint_MT_0a>>.Tenon_Thickness`
-   - vertical position `= <<Joint_MT_0a>>.Joint_Station + <<Joint_MT_0a>>.Tenon_Setback_Face1`,
-     extent `= <<Joint_MT_0a>>.Tenon_Width`
+Structure (decided when Part C began): everything on a role hangs off
+**one landing frame** — a `Part::LocalCoordinateSystem` datum. The frame
+carries all placement decisions (which face, station, depth, centering)
+as attachment-offset expressions; the sketches are **frame-local** and
+reference only the joint VarSet. Applying the joint to a different
+face/station/hand means re-placing one object. This supersedes the
+Phase 0 zero-offset datum guidance for template builds (finding #10's
+concern was body-frame confusion; frame-local sketches don't claim to
+be in body coordinates, and file inspection verifies resolved
+placements at each checkpoint).
+
+1. **Landing frame** `P0-1_JointFrame_MT_0a` (datum coordinate system):
+   attach FlatFace to the post's `YZ_Plane` (from the tree), then set
+   attachment offset expressions:
+   - `Base.x = <<TimberDims_P0-1>>.Depth / 2` — center of the post face
+   - `Base.y = <<Joint_MT_0a>>.Joint_Station + <<Joint_MT_0a>>.Housing_Height / 2` — center of the landing footprint
+   - `Base.z = <<TimberDims_P0-1>>.Width - <<Joint_MT_0a>>.Housing_Depth` — the bearing plane
+   The frame origin now sits at the center of the beam's landing
+   footprint, at bearing depth. Expected axes (verify in the 3D view):
+   frame X across the post face, frame Y up the post, frame Z out of
+   the wood. The frame's XY plane IS the bearing plane — no separate
+   bearing datum.
+2. **Housing.** Sketch `P0-1_HousingSketch_MT_0a` on the frame's
+   **XY plane** (select the frame's plane in the tree; if the sketch
+   lands at the body origin instead of out at bearing depth, the
+   attachment grabbed the wrong reference — reattach): rectangle
+   centered on the sketch origin, using the sketch axes as centerlines —
+   - each vertical edge `= <<Joint_MT_0a>>.Housing_Width / 2` from origin
+   - each horizontal edge `= <<Joint_MT_0a>>.Housing_Height / 2` from origin
+   **Pocket** `P0-1_Housing_MT_0a`, direction outward (toward the
+   removed face), Length `= <<Joint_MT_0a>>.Housing_Depth`. Toggle
+   Reversed if it grows into the stick — verify with a side orthographic
+   view, not wireframe (§5).
+3. **Mortise.** Sketch `P0-1_MortiseSketch_MT_0a` on the frame's XY
+   plane: rectangle in frame-local coordinates (setbacks measure from
+   the landing footprint's edges) —
+   - left edge X `= <<Joint_MT_0a>>.Tenon_Setback_Face2 - <<Joint_MT_0a>>.Housing_Width / 2`, extent `= <<Joint_MT_0a>>.Tenon_Thickness`
+   - bottom edge Y `= <<Joint_MT_0a>>.Tenon_Setback_Face1 - <<Joint_MT_0a>>.Housing_Height / 2`, extent `= <<Joint_MT_0a>>.Tenon_Width`
    **Pocket** `P0-1_Mortise_MT_0a`, direction inward,
    Length `= <<Joint_MT_0a>>.Tenon_Length + <<Joint_MT_0a>>.Mortise_Relief`.
-4. **Peg bore.** Sketch `P0-1_PegBoreSketch_MT_0a` on the post's
-   `XZ_Plane` (tree-selected, zero offset — datum strategy): one circle —
-   - center along the post `= <<Joint_MT_0a>>.Joint_Station + <<Joint_MT_0a>>.Tenon_Setback_Face1 + <<Joint_MT_0a>>.Tenon_Width / 2`
-   - center across the post `= <<TimberDims_P0-1>>.Width - <<Joint_MT_0a>>.Housing_Depth - <<Joint_MT_0a>>.Peg_Setback`
+4. **Peg bore.** Sketch `P0-1_PegBoreSketch_MT_0a` on the frame's
+   **YZ plane** (the plane containing "up the post" and "into the
+   wood"): one circle —
+   - center, along the post `= <<Joint_MT_0a>>.Tenon_Setback_Face1 + <<Joint_MT_0a>>.Tenon_Width / 2 - <<Joint_MT_0a>>.Housing_Height / 2` (mortise center height)
+   - center, depth `= -<<Joint_MT_0a>>.Peg_Setback` (into the wood from
+     the bearing plane; flip the sign if the circle lands outside the
+     stick — verify in view)
    - diameter `= <<Joint_MT_0a>>.Peg_Diameter`
    **Hole** `P0-1_PegBore_MT_0a`: Through all, diameter
-   `= <<Joint_MT_0a>>.Peg_Diameter`.
+   `= <<Joint_MT_0a>>.Peg_Diameter`. The bore runs across the post face,
+   through the mortise.
 
 **Checkpoint C:** lint — expect zero strict; `caution-threshold` on the
-mortise (`Tenon_Width` = 75% of an 8×8) is expected and acceptable.
+mortise (`Tenon_Width` = 75% of an 8-in extent) is expected and
+acceptable. I verify resolved frame/sketch placements from the file.
 
 ---
 
 ## Part D — tenon side, on `B0-1` (§4.4 + §4.7)
 
-1. **Tenon (island pocket).** Sketch `B0-1_TenonSketch_MT_0a` on the
-   beam's `XY_Plane` (end A): two loops —
+Same architecture: one landing frame per role. The beam's frame sits at
+end A with zero offsets (frame axes = body axes there), so retargeting
+the tenon to end B is one frame re-placement plus the drawbore sign
+flip — both computed by the tool at apply time.
+
+1. **Landing frame** `B0-1_JointFrame_MT_0a` (datum coordinate system):
+   attach FlatFace to the beam's `XY_Plane` (end A), all offsets zero.
+2. **Tenon (island pocket).** Sketch `B0-1_TenonSketch_MT_0a` on the
+   frame's XY plane: two loops —
    - outer rectangle = the full section, corner at origin,
      `= <<TimberDims_B0-1>>.Width` × `= <<TimberDims_B0-1>>.Depth`
+     (the one body-dimension exception: the outer loop is the timber's
+     own section, which is the same at either end)
    - inner rectangle: from `= <<Joint_MT_0a>>.Tenon_Setback_Face2` (X) and
      `= <<Joint_MT_0a>>.Tenon_Setback_Face1` (Y), extents
      `= <<Joint_MT_0a>>.Tenon_Thickness` × `= <<Joint_MT_0a>>.Tenon_Width`.
    Both setbacks are > 0, so the island stays strictly interior
    (finding #14) — the linter checks this.
    **Pocket** `B0-1_Tenon_MT_0a`, Length `= <<Joint_MT_0a>>.Tenon_Length`.
-2. **Shoulder datum** `B0-1_ShoulderA_MT_0a`: FlatFace on the beam's
-   `XY_Plane`, offset Z `= <<Joint_MT_0a>>.Tenon_Length`. (Assembly
+3. **Shoulder datum** `B0-1_ShoulderA_MT_0a`: FlatFace on the frame's
+   XY plane, offset `Base.z = <<Joint_MT_0a>>.Tenon_Length`. (Assembly
    references land here, §4.8.)
-3. **Drawbore peg bore.** Sketch `B0-1_PegBoreSketch_MT_0a` on the beam's
-   `YZ_Plane` (zero offset): **one circle** (one sketch per instance —
+4. **Drawbore peg bore.** Sketch `B0-1_PegBoreSketch_MT_0a` on the
+   frame's **YZ plane**: **one circle** (one sketch per instance —
    debt 2) —
    - center along the beam `= <<Joint_MT_0a>>.Tenon_Length - <<Joint_MT_0a>>.Peg_Setback + <<Joint_MT_0a>>.Peg_Drawbore_Offset`
    - center across `= <<Joint_MT_0a>>.Tenon_Setback_Face1 + <<Joint_MT_0a>>.Tenon_Width / 2`
