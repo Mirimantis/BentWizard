@@ -61,10 +61,21 @@ class NewTimberTest(unittest.TestCase):
                                12 * 8 * 192, places=6)
 
     def test_rejects_bad_input(self):
-        self.assertRejected("post two", "8 in", "8 in", "8 ft")
+        self.assertRejected("", "8 in", "8 in", "8 ft")
+        self.assertRejected("a<b", "8 in", "8 in", "8 ft")
         self.assertRejected("P2-1", "0 in", "8 in", "8 ft")
         self.new("P2-1", "8 in", "8 in", "8 ft")
         self.assertRejected("P2-1", "8 in", "8 in", "8 ft")   # duplicate
+
+    def test_custom_label_binds_expressions(self):
+        # Non-MemberID labels are allowed (advisory lint nudges later);
+        # expressions must survive a label with spaces.
+        body, dims = self.new("Ridge Post (custom)", "8 in", "8 in", "8 ft")
+        self.assertEqual(dims.Label, "TimberDims_Ridge Post (custom)")
+        dims.Width = "10 in"
+        self.doc.recompute()
+        self.assertAlmostEqual(body.Shape.Volume / 25.4 ** 3,
+                               10 * 8 * 96, places=6)
 
     def test_output_lints_clean(self):
         from freecad.bentwizard.linter import lint

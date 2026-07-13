@@ -11,26 +11,24 @@ from PySide import QtWidgets
 
 from .timber import TimberError, new_timber
 
-_MM = App.Units.Quantity("1 mm").Unit
-
-
-def _parse_length(text, field):
-    """A user-entered length in any schema ('8 in', '20 cm', 8')."""
-    try:
-        q = App.Units.Quantity(text.strip())
-    except (ValueError, OSError):
-        raise TimberError(f"{field}: cannot parse {text.strip()!r}")
-    if q.Unit != _MM:
-        raise TimberError(
-            f"{field}: {text.strip()!r} needs a length unit (e.g. 8 in, 200 mm)")
-    return q
+def _quantity_field(default_mm):
+    """A native Gui::QuantitySpinBox — parses and displays in the user's
+    unit schema, so unitless input means whatever their schema says
+    (inches under Building US, cm under Building Euro), same as every
+    stock workbench field."""
+    field = Gui.UiLoader().createWidget("Gui::QuantitySpinBox")
+    field.setProperty("unit", "mm")
+    field.setProperty("minimum", 0.0)
+    field.setProperty("maximum", 1e9)
+    field.setProperty("rawValue", default_mm)
+    return field
 
 
 class NewTimberDialog(QtWidgets.QDialog):
-    """MemberID + section + length. Values persist across validation
+    """Label + section + length. Values persist across validation
     retries so the user fixes input instead of retyping it."""
 
-    DEFAULTS = ("203.2 mm", "203.2 mm", "2438.4 mm")   # shown in user's schema
+    DEFAULTS = (203.2, 203.2, 2438.4)   # mm internally; displayed per schema
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -38,12 +36,16 @@ class NewTimberDialog(QtWidgets.QDialog):
         form = QtWidgets.QFormLayout(self)
         self.member_id = QtWidgets.QLineEdit(self)
         self.member_id.setPlaceholderText("P2-1")
-        form.addRow("MemberID:", self.member_id)
+        self.member_id.setToolTip(
+            "MemberID ([RolePrefix][Bent]-[Position], e.g. P2-1) "
+            "recommended — the linter flags other names as advisory. "
+            "Any unique label is accepted for custom roles.")
+        form.addRow("Label / MemberID:", self.member_id)
         self.fields = {}
         for label, default in zip(("Width", "Depth", "Length"), self.DEFAULTS):
-            edit = QtWidgets.QLineEdit(App.Units.Quantity(default).UserString, self)
-            self.fields[label] = edit
-            form.addRow(f"{label}:", edit)
+            field = _quantity_field(default)
+            self.fields[label] = field
+            form.addRow(f"{label}:", field)
         buttons = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
             parent=self)
@@ -53,9 +55,11 @@ class NewTimberDialog(QtWidgets.QDialog):
 
     def values(self):
         """(member_id, width, depth, length); raises TimberError."""
-        return (self.member_id.text(),
-                *(_parse_length(self.fields[f].text(), f)
-                  for f in ("Width", "Depth", "Length")))
+        out = [self.member_id.text()]
+        for name in ("Width", "Depth", "Length"):
+            raw = self.fields[name].property("rawValue")
+            out.append(App.Units.Quantity(f"{raw} mm"))
+        return tuple(out)
 
 
 class NewTimberCommand:

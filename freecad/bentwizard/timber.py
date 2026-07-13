@@ -51,11 +51,17 @@ def new_timber(doc, member_id, width, depth, length):
     MemberID, duplicate labels, or failed verification. The caller owns
     the transaction.
     """
+    # Any unique label is accepted (custom roles are legitimate; the
+    # naming-convention linter rule is advisory, and Role/Bent/Position
+    # auto-numbering arrives with Phase 2). Only reject what breaks
+    # expression references.
     member_id = (member_id or "").strip()
-    if not MEMBER_ID.match(member_id):
-        raise TimberError(
-            f"{member_id!r} is not a MemberID "
-            f"([RolePrefix][Bent]-[Position], e.g. P2-1 or PU-B2-3)")
+    if not member_id:
+        raise TimberError("the timber needs a label (MemberID like P2-1 "
+                          "recommended)")
+    if "<" in member_id or ">" in member_id:
+        raise TimberError(f"{member_id!r}: '<' and '>' would break "
+                          f"expression references")
     dims_label = f"TimberDims_{member_id}"
     for label in (member_id, dims_label):
         if doc.getObjectsByLabel(label):
