@@ -28,6 +28,34 @@ DIMENSIONAL = {6, 7, 8, 9, 11, 18, 19}   # constraint types carrying a value
 Constraint_DISTANCE_X = 7
 Constraint_DISTANCE_Y = 8
 
+# Square-rule faces (workflow doc §2): Face 1 = XZ reference face (y=0),
+# Face 2 = YZ reference face (x=0), Faces 3/4 opposite them. Side-
+# landing templates are authored on Face 4 (canonical FlatFace on
+# YZ_Plane; validated at apply time). Each target face is a transform
+# of the template frame, derived from the canonical FlatFace axes
+# probed in 1.1.1 (YZ: Z->+X, XZ: Z->-Y; frame Y -> +Z on both, so
+# station semantics never change):
+#   plane   — origin plane the frame re-attaches to
+#   swap    — swap Width<->Depth tokens in the frame offset expressions
+#             (the family normal changes axis)
+#   z_mode  — Base.z from the template's expression T:
+#             identity: T | negate: -(T) | complement: ddim - (T)
+#             (complement turns "far-face bearing" into "near-face")
+#   flip_z  — canonical frame Z points INTO the wood on this face: flip
+#             end-plane-profile cuts and mirror along-frame-Z sketch
+#             coordinates (the same transform end B uses)
+TEMPLATE_FACE = 4
+FACES = {
+    1: {"plane": "XZ_Plane", "swap": True, "z_mode": "negate_complement",
+        "flip_z": False, "ddim": "Depth"},
+    2: {"plane": "YZ_Plane", "swap": False, "z_mode": "complement",
+        "flip_z": True, "ddim": "Width"},
+    3: {"plane": "XZ_Plane", "swap": True, "z_mode": "negate",
+        "flip_z": True, "ddim": "Depth"},
+    4: {"plane": "YZ_Plane", "swap": False, "z_mode": "identity",
+        "flip_z": False, "ddim": "Width"},
+}
+
 # geometry the rebuilder understands; extend alongside new templates
 _SUPPORTED_GEOMETRY = ("line", "circle")
 
@@ -81,6 +109,7 @@ class TemplateSpec:
         self.roles = {}
         self.dims_labels = {}                          # role -> TimberDims label
         self.end_landing_roles = set()                 # roles whose frame sits on a stick end
+        self.side_landing_roles = {}                   # role -> template frame plane (YZ/XZ)
         for body in model.bodies:
             dims = model.body_dims(body)
             if dims is None:
@@ -95,12 +124,19 @@ class TemplateSpec:
                 stack.append(self._member_spec(doc, doc.objects[link.obj]))
             self.roles[body.label] = stack
             # a role lands on a stick end when its frame attaches to the
-            # XY origin plane — end A/B selection applies only there
+            # XY origin plane (end A/B selection applies), and on a long
+            # face when it attaches to YZ/XZ (face selection applies)
             for spec in stack:
-                if spec["type_id"] == "Part::LocalCoordinateSystem" \
-                        and "XY_Plane" in spec.get("support", {}).get("sub", ""):
+                if spec["type_id"] != "Part::LocalCoordinateSystem":
+                    continue
+                sub = spec.get("support", {}).get("sub", "")
+                if "XY_Plane" in sub:
                     self.end_landing_roles.add(body.label)
-                    break
+                elif "YZ_Plane" in sub:
+                    self.side_landing_roles[body.label] = "YZ_Plane"
+                elif "XZ_Plane" in sub:
+                    self.side_landing_roles[body.label] = "XZ_Plane"
+                break
 
     @staticmethod
     def _base_members(doc, body):
@@ -215,11 +251,14 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
     e.g. {"P0-1": post, "B0-1": beam}. values: optional {property name ->
     value} overrides applied to the new joint VarSet (literal override
     of a junction binding replaces the expression, per §4.9).
-    placement: optional {template body label -> {"end": "A"|"B"}} for
-    end-landing roles; end B keeps the frame orientation (square rule:
-    setbacks keep measuring from the same reference faces), translates
-    it to Dims.Length, flips along-axis cut directions, and negates
-    along-axis positions — including the drawbore sign flip (§4.7).
+    placement: optional {template body label -> options}:
+      {"end": "A"|"B"} for end-landing roles — end B keeps the frame
+      orientation (square rule: setbacks keep measuring from the same
+      reference faces), translates it to Dims.Length, flips along-axis
+      cut directions, and negates along-axis positions, including the
+      drawbore sign flip (§4.7);
+      {"face": 1..4} for side-landing roles — re-attaches the landing
+      frame per the FACES table.
     Returns the new joint VarSet. Caller owns the transaction.
     """
     values = values or {}
@@ -232,6 +271,19 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
             raise JointError(
                 f"role {role!r} does not land on a stick end; end B "
                 f"placement does not apply")
+        face = opts.get("face", TEMPLATE_FACE)
+        if face not in FACES:
+            raise JointError(f"placement face for {role!r} must be 1-4")
+        if face != TEMPLATE_FACE:
+            if role not in template.side_landing_roles:
+                raise JointError(
+                    f"role {role!r} does not land on a long face; face "
+                    f"placement does not apply")
+            if template.side_landing_roles[role] != "YZ_Plane":
+                raise JointError(
+                    f"template role {role!r} is not authored on the "
+                    f"canonical face (Face 4 / YZ plane); face selection "
+                    f"needs a Face-4 template")
     joint_id = (joint_id or "").strip()
     if not joint_id or "<" in joint_id or ">" in joint_id:
         raise JointError("joint ID must be a non-empty string without <>")
@@ -295,14 +347,23 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
     made = []
     for tmpl_label, stack in template.roles.items():
         body = body_map[tmpl_label]
+        opts = placement.get(tmpl_label, {})
+        end_b = str(opts.get("end", "A")).upper() == "B"
+        face = FACES[opts.get("face", TEMPLATE_FACE)]
         ctx = {
-            "end_b": str(placement.get(tmpl_label, {})
-                         .get("end", "A")).upper() == "B",
+            "end_b": end_b,
+            "face": face,
+            "flip_z": end_b or face["flip_z"],
             "dims_label": f"TimberDims_{body.Label}",
             "frame_name": next((s["name"] for s in stack
                                 if s["type_id"] == "Part::LocalCoordinateSystem"),
                                None),
             "sketch_subs": {},   # template sketch name -> frame-child role
+            # side-landing roles may re-attach the frame to another face
+            "frame_plane": (face["plane"]
+                            if tmpl_label in template.side_landing_roles
+                            else None),
+            "side_landing": tmpl_label in template.side_landing_roles,
         }
         local = {}          # template internal name -> new object
         for spec in stack:
@@ -322,18 +383,18 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
     return varset
 
 
-def _along_axis(sketch):
-    """Which sketch-local axis (0=x, 1=y) runs along the stick (body Z).
-
-    Placements inside a body are body-local, so this is pose-independent.
+def _along_axis(sketch, direction):
+    """Which sketch-local axis (0=x, 1=y) runs along `direction` (the
+    frame's Z, in body coordinates). Placements inside a body are
+    body-local, so this is pose-independent.
     """
     rot = sketch.Placement.Rotation
     for axis, vec in ((0, App.Vector(1, 0, 0)), (1, App.Vector(0, 1, 0))):
-        if abs(rot.multVec(vec).z) > 0.99:
+        if abs(rot.multVec(vec).dot(direction)) > 0.99:
             return axis
     raise JointError(
-        f"{sketch.Label}: cannot identify the stick axis in this sketch "
-        f"plane (end B placement needs an axis-aligned frame)")
+        f"{sketch.Label}: cannot identify the frame axis in this sketch "
+        f"plane (end/face placement needs an axis-aligned frame)")
 
 
 def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
@@ -368,8 +429,15 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
             obj.AttachmentSupport = [(anchor, sub)]
         elif target_type.startswith("App::Plane") or target_type == "App::Origin" \
                 or "Plane" in sub:
-            # a body origin plane, recorded in any of FreeCAD's forms
-            obj.AttachmentSupport = [(_origin_plane(body, spec["support"]), "")]
+            # a body origin plane, recorded in any of FreeCAD's forms;
+            # the landing frame of a side-landing role re-attaches to
+            # the chosen face's plane
+            if is_frame and ctx["frame_plane"]:
+                anchor = next(f for f in body.Origin.OriginFeatures
+                              if f.Role == ctx["frame_plane"])
+            else:
+                anchor = _origin_plane(body, spec["support"])
+            obj.AttachmentSupport = [(anchor, "")]
         else:
             raise JointError(
                 f"{spec['label']}: unsupported attachment target "
@@ -391,30 +459,36 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
 
     if type_id == "Sketcher::SketchObject":
         negate_axis = None
-        if ctx["end_b"] and on_frame \
+        if ctx["flip_z"] and on_frame \
                 and spec["support"]["sub"] in ("XZ_Plane", "YZ_Plane"):
-            # perpendicular-plane sketch: mirror along-stick coordinates
-            doc.recompute()          # resolve the attachment placement
-            negate_axis = _along_axis(obj)
+            # perpendicular-plane sketch: mirror the along-frame-Z
+            # coordinates (frame Z's relation to the material flipped)
+            doc.recompute()          # resolve the attachment placements
+            frame = local[ctx["frame_name"]]
+            frame_z = frame.Placement.Rotation.multVec(App.Vector(0, 0, 1))
+            negate_axis = _along_axis(obj, frame_z)
         _rebuild_sketch(obj, spec, negate_axis)
+        obj.Visibility = False       # consumed by a cut; declutter the view
     elif type_id.startswith("PartDesign::"):
         _rebuild_feature(obj, spec, local)
-        if ctx["end_b"] and hasattr(obj, "Reversed") \
+        if ctx["flip_z"] and hasattr(obj, "Reversed") \
                 and ctx["sketch_subs"].get(spec.get("profile")) == "XY_Plane":
-            # end-plane profile: the cut runs along the stick — flip it
+            # frame-plane profile: the cut runs along frame Z — flip it
             obj.Reversed = not obj.Reversed
 
     negate_paths = spec.pop("_negate_paths", set())
     for path, expression in spec["expressions"]:
         expression = _rewrite(expression, expr_renames)
         clean = path.lstrip(".")
+        if is_frame and ctx["side_landing"]:
+            expression = _face_transform(clean, expression, ctx)
         if clean in negate_paths:
             expression = f"-({expression})"
-        elif ctx["end_b"] and on_frame and not is_frame \
+        elif ctx["flip_z"] and on_frame and not is_frame \
                 and clean == "AttachmentOffset.Base.z" \
                 and spec["support"]["sub"] == "XY_Plane":
-            # along-stick datum offset (the shoulder) measures backward
-            # from end B
+            # along-frame-Z datum offset (the shoulder) measures
+            # backward when frame Z's relation to the material flips
             expression = f"-({expression})"
         obj.setExpression(clean, expression)
 
@@ -424,6 +498,25 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
         obj.setExpression("AttachmentOffset.Base.z",
                           f"<<{ctx['dims_label']}>>.Length")
     return obj
+
+
+def _face_transform(path, expression, ctx):
+    """Rewrite a landing-frame offset expression for the chosen face."""
+    face = ctx["face"]
+    dims = ctx["dims_label"]
+    if face["swap"]:
+        w, d = f"<<{dims}>>.Width", f"<<{dims}>>.Depth"
+        expression = (expression.replace(w, "\x00").replace(d, w)
+                      .replace("\x00", d))
+    if path == "AttachmentOffset.Base.z":
+        mode = face["z_mode"]
+        if mode == "negate":
+            expression = f"-({expression})"
+        elif mode == "complement":
+            expression = f"<<{dims}>>.{face['ddim']} - ({expression})"
+        elif mode == "negate_complement":
+            expression = f"-(<<{dims}>>.{face['ddim']} - ({expression}))"
+    return expression
 
 
 def _origin_plane(body, support):

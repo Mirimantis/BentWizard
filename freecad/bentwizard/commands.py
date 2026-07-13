@@ -173,6 +173,7 @@ class ApplyJointDialog(QtWidgets.QDialog):
         bodies = _timber_bodies(self.doc)
         selected = [o for o in Gui.Selection.getSelection() if o in bodies]
         self.end_boxes = {}
+        self.face_boxes = {}
         for i, role in enumerate(self.spec.roles):
             box = QtWidgets.QComboBox(self)
             for b in bodies:
@@ -193,6 +194,20 @@ class ApplyJointDialog(QtWidgets.QDialog):
                     "flips the drawbore toward the far shoulder.")
                 self.end_boxes[role] = end_box
                 self.roles_form.addRow(f"{role} end:", end_box)
+            if role in self.spec.side_landing_roles:
+                face_box = QtWidgets.QComboBox(self)
+                for num, label in ((1, "Face 1 — reference face (XZ)"),
+                                   (2, "Face 2 — reference face (YZ)"),
+                                   (3, "Face 3 — opposite Face 1"),
+                                   (4, "Face 4 — opposite Face 2")):
+                    face_box.addItem(label, num)
+                face_box.setCurrentIndex(3)          # Face 4, template face
+                face_box.setToolTip(
+                    "Which long face receives this joint. Square-rule "
+                    "faces: 1 and 2 are the reference faces on the XZ/YZ "
+                    "origin planes; 3 and 4 are opposite them.")
+                self.face_boxes[role] = face_box
+                self.roles_form.addRow(f"{role} face:", face_box)
 
         # Parameter form from the schema. Junction-bound parameters stay
         # expressions (override later by editing the VarSet, per §4.9).
@@ -233,8 +248,11 @@ class ApplyJointDialog(QtWidgets.QDialog):
         for name, field in self.param_fields.items():
             raw = field.property("rawValue")
             values[name] = App.Units.Quantity(f"{raw} mm")
-        placement = {role: {"end": box.currentData()}
-                     for role, box in self.end_boxes.items()}
+        placement = {}
+        for role, box in self.end_boxes.items():
+            placement.setdefault(role, {})["end"] = box.currentData()
+        for role, box in self.face_boxes.items():
+            placement.setdefault(role, {})["face"] = box.currentData()
         return self.spec, self.joint_id.text(), body_map, values, placement
 
 

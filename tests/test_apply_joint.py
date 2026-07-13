@@ -129,6 +129,111 @@ class ApplyJointTest(unittest.TestCase):
         with self.assertRaises(JointError):
             self.apply(placement={"P0-1": {"end": "B"}})
 
+    def _face_slabs(self):
+        """Remaining post material (in^3) in a thin slab at each face."""
+        import Part
+        t = 0.4 * 25.4               # thinner than the 0.5 in housing
+        W, D, L = 10 * 25.4, 8 * 25.4, 120 * 25.4
+        boxes = {
+            1: Part.makeBox(W, t, L, App.Vector(0, 0, 0)),
+            2: Part.makeBox(t, D, L, App.Vector(0, 0, 0)),
+            3: Part.makeBox(W, t, L, App.Vector(0, D - t, 0)),
+            4: Part.makeBox(t, D, L, App.Vector(W - t, 0, 0)),
+        }
+        intact = {1: 10 * 0.4 * 120, 2: 8 * 0.4 * 120,
+                  3: 10 * 0.4 * 120, 4: 8 * 0.4 * 120}
+        return {f: intact[f] - self.post.Shape.common(b).Volume / IN3
+                for f, b in boxes.items()}   # material LOST at each face
+
+    def test_each_face_carries_the_joint(self):
+        import math
+        for face in (1, 2, 3, 4):
+            with self.subTest(face=face):
+                vs = self.apply(f"F{face}",
+                                placement={"P0-1": {"face": face}})
+                post_cut, _ = self.cuts()
+                slabs = self._face_slabs()
+                self._remove_joint(vs, f"MT_F{face}")   # before asserts
+                # the peg bore crosses the across-face extent: the 10 in
+                # Width on faces 1/3, the 8 in Depth on faces 2/4
+                bore_len = 10 if face in (1, 3) else 8
+                expected = (24 + 51 + math.pi * 0.25 * bore_len
+                            - math.pi * 0.25 * 2)
+                self.assertAlmostEqual(post_cut, expected, places=3)
+                self.assertEqual(max(slabs, key=slabs.get), face,
+                                 f"housing did not land on face {face}: {slabs}")
+
+    def _remove_joint(self, varset, tag):
+        self.doc.removeObject(varset.Name)
+        for body in (self.post, self.beam):
+            for o in reversed(list(body.Group)):   # dependents first
+                if tag in o.Label:
+                    self.doc.removeObject(o.Name)
+        self.doc.recompute()
+
+    def _mortise_probe(self, face):
+        """Material (in^3) at the expected mortise void and at its
+        across-face mirror, for an asymmetric Tenon_Setback_Face2."""
+        import Part
+        IN = 25.4
+        span = (61.5 * IN, 66.5 * IN)            # inside the 6in-high mortise
+        depth = {1: (1 * IN, 4 * IN), 2: (1 * IN, 4 * IN),
+                 3: (4 * IN, 7 * IN), 4: (6 * IN, 9 * IN)}[face]
+        # footprint is centered across the face ((extent - 6)/2 offset),
+        # and the asymmetric 1 in setback puts the 2 in mortise 1..3 in
+        # from the footprint's low-coordinate edge
+        across_lo = {1: (3 * IN, 5 * IN), 3: (3 * IN, 5 * IN),
+                     2: (2 * IN, 4 * IN), 4: (2 * IN, 4 * IN)}[face]
+        across_hi = (self._across_extent(face) - across_lo[1],
+                     self._across_extent(face) - across_lo[0])
+
+        def box(depth_rng, across_rng):
+            (d0, d1), (a0, a1) = depth_rng, across_rng
+            if face in (2, 4):     # depth along X, across along Y
+                return Part.makeBox(d1 - d0, a1 - a0, span[1] - span[0],
+                                    App.Vector(d0, a0, span[0]))
+            return Part.makeBox(a1 - a0, d1 - d0, span[1] - span[0],
+                                App.Vector(a0, d0, span[0]))
+
+        expected = self.post.Shape.common(box(depth, across_lo)).Volume / IN3
+        mirror = self.post.Shape.common(box(depth, across_hi)).Volume / IN3
+        return expected, mirror
+
+    @staticmethod
+    def _across_extent(face):
+        return (10 * 25.4) if face in (1, 3) else (8 * 25.4)
+
+    def test_asymmetric_mortise_lands_on_the_correct_side(self):
+        # Symmetric defaults cannot detect mirror errors; skew the tenon
+        # 1 in off the footprint edge and check the void is where square
+        # rule says, on a flip_z face (2) and a swapped family face (3).
+        for face in (2, 3):
+            with self.subTest(face=face):
+                vs = self.apply(
+                    f"S{face}",
+                    values={"Joint_Station": App.Units.Quantity("60 in"),
+                            "Tenon_Setback_Face2": App.Units.Quantity("1 in")},
+                    placement={"P0-1": {"face": face}})
+                expected, mirror = self._mortise_probe(face)
+                self.assertAlmostEqual(expected, 0.0, places=3,
+                                       msg=f"face {face}: mortise void missing")
+                self.assertGreater(mirror, 25,
+                                   msg=f"face {face}: mortise mirrored")
+                self._remove_joint(vs, f"MT_S{face}")
+
+    def test_face_only_for_side_landing_roles(self):
+        from freecad.bentwizard.apply_joint import JointError
+        with self.assertRaises(JointError):
+            self.apply(placement={"B0-1": {"face": 2}})
+
+    def test_face_output_lints_clean(self):
+        from freecad.bentwizard.linter import lint
+        self.apply(placement={"P0-1": {"face": 1}})
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "face1.FCStd")
+            self.doc.saveAs(path)
+            self.assertEqual([str(f) for f in lint(path)], [])
+
     def test_oversized_defaults_refused_before_cutting(self):
         # Template defaults (6 in tenon height + 1 in setback) cannot
         # fit a 4 in deep beam: the pre-flight must refuse after the
