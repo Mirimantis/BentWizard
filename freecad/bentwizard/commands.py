@@ -172,6 +172,7 @@ class ApplyJointDialog(QtWidgets.QDialog):
         # the current selection order.
         bodies = _timber_bodies(self.doc)
         selected = [o for o in Gui.Selection.getSelection() if o in bodies]
+        self.end_boxes = {}
         for i, role in enumerate(self.spec.roles):
             box = QtWidgets.QComboBox(self)
             for b in bodies:
@@ -182,6 +183,16 @@ class ApplyJointDialog(QtWidgets.QDialog):
                 box.setCurrentIndex(i)
             self.role_boxes[role] = box
             self.roles_form.addRow(f"{role} timber:", box)
+            if role in self.spec.end_landing_roles:
+                end_box = QtWidgets.QComboBox(self)
+                end_box.addItem("End A (butt, Z=0)", "A")
+                end_box.addItem("End B (tip)", "B")
+                end_box.setToolTip(
+                    "Which stick end receives this joint. End B keeps the "
+                    "setbacks measured from the same reference faces and "
+                    "flips the drawbore toward the far shoulder.")
+                self.end_boxes[role] = end_box
+                self.roles_form.addRow(f"{role} end:", end_box)
 
         # Parameter form from the schema. Junction-bound parameters stay
         # expressions (override later by editing the VarSet, per §4.9).
@@ -222,7 +233,9 @@ class ApplyJointDialog(QtWidgets.QDialog):
         for name, field in self.param_fields.items():
             raw = field.property("rawValue")
             values[name] = App.Units.Quantity(f"{raw} mm")
-        return self.spec, self.joint_id.text(), body_map, values
+        placement = {role: {"end": box.currentData()}
+                     for role, box in self.end_boxes.items()}
+        return self.spec, self.joint_id.text(), body_map, values, placement
 
 
 class ApplyJointCommand:
@@ -242,11 +255,11 @@ class ApplyJointCommand:
         dialog = ApplyJointDialog(doc, Gui.getMainWindow())
         while dialog.exec() == QtWidgets.QDialog.Accepted:
             try:
-                spec, joint_id, body_map, values = dialog.request()
+                spec, joint_id, body_map, values, placement = dialog.request()
                 doc.openTransaction(f"Apply joint {joint_id.strip()}")
                 try:
                     varset = apply_joint(doc, spec, joint_id, body_map,
-                                         values=values)
+                                         values=values, placement=placement)
                 except Exception:
                     doc.abortTransaction()
                     raise

@@ -88,6 +88,47 @@ class ApplyJointTest(unittest.TestCase):
         with self.assertRaises(JointError):
             self.apply("B3a")
 
+    def _end_slab(self, at_b):
+        """Remaining beam volume (in^3) in the 4-in slab at one end."""
+        import Part
+        L = 96 * 25.4
+        z0 = L - 4 * 25.4 if at_b else 0.0
+        box = Part.makeBox(6 * 25.4, 8 * 25.4, 4 * 25.4,
+                           App.Vector(0, 0, z0))
+        return self.beam.Shape.common(box).Volume / IN3
+
+    def test_end_b_tenon(self):
+        import math
+        self.apply(placement={"B0-1": {"end": "B"}})
+        _, beam_cut = self.cuts()
+        self.assertAlmostEqual(beam_cut, 144 + math.pi * 0.25 * 2, places=3)
+        # end A untouched; end B slab = tenon minus its drawbore passage
+        self.assertAlmostEqual(self._end_slab(False), 6 * 8 * 4, places=3)
+        self.assertAlmostEqual(self._end_slab(True),
+                               48 - math.pi * 0.25 * 2, places=3)
+
+    def test_both_ends_of_one_beam(self):
+        import math
+        self.apply("B3a", values={"Joint_Station": App.Units.Quantity("60 in")})
+        self.apply("B3b", values={"Joint_Station": App.Units.Quantity("20 in")},
+                   placement={"B0-1": {"end": "B"}})
+        _, beam_cut = self.cuts()
+        self.assertAlmostEqual(beam_cut, 2 * (144 + math.pi * 0.25 * 2),
+                               places=3)
+
+    def test_end_b_output_lints_clean(self):
+        from freecad.bentwizard.linter import lint
+        self.apply(placement={"B0-1": {"end": "B"}})
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "endb.FCStd")
+            self.doc.saveAs(path)
+            self.assertEqual([str(f) for f in lint(path)], [])
+
+    def test_end_b_only_for_end_landing_roles(self):
+        from freecad.bentwizard.apply_joint import JointError
+        with self.assertRaises(JointError):
+            self.apply(placement={"P0-1": {"end": "B"}})
+
     def test_oversized_defaults_refused_before_cutting(self):
         # Template defaults (6 in tenon height + 1 in setback) cannot
         # fit a 4 in deep beam: the pre-flight must refuse after the

@@ -25,6 +25,8 @@ from .fcstd import FcstdDocument
 from .linter import Model, footprint_violations
 
 DIMENSIONAL = {6, 7, 8, 9, 11, 18, 19}   # constraint types carrying a value
+Constraint_DISTANCE_X = 7
+Constraint_DISTANCE_Y = 8
 
 # geometry the rebuilder understands; extend alongside new templates
 _SUPPORTED_GEOMETRY = ("line", "circle")
@@ -78,6 +80,7 @@ class TemplateSpec:
         # the pristine-timber base (section sketch + stick pad).
         self.roles = {}
         self.dims_labels = {}                          # role -> TimberDims label
+        self.end_landing_roles = set()                 # roles whose frame sits on a stick end
         for body in model.bodies:
             dims = model.body_dims(body)
             if dims is None:
@@ -91,6 +94,13 @@ class TemplateSpec:
                     continue
                 stack.append(self._member_spec(doc, doc.objects[link.obj]))
             self.roles[body.label] = stack
+            # a role lands on a stick end when its frame attaches to the
+            # XY origin plane — end A/B selection applies only there
+            for spec in stack:
+                if spec["type_id"] == "Part::LocalCoordinateSystem" \
+                        and "XY_Plane" in spec.get("support", {}).get("sub", ""):
+                    self.end_landing_roles.add(body.label)
+                    break
 
     @staticmethod
     def _base_members(doc, body):
@@ -197,16 +207,31 @@ def _rewrite(text, replacements):
     return text
 
 
-def apply_joint(doc, template, joint_id, body_map, values=None):
+def apply_joint(doc, template, joint_id, body_map, values=None,
+                placement=None):
     """Apply `template` (TemplateSpec) into `doc`.
 
     body_map: {template body label -> target PartDesign body object},
     e.g. {"P0-1": post, "B0-1": beam}. values: optional {property name ->
     value} overrides applied to the new joint VarSet (literal override
     of a junction binding replaces the expression, per §4.9).
+    placement: optional {template body label -> {"end": "A"|"B"}} for
+    end-landing roles; end B keeps the frame orientation (square rule:
+    setbacks keep measuring from the same reference faces), translates
+    it to Dims.Length, flips along-axis cut directions, and negates
+    along-axis positions — including the drawbore sign flip (§4.7).
     Returns the new joint VarSet. Caller owns the transaction.
     """
     values = values or {}
+    placement = placement or {}
+    for role, opts in placement.items():
+        end = str(opts.get("end", "A")).upper()
+        if end not in ("A", "B"):
+            raise JointError(f"placement end for {role!r} must be A or B")
+        if end == "B" and role not in template.end_landing_roles:
+            raise JointError(
+                f"role {role!r} does not land on a stick end; end B "
+                f"placement does not apply")
     joint_id = (joint_id or "").strip()
     if not joint_id or "<" in joint_id or ">" in joint_id:
         raise JointError("joint ID must be a non-empty string without <>")
@@ -270,9 +295,19 @@ def apply_joint(doc, template, joint_id, body_map, values=None):
     made = []
     for tmpl_label, stack in template.roles.items():
         body = body_map[tmpl_label]
+        ctx = {
+            "end_b": str(placement.get(tmpl_label, {})
+                         .get("end", "A")).upper() == "B",
+            "dims_label": f"TimberDims_{body.Label}",
+            "frame_name": next((s["name"] for s in stack
+                                if s["type_id"] == "Part::LocalCoordinateSystem"),
+                               None),
+            "sketch_subs": {},   # template sketch name -> frame-child role
+        }
         local = {}          # template internal name -> new object
         for spec in stack:
-            obj = _rebuild_member(doc, body, spec, local, renames, expr_renames)
+            obj = _rebuild_member(doc, body, spec, local, renames,
+                                  expr_renames, ctx)
             local[spec["name"]] = obj
             made.append(obj)
             # each solid feature probes its BaseFeature's shape as soon
@@ -287,10 +322,29 @@ def apply_joint(doc, template, joint_id, body_map, values=None):
     return varset
 
 
-def _rebuild_member(doc, body, spec, local, renames, expr_renames):
+def _along_axis(sketch):
+    """Which sketch-local axis (0=x, 1=y) runs along the stick (body Z).
+
+    Placements inside a body are body-local, so this is pose-independent.
+    """
+    rot = sketch.Placement.Rotation
+    for axis, vec in ((0, App.Vector(1, 0, 0)), (1, App.Vector(0, 1, 0))):
+        if abs(rot.multVec(vec).z) > 0.99:
+            return axis
+    raise JointError(
+        f"{sketch.Label}: cannot identify the stick axis in this sketch "
+        f"plane (end B placement needs an axis-aligned frame)")
+
+
+def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
     type_id = spec["type_id"]
     obj = body.newObject(type_id, type_id.split(":")[-1])
     obj.Label = _rewrite(spec["label"], renames)
+    on_frame = ("support" in spec
+                and spec["support"]["target"] == ctx["frame_name"])
+    is_frame = spec["name"] == ctx["frame_name"]
+    if on_frame and type_id == "Sketcher::SketchObject":
+        ctx["sketch_subs"][spec["name"]] = spec["support"]["sub"]
 
     if "support" in spec:
         target_type = spec["support"]["target_type"]
@@ -336,13 +390,39 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames):
                 App.Rotation(off.q[0], off.q[1], off.q[2], off.q[3]))
 
     if type_id == "Sketcher::SketchObject":
-        _rebuild_sketch(obj, spec)
+        negate_axis = None
+        if ctx["end_b"] and on_frame \
+                and spec["support"]["sub"] in ("XZ_Plane", "YZ_Plane"):
+            # perpendicular-plane sketch: mirror along-stick coordinates
+            doc.recompute()          # resolve the attachment placement
+            negate_axis = _along_axis(obj)
+        _rebuild_sketch(obj, spec, negate_axis)
     elif type_id.startswith("PartDesign::"):
         _rebuild_feature(obj, spec, local)
+        if ctx["end_b"] and hasattr(obj, "Reversed") \
+                and ctx["sketch_subs"].get(spec.get("profile")) == "XY_Plane":
+            # end-plane profile: the cut runs along the stick — flip it
+            obj.Reversed = not obj.Reversed
 
+    negate_paths = spec.pop("_negate_paths", set())
     for path, expression in spec["expressions"]:
-        obj.setExpression(path.lstrip("."),
-                          _rewrite(expression, expr_renames))
+        expression = _rewrite(expression, expr_renames)
+        clean = path.lstrip(".")
+        if clean in negate_paths:
+            expression = f"-({expression})"
+        elif ctx["end_b"] and on_frame and not is_frame \
+                and clean == "AttachmentOffset.Base.z" \
+                and spec["support"]["sub"] == "XY_Plane":
+            # along-stick datum offset (the shoulder) measures backward
+            # from end B
+            expression = f"-({expression})"
+        obj.setExpression(clean, expression)
+
+    if ctx["end_b"] and is_frame:
+        # the landing frame itself: same orientation (square rule — the
+        # reference faces don't change), translated to the far end
+        obj.setExpression("AttachmentOffset.Base.z",
+                          f"<<{ctx['dims_label']}>>.Length")
     return obj
 
 
@@ -359,30 +439,50 @@ def _origin_plane(body, support):
     raise JointError(f"no origin plane matching {want!r} in {body.Label!r}")
 
 
-def _rebuild_sketch(sketch, spec):
+def _rebuild_sketch(sketch, spec, negate_axis=None):
     V = App.Vector
+
+    def pt(xy):
+        if negate_axis is None:
+            return V(xy[0], xy[1], 0)
+        flipped = list(xy)
+        flipped[negate_axis] = -flipped[negate_axis]
+        return V(flipped[0], flipped[1], 0)
+
     for geo in spec["geometry"]:
         if geo.kind == "line":
-            g = Part.LineSegment(V(geo.start[0], geo.start[1], 0),
-                                 V(geo.end[0], geo.end[1], 0))
+            g = Part.LineSegment(pt(geo.start), pt(geo.end))
         else:
             circle = Part.Circle()
-            circle.Center = V(geo.center[0], geo.center[1], 0)
+            circle.Center = pt(geo.center)
             circle.Radius = geo.radius
             g = circle
         sketch.addGeometry(g, geo.construction)
+
+    # signed position constraints on the mirrored axis negate their
+    # values (and, via _negate_paths, their expressions)
+    negate_type = {0: Constraint_DISTANCE_X, 1: Constraint_DISTANCE_Y}.get(
+        negate_axis)
+    negate_paths = set()
     cons = []
-    for con in spec["constraints"]:
+    for i, con in enumerate(spec["constraints"]):
         cname = _CONSTRAINT_NAMES.get(con.type_id)
         if cname is None:
             raise JointError(
                 f"{spec['label']}: unsupported constraint type {con.type_id}")
-        cons.append(Sketcher.Constraint(cname, *_constraint_args(con)))
+        args = _constraint_args(con)
+        if negate_type is not None and con.type_id == negate_type:
+            args[-1] = -args[-1]
+            negate_paths.add(f"Constraints[{i}]")
+            if con.name:
+                negate_paths.add(f"Constraints.{con.name}")
+        cons.append(Sketcher.Constraint(cname, *args))
     if cons:
         sketch.addConstraint(cons)
     for i, con in enumerate(spec["constraints"]):
         if con.name:
             sketch.renameConstraint(i, con.name)
+    spec["_negate_paths"] = negate_paths
 
 
 def _rebuild_feature(feature, spec, local):
