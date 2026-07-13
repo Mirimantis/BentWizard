@@ -274,16 +274,21 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
         face = opts.get("face", TEMPLATE_FACE)
         if face not in FACES:
             raise JointError(f"placement face for {role!r} must be 1-4")
-        if face != TEMPLATE_FACE:
+        hand = str(opts.get("hand", "template")).lower()
+        if hand not in ("template", "mirrored"):
+            raise JointError(
+                f"placement hand for {role!r} must be 'template' or "
+                f"'mirrored'")
+        if face != TEMPLATE_FACE or hand == "mirrored":
             if role not in template.side_landing_roles:
                 raise JointError(
-                    f"role {role!r} does not land on a long face; face "
-                    f"placement does not apply")
+                    f"role {role!r} does not land on a long face; "
+                    f"face/hand placement does not apply")
             if template.side_landing_roles[role] != "YZ_Plane":
                 raise JointError(
                     f"template role {role!r} is not authored on the "
-                    f"canonical face (Face 4 / YZ plane); face selection "
-                    f"needs a Face-4 template")
+                    f"canonical face (Face 4 / YZ plane); face/hand "
+                    f"selection needs a Face-4 template")
     joint_id = (joint_id or "").strip()
     if not joint_id or "<" in joint_id or ">" in joint_id:
         raise JointError("joint ID must be a non-empty string without <>")
@@ -354,6 +359,10 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
             "end_b": end_b,
             "face": face,
             "flip_z": end_b or face["flip_z"],
+            # hand: mirror the across-face axis (frame X). The frame
+            # origin sits at the footprint center, so the §4.6 handed-
+            # mate setback complement is a pure coordinate mirror.
+            "flip_x": str(opts.get("hand", "template")).lower() == "mirrored",
             "dims_label": f"TimberDims_{body.Label}",
             "frame_name": next((s["name"] for s in stack
                                 if s["type_id"] == "Part::LocalCoordinateSystem"),
@@ -383,18 +392,21 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
     return varset
 
 
-def _along_axis(sketch, direction):
-    """Which sketch-local axis (0=x, 1=y) runs along `direction` (the
-    frame's Z, in body coordinates). Placements inside a body are
-    body-local, so this is pose-independent.
+def _aligned_axis(sketch, direction):
+    """Which sketch-local axis (0=x, 1=y) runs along `direction` (a
+    frame axis, in body coordinates), or None when the direction is
+    perpendicular to the sketch plane (nothing to mirror there).
+    Placements inside a body are body-local, so this is pose-independent.
     """
     rot = sketch.Placement.Rotation
     for axis, vec in ((0, App.Vector(1, 0, 0)), (1, App.Vector(0, 1, 0))):
         if abs(rot.multVec(vec).dot(direction)) > 0.99:
             return axis
+    if abs(rot.multVec(App.Vector(0, 0, 1)).dot(direction)) > 0.99:
+        return None
     raise JointError(
         f"{sketch.Label}: cannot identify the frame axis in this sketch "
-        f"plane (end/face placement needs an axis-aligned frame)")
+        f"plane (end/face/hand placement needs an axis-aligned frame)")
 
 
 def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
@@ -458,16 +470,21 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
                 App.Rotation(off.q[0], off.q[1], off.q[2], off.q[3]))
 
     if type_id == "Sketcher::SketchObject":
-        negate_axis = None
-        if ctx["flip_z"] and on_frame \
-                and spec["support"]["sub"] in ("XZ_Plane", "YZ_Plane"):
-            # perpendicular-plane sketch: mirror the along-frame-Z
-            # coordinates (frame Z's relation to the material flipped)
+        negate_axes = set()
+        if (ctx["flip_z"] or ctx["flip_x"]) and on_frame:
+            # mirror every in-plane sketch axis aligned with a flipped
+            # frame direction: flip_z reaches perpendicular sketches
+            # (the drawbore), flip_x reaches frame-plane sketches (the
+            # handed mortise) — each automatically, per plane
             doc.recompute()          # resolve the attachment placements
-            frame = local[ctx["frame_name"]]
-            frame_z = frame.Placement.Rotation.multVec(App.Vector(0, 0, 1))
-            negate_axis = _along_axis(obj, frame_z)
-        _rebuild_sketch(obj, spec, negate_axis)
+            frot = local[ctx["frame_name"]].Placement.Rotation
+            for active, frame_vec in ((ctx["flip_z"], App.Vector(0, 0, 1)),
+                                      (ctx["flip_x"], App.Vector(1, 0, 0))):
+                if active:
+                    axis = _aligned_axis(obj, frot.multVec(frame_vec))
+                    if axis is not None:
+                        negate_axes.add(axis)
+        _rebuild_sketch(obj, spec, negate_axes)
         obj.Visibility = False       # consumed by a cut; declutter the view
     elif type_id.startswith("PartDesign::"):
         _rebuild_feature(obj, spec, local)
@@ -484,11 +501,12 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
             expression = _face_transform(clean, expression, ctx)
         if clean in negate_paths:
             expression = f"-({expression})"
-        elif ctx["flip_z"] and on_frame and not is_frame \
-                and clean == "AttachmentOffset.Base.z" \
-                and spec["support"]["sub"] == "XY_Plane":
-            # along-frame-Z datum offset (the shoulder) measures
-            # backward when frame Z's relation to the material flips
+        elif on_frame and not is_frame \
+                and spec["support"]["sub"] == "XY_Plane" \
+                and ((ctx["flip_z"] and clean == "AttachmentOffset.Base.z")
+                     or (ctx["flip_x"] and clean == "AttachmentOffset.Base.x")):
+            # frame-child datum offsets along a flipped frame axis
+            # measure backward (e.g. the shoulder under end B)
             expression = f"-({expression})"
         obj.setExpression(clean, expression)
 
@@ -532,14 +550,13 @@ def _origin_plane(body, support):
     raise JointError(f"no origin plane matching {want!r} in {body.Label!r}")
 
 
-def _rebuild_sketch(sketch, spec, negate_axis=None):
+def _rebuild_sketch(sketch, spec, negate_axes=frozenset()):
     V = App.Vector
 
     def pt(xy):
-        if negate_axis is None:
-            return V(xy[0], xy[1], 0)
         flipped = list(xy)
-        flipped[negate_axis] = -flipped[negate_axis]
+        for axis in negate_axes:
+            flipped[axis] = -flipped[axis]
         return V(flipped[0], flipped[1], 0)
 
     for geo in spec["geometry"]:
@@ -552,10 +569,10 @@ def _rebuild_sketch(sketch, spec, negate_axis=None):
             g = circle
         sketch.addGeometry(g, geo.construction)
 
-    # signed position constraints on the mirrored axis negate their
+    # signed position constraints on a mirrored axis negate their
     # values (and, via _negate_paths, their expressions)
-    negate_type = {0: Constraint_DISTANCE_X, 1: Constraint_DISTANCE_Y}.get(
-        negate_axis)
+    negate_types = {Constraint_DISTANCE_X for a in negate_axes if a == 0} \
+        | {Constraint_DISTANCE_Y for a in negate_axes if a == 1}
     negate_paths = set()
     cons = []
     for i, con in enumerate(spec["constraints"]):
@@ -564,7 +581,7 @@ def _rebuild_sketch(sketch, spec, negate_axis=None):
             raise JointError(
                 f"{spec['label']}: unsupported constraint type {con.type_id}")
         args = _constraint_args(con)
-        if negate_type is not None and con.type_id == negate_type:
+        if con.type_id in negate_types:
             args[-1] = -args[-1]
             negate_paths.add(f"Constraints[{i}]")
             if con.name:

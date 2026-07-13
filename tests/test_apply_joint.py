@@ -221,6 +221,44 @@ class ApplyJointTest(unittest.TestCase):
                                    msg=f"face {face}: mortise mirrored")
                 self._remove_joint(vs, f"MT_S{face}")
 
+    def test_mirrored_hand_swaps_the_mortise_side(self):
+        # §4.6 handed mate: same asymmetric setback, hand mirrored — the
+        # void and material sides of the probe must swap relative to the
+        # test above, on the template face and on a flip_z face.
+        for face in (4, 2):
+            with self.subTest(face=face):
+                vs = self.apply(
+                    f"H{face}",
+                    values={"Joint_Station": App.Units.Quantity("60 in"),
+                            "Tenon_Setback_Face2": App.Units.Quantity("1 in")},
+                    placement={"P0-1": {"face": face, "hand": "mirrored"}})
+                expected, mirror = self._mortise_probe(face)
+                self._remove_joint(vs, f"MT_H{face}")
+                self.assertGreater(expected, 25,
+                                   msg=f"face {face}: mirrored hand cut the "
+                                       f"template side")
+                self.assertAlmostEqual(mirror, 0.0, places=3,
+                                       msg=f"face {face}: mirrored mortise "
+                                           f"void missing")
+
+    def test_mirrored_hand_volume_and_lint(self):
+        import math
+        from freecad.bentwizard.linter import lint
+        self.apply(placement={"P0-1": {"hand": "mirrored"}})
+        post_cut, _ = self.cuts()
+        self.assertAlmostEqual(
+            post_cut, 24 + 51 + math.pi * 0.25 * 8 - math.pi * 0.25 * 2,
+            places=3)
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "hand.FCStd")
+            self.doc.saveAs(path)
+            self.assertEqual([str(f) for f in lint(path)], [])
+
+    def test_hand_only_for_side_landing_roles(self):
+        from freecad.bentwizard.apply_joint import JointError
+        with self.assertRaises(JointError):
+            self.apply(placement={"B0-1": {"hand": "mirrored"}})
+
     def test_face_only_for_side_landing_roles(self):
         from freecad.bentwizard.apply_joint import JointError
         with self.assertRaises(JointError):

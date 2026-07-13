@@ -174,6 +174,7 @@ class ApplyJointDialog(QtWidgets.QDialog):
         selected = [o for o in Gui.Selection.getSelection() if o in bodies]
         self.end_boxes = {}
         self.face_boxes = {}
+        self.hand_boxes = {}
         for i, role in enumerate(self.spec.roles):
             box = QtWidgets.QComboBox(self)
             for b in bodies:
@@ -208,6 +209,16 @@ class ApplyJointDialog(QtWidgets.QDialog):
                     "origin planes; 3 and 4 are opposite them.")
                 self.face_boxes[role] = face_box
                 self.roles_form.addRow(f"{role} face:", face_box)
+                hand_box = QtWidgets.QComboBox(self)
+                hand_box.addItem("As templated", "template")
+                hand_box.addItem("Mirrored (handed pair)", "mirrored")
+                hand_box.setToolTip(
+                    "Mirrored applies the §4.6 handed-mate transform: the "
+                    "joint's across-face asymmetry (setbacks) mirrors, for "
+                    "the second post of a pair facing the beam from the "
+                    "opposite direction.")
+                self.hand_boxes[role] = hand_box
+                self.roles_form.addRow(f"{role} hand:", hand_box)
 
         # Parameter form from the schema. Junction-bound parameters stay
         # expressions (override later by editing the VarSet, per §4.9).
@@ -253,6 +264,8 @@ class ApplyJointDialog(QtWidgets.QDialog):
             placement.setdefault(role, {})["end"] = box.currentData()
         for role, box in self.face_boxes.items():
             placement.setdefault(role, {})["face"] = box.currentData()
+        for role, box in self.hand_boxes.items():
+            placement.setdefault(role, {})["hand"] = box.currentData()
         return self.spec, self.joint_id.text(), body_map, values, placement
 
 
