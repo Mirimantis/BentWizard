@@ -77,6 +77,8 @@ Ground planes and bearing-point projection; auto-generated sill beams; split-lev
 
 ## Open Items
 - New Timber dialog: Role/Bent/Position selectors with auto-generated MemberIDs once bents exist (ties to the Phase 2 Role property); custom labels stay allowed for non-standard roles, nudged by the advisory naming rule.
+- Apply-Joint parameter bounds, phase 2 of: live min/max clamps on the dialog fields computed from the chosen timbers (the pre-flight refusal on resolved values exists); longer term, constraint relationships declared in the joint template itself (Tier 2 metadata) instead of name-keyed heuristics.
+- Visual indication of the reference faces (Face 1/Face 2) on a timber in the 3D view.
 - Units: decided (Phase 1) — the workbench defers to the user's FreeCAD unit schema (e.g. "Building US" for fractional inches), never forcing imperial or metric. TechDraw dimension style details remain open.
 - Feature label scheme within bodies: `FeatureType_JointID` collides across bodies sharing a joint (labels are document-unique) — needs body-qualified convention.
 - Joint library location (folder vs. addon structure) — decide at Phase 1 start.

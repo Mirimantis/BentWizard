@@ -22,7 +22,7 @@ import Part
 import Sketcher
 
 from .fcstd import FcstdDocument
-from .linter import Model
+from .linter import Model, footprint_violations
 
 DIMENSIONAL = {6, 7, 8, 9, 11, 18, 19}   # constraint types carrying a value
 
@@ -248,6 +248,23 @@ def apply_joint(doc, template, joint_id, body_map, values=None):
         elif p["expression"]:
             varset.setExpression(p["name"],
                                  _rewrite(p["expression"], expr_renames))
+
+    # Pre-flight parameter sanity against the RESOLVED values — junction
+    # bindings have now evaluated against the actual chosen timbers, so
+    # this is where template defaults meet a too-small stick. Refuse
+    # before cutting anything (roadmap: apply-dialog sanity bounds).
+    doc.recompute()
+
+    def lookup(name):
+        p = getattr(varset, name, None)
+        return p.Value if hasattr(p, "Value") else p
+
+    problems = footprint_violations(lookup)
+    if problems:
+        raise JointError(
+        "the joint does not fit these timbers:\n  "
+        + "\n  ".join(problems)
+        + "\nreduce the tenon/setback values or use larger timbers")
 
     # --- per-role stacks ----------------------------------------------------
     made = []

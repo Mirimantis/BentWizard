@@ -500,6 +500,33 @@ def rule_severing_limits(model):
     return findings
 
 
+FOOTPRINT_PAIRS = (
+    ("Tenon_Setback_Face1", "Tenon_Height", "Housing_Height"),
+    ("Tenon_Setback_Face2", "Tenon_Width", "Housing_Width"),
+)
+
+
+def footprint_violations(lookup):
+    """Setback + extent combinations exceeding their footprint opening.
+
+    `lookup(name)` returns the parameter value in mm, or None when the
+    parameter doesn't exist. Returns human-readable violation strings.
+    Shared by the joint-exceeds-footprint rule and the Apply-Joint
+    pre-flight (roadmap: apply-dialog parameter sanity bounds).
+    """
+    out = []
+    for setback_n, extent_n, opening_n in FOOTPRINT_PAIRS:
+        vals = [lookup(n) for n in (setback_n, extent_n, opening_n)]
+        if any(not isinstance(v, (int, float)) for v in vals):
+            continue
+        setback, extent, opening = vals
+        if setback + extent > opening + 1e-6:
+            out.append(
+                f"{setback_n} + {extent_n} = {setback + extent:.1f} mm "
+                f"exceeds {opening_n} = {opening:.1f} mm")
+    return out
+
+
 def rule_joint_fits_footprint(model):
     """Roadmap parameter sanity: the joint must fit inside its landing
     footprint. A setback + extent past the housing opening describes an
@@ -508,21 +535,15 @@ def rule_joint_fits_footprint(model):
     Part E finding). Name-keyed on the template property conventions.
     """
     findings = []
-    pairs = (("Tenon_Setback_Face1", "Tenon_Height", "Housing_Height"),
-             ("Tenon_Setback_Face2", "Tenon_Width", "Housing_Width"))
     for vs in model.joint_varsets():
-        for setback_n, extent_n, opening_n in pairs:
-            props = [vs.prop(n) for n in (setback_n, extent_n, opening_n)]
-            if any(p is None or not isinstance(p.value, float) for p in props):
-                continue
-            setback, extent, opening = (p.value for p in props)
-            if setback + extent > opening + 1e-6:
-                findings.append(Finding(
-                    "joint-exceeds-footprint", STRICT, vs.name, vs.label,
-                    f"{setback_n} + {extent_n} = {setback + extent:.1f} mm "
-                    f"exceeds {opening_n} = {opening:.1f} mm — the joint "
-                    f"does not fit its landing footprint and sketch "
-                    f"dimensions will invert"))
+        def lookup(name, vs=vs):
+            p = vs.prop(name)
+            return p.value if p is not None else None
+        for violation in footprint_violations(lookup):
+            findings.append(Finding(
+                "joint-exceeds-footprint", STRICT, vs.name, vs.label,
+                f"{violation} — the joint does not fit its landing "
+                f"footprint and sketch dimensions will invert"))
     return findings
 
 

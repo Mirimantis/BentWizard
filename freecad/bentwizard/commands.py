@@ -193,11 +193,15 @@ class ApplyJointDialog(QtWidgets.QDialog):
                 self.params_form.addRow(f"{p['name']}:", note)
                 continue
             if p["type_id"] == "App::PropertyInteger":
-                field = QtWidgets.QSpinBox(self)
-                field.setMaximum(999)
-                field.setValue(int(p["value"]))
-            else:
-                field = _quantity_field(float(p["value"]))
+                # counts (Peg_Count) are set by the template's geometry,
+                # not per application; editable later on the VarSet's
+                # Data tab if the applied joint is reworked
+                note = QtWidgets.QLabel(f"{int(p['value'])}   (set by the "
+                                        f"template)", self)
+                note.setToolTip(p["tooltip"])
+                self.params_form.addRow(f"{p['name']}:", note)
+                continue
+            field = _quantity_field(float(p["value"]))
             field.setToolTip(p["tooltip"])
             self.param_fields[p["name"]] = field
             self.params_form.addRow(f"{p['name']}:", field)
@@ -216,11 +220,8 @@ class ApplyJointDialog(QtWidgets.QDialog):
             raise JointError("each role needs a different timber")
         values = {}
         for name, field in self.param_fields.items():
-            if isinstance(field, QtWidgets.QSpinBox):
-                values[name] = field.value()
-            else:
-                raw = field.property("rawValue")
-                values[name] = App.Units.Quantity(f"{raw} mm")
+            raw = field.property("rawValue")
+            values[name] = App.Units.Quantity(f"{raw} mm")
         return self.spec, self.joint_id.text(), body_map, values
 
 

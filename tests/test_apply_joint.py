@@ -88,6 +88,21 @@ class ApplyJointTest(unittest.TestCase):
         with self.assertRaises(JointError):
             self.apply("B3a")
 
+    def test_oversized_defaults_refused_before_cutting(self):
+        # Template defaults (6 in tenon height + 1 in setback) cannot
+        # fit a 4 in deep beam: the pre-flight must refuse after the
+        # junction bindings resolve, before any geometry is cut.
+        from freecad.bentwizard.apply_joint import JointError, apply_joint
+        from freecad.bentwizard.timber import new_timber
+        small, _ = new_timber(self.doc, "B3-9", "6 in", "4 in", "8 ft")
+        v_post = self.post.Shape.Volume
+        with self.assertRaises(JointError) as ctx:
+            apply_joint(self.doc, self.spec, "B9x",
+                        {"P0-1": self.post, "B0-1": small})
+        self.assertIn("does not fit", str(ctx.exception))
+        self.doc.recompute()
+        self.assertAlmostEqual(self.post.Shape.Volume, v_post, places=6)
+
     def test_output_lints_completely_clean(self):
         from freecad.bentwizard.linter import lint
         self.apply()
