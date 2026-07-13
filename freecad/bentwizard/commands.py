@@ -5,11 +5,16 @@ in GUI-free modules (timber.py); commands here are thin wrappers:
 dialog -> transaction -> core call -> report.
 """
 
+from pathlib import Path
+
 import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
+from .apply_joint import JointError, TemplateSpec, apply_joint
 from .timber import TimberError, new_timber
+
+LIBRARY_DIR = Path(__file__).resolve().parents[2] / "library"
 
 def _quantity_field(default_mm):
     """A native Gui::QuantitySpinBox — parses and displays in the user's
@@ -95,8 +100,167 @@ class NewTimberCommand:
             return
 
 
+def _timber_bodies(doc):
+    """Bodies that carry a TimberDims VarSet — valid joint targets."""
+    return [o for o in doc.Objects
+            if o.TypeId == "PartDesign::Body"
+            and doc.getObjectsByLabel(f"TimberDims_{o.Label}")]
+
+
+class ApplyJointDialog(QtWidgets.QDialog):
+    """Template + role assignment + joint ID + the parameter form —
+    generated from the template's VarSet schema, no per-joint code."""
+
+    def __init__(self, doc, parent=None):
+        super().__init__(parent)
+        self.doc = doc
+        self.spec = None
+        self.setWindowTitle("Apply Joint")
+        layout = QtWidgets.QVBoxLayout(self)
+
+        top = QtWidgets.QFormLayout()
+        self.template_box = QtWidgets.QComboBox(self)
+        for f in sorted(LIBRARY_DIR.glob("*.FCStd")):
+            self.template_box.addItem(f.stem, str(f))
+        self.template_box.currentIndexChanged.connect(self._load_template)
+        top.addRow("Joint template:", self.template_box)
+        self.joint_id = QtWidgets.QLineEdit(self)
+        self.joint_id.setPlaceholderText("B2a")
+        self.joint_id.setToolTip(
+            "Joint instance ID — becomes Joint_<Kind>_<ID> and the "
+            "suffix on every cloned feature (e.g. B2a for bent 2, joint a)")
+        top.addRow("Joint ID:", self.joint_id)
+        layout.addLayout(top)
+
+        self.roles_form = QtWidgets.QFormLayout()
+        layout.addLayout(self.roles_form)
+        self.params_group = QtWidgets.QGroupBox("Parameters", self)
+        self.params_form = QtWidgets.QFormLayout(self.params_group)
+        layout.addWidget(self.params_group)
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
+            parent=self)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self.role_boxes = {}
+        self.param_fields = {}
+        self._load_template()
+
+    def _clear(self, form):
+        while form.rowCount():
+            form.removeRow(0)
+
+    def _load_template(self, *_):
+        path = self.template_box.currentData()
+        self._clear(self.roles_form)
+        self._clear(self.params_form)
+        self.role_boxes.clear()
+        self.param_fields.clear()
+        if not path:
+            return
+        try:
+            self.spec = TemplateSpec(path)
+        except (JointError, OSError) as err:
+            QtWidgets.QMessageBox.warning(self, "Apply Joint", str(err))
+            self.spec = None
+            return
+
+        # Role assignment: one combo per template role, preseeded from
+        # the current selection order.
+        bodies = _timber_bodies(self.doc)
+        selected = [o for o in Gui.Selection.getSelection() if o in bodies]
+        for i, role in enumerate(self.spec.roles):
+            box = QtWidgets.QComboBox(self)
+            for b in bodies:
+                box.addItem(b.Label, b.Name)
+            if i < len(selected):
+                box.setCurrentIndex(bodies.index(selected[i]))
+            elif i < len(bodies):
+                box.setCurrentIndex(i)
+            self.role_boxes[role] = box
+            self.roles_form.addRow(f"{role} timber:", box)
+
+        # Parameter form from the schema. Junction-bound parameters stay
+        # expressions (override later by editing the VarSet, per §4.9).
+        for p in self.spec.parameters:
+            if p["expression"]:
+                note = QtWidgets.QLabel(f"= {p['expression']}   (tracks "
+                                        f"the mating timber)", self)
+                note.setToolTip(p["tooltip"])
+                self.params_form.addRow(f"{p['name']}:", note)
+                continue
+            if p["type_id"] == "App::PropertyInteger":
+                field = QtWidgets.QSpinBox(self)
+                field.setMaximum(999)
+                field.setValue(int(p["value"]))
+            else:
+                field = _quantity_field(float(p["value"]))
+            field.setToolTip(p["tooltip"])
+            self.param_fields[p["name"]] = field
+            self.params_form.addRow(f"{p['name']}:", field)
+
+    def request(self):
+        """(spec, joint_id, body_map, values); raises JointError."""
+        if self.spec is None:
+            raise JointError("no template loaded")
+        body_map = {}
+        for role, box in self.role_boxes.items():
+            obj = self.doc.getObject(box.currentData())
+            if obj is None:
+                raise JointError(f"no timber chosen for role {role!r}")
+            body_map[role] = obj
+        if len({b.Name for b in body_map.values()}) != len(body_map):
+            raise JointError("each role needs a different timber")
+        values = {}
+        for name, field in self.param_fields.items():
+            if isinstance(field, QtWidgets.QSpinBox):
+                values[name] = field.value()
+            else:
+                raw = field.property("rawValue")
+                values[name] = App.Units.Quantity(f"{raw} mm")
+        return self.spec, self.joint_id.text(), body_map, values
+
+
+class ApplyJointCommand:
+    def GetResources(self):
+        return {
+            "MenuText": "Apply Joint",
+            "ToolTip": "Apply a joint template between two timbers: clones "
+                       "the template's cuts into both, driven by one shared "
+                       "joint VarSet",
+        }
+
+    def IsActive(self):
+        return App.ActiveDocument is not None
+
+    def Activated(self):
+        doc = App.ActiveDocument
+        dialog = ApplyJointDialog(doc, Gui.getMainWindow())
+        while dialog.exec() == QtWidgets.QDialog.Accepted:
+            try:
+                spec, joint_id, body_map, values = dialog.request()
+                doc.openTransaction(f"Apply joint {joint_id.strip()}")
+                try:
+                    varset = apply_joint(doc, spec, joint_id, body_map,
+                                         values=values)
+                except Exception:
+                    doc.abortTransaction()
+                    raise
+                doc.commitTransaction()
+            except JointError as err:
+                QtWidgets.QMessageBox.warning(dialog, "Apply Joint", str(err))
+                continue
+            Gui.Selection.clearSelection()
+            Gui.Selection.addSelection(varset)
+            return
+
+
 def register():
     Gui.addCommand("BentWizard_NewTimber", NewTimberCommand())
+    Gui.addCommand("BentWizard_ApplyJoint", ApplyJointCommand())
 
 
-ALL_COMMANDS = ["BentWizard_NewTimber"]
+ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_ApplyJoint"]
