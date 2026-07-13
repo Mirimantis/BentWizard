@@ -2,7 +2,7 @@
 
 Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive joinery, all geometry native. A prior attempt (old GitHub repo) failed by generating custom-coded geometry; it is reference-only — this repo starts from scratch on the lessons learned.
 
-**Status:** Phase 0 complete. Phase 1 in progress: linter, `Joint_HousedMT` template, New Timber command, and Apply-Joint (core + dialog; template's landing face/end only) done — all output lints clean. Next: face/end/hand placement selection on Apply-Joint, Preview Mated Joint, duplicate-bent tooling.
+**Status:** Phase 0 complete. Phase 1 in progress: linter, `Joint_HousedMT` template, New Timber command, and Apply-Joint with full placement (end A/B, faces 1–4, hand) done — all output lints clean. Next: build the test bent with the tools (validation shakedown), Preview Mated Joint, duplicate-bent tooling, Save-as-joint-template.
 
 ## Read first
 
