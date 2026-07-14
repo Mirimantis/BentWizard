@@ -351,6 +351,69 @@ class ApplyJointTest(unittest.TestCase):
         self.doc.recompute()
         self.assertAlmostEqual(vs.Joint_Station.Value, 50 * 25.4, places=6)
 
+    def test_engagement_seats_the_mate_frame(self):
+        # the seated pose must make the beam's mate frame coincide with
+        # the post's landing frame, regardless of the beam's current pose
+        from freecad.bentwizard.apply_joint import engagement_placement
+        vs = self.apply()
+        self.beam.Placement = App.Placement(
+            App.Vector(123, -45, 67),
+            App.Rotation(App.Vector(1, 2, 3), 37))     # arbitrary pose
+        self.doc.recompute()
+        mover, anchor, seated = engagement_placement(vs)
+        self.assertIs(mover, self.beam)
+        self.assertIs(anchor, self.post)
+        mover.Placement = seated
+        self.doc.recompute()
+        landing = self.doc.getObjectsByLabel(
+            "P3-1_JointFrame_MT_B3a")[0].getGlobalPlacement()
+        mate = self.doc.getObjectsByLabel(
+            "B3-1_MateFrame_MT_B3a")[0].getGlobalPlacement()
+        self.assertLess(mate.Base.sub(landing.Base).Length, 1e-6)
+        # axes coincide too (not just origins)
+        for v in (App.Vector(1, 0, 0), App.Vector(0, 1, 0)):
+            self.assertLess(
+                mate.Rotation.multVec(v).sub(landing.Rotation.multVec(v)).Length,
+                1e-6)
+
+    def test_engagement_none_without_mate_frame(self):
+        # a joint whose mate frame was removed (older joints) → no pose
+        from freecad.bentwizard.apply_joint import engagement_placement
+        vs = self.apply()
+        mate = self.doc.getObjectsByLabel("B3-1_MateFrame_MT_B3a")[0]
+        self.doc.removeObject(mate.Name)
+        self.doc.recompute()
+        self.assertIsNone(engagement_placement(vs))
+
+    def test_preview_creates_engaged_links_without_moving_bodies(self):
+        from freecad.bentwizard.apply_joint import (create_preview,
+                                                    find_preview)
+        vs = self.apply()
+        post_pose = self.post.Placement.copy()
+        beam_pose = self.beam.Placement.copy()
+        group = create_preview(vs)
+        self.assertIsNotNone(group)
+        links = list(group.Group)
+        self.assertEqual(len(links), 2)
+        self.assertTrue(all(l.TypeId == "App::Link" for l in links))
+        # real bodies untouched (finding #11)
+        self.assertEqual(self.post.Placement.Base, post_pose.Base)
+        self.assertEqual(self.beam.Placement.Base, beam_pose.Base)
+        # idempotent: a second preview replaces, not duplicates
+        create_preview(vs)
+        groups = [o for o in self.doc.Objects
+                  if o.Label == f"Preview_{vs.Label}"]
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(find_preview(vs), groups[0])
+
+    def test_preview_none_without_mate_frame(self):
+        from freecad.bentwizard.apply_joint import create_preview
+        vs = self.apply()
+        mate = self.doc.getObjectsByLabel("B3-1_MateFrame_MT_B3a")[0]
+        self.doc.removeObject(mate.Name)
+        self.doc.recompute()
+        self.assertIsNone(create_preview(vs))
+
     def test_placement_record_written(self):
         vs = self.apply(placement={"P0-1": {"face": 2, "hand": "mirrored"},
                                    "B0-1": {"end": "B"}})

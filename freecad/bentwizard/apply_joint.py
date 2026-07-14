@@ -329,6 +329,118 @@ def remove_joint(varset):
 
 
 # --------------------------------------------------------------------------
+# Mated-joint engagement (Preview)
+# --------------------------------------------------------------------------
+
+def joint_role_frames(varset):
+    """{body: {'landing': LCS|None, 'mate': LCS|None}} for a joint's roles.
+
+    The landing frame is each role's JointFrame; the mate frame is on
+    the role that enters its mate (the tenon side), declaring the pose
+    that seats the joint.
+    """
+    frames = {}
+    for obj in joint_members(varset):
+        if obj.TypeId != "Part::LocalCoordinateSystem":
+            continue
+        body = obj.getParentGeoFeatureGroup()
+        if body is None:
+            continue
+        slot = frames.setdefault(body, {"landing": None, "mate": None})
+        if "MateFrame" in obj.Label:
+            slot["mate"] = obj
+        elif "JointFrame" in obj.Label:
+            slot["landing"] = obj
+    return frames
+
+
+def engagement_placement(varset):
+    """Seated pose for the mating half of a joint.
+
+    The role carrying a mate frame (the tenon side) is the mover; the
+    other role (the mortise side) is the anchor. Returns
+    (mover_body, anchor_body, placement) where `placement` set on the
+    mover body makes its mate frame coincide with the anchor's landing
+    frame — independent of either body's current placement. Returns None
+    when the joint predates mate frames or is missing a frame.
+    """
+    frames = joint_role_frames(varset)
+    mover = next(((b, f) for b, f in frames.items() if f["mate"]), None)
+    anchor = next(((b, f) for b, f in frames.items()
+                   if f["landing"] and not f["mate"]), None)
+    if mover is None or anchor is None:
+        return None
+    mover_body, mover_f = mover
+    anchor_body, anchor_f = anchor
+    landing_g = anchor_f["landing"].getGlobalPlacement()
+    mate_g = mover_f["mate"].getGlobalPlacement()
+    # the mate frame expressed in the mover body's own frame (constant)
+    mate_local = mover_body.Placement.inverse().multiply(mate_g)
+    seated = landing_g.multiply(mate_local.inverse())
+    return mover_body, anchor_body, seated
+
+
+def preview_placements(varset):
+    """[(body, placement), ...] to display the joint engaged with the
+    anchor's landing frame at the world origin (a fixed, predictable
+    spot regardless of the real bodies' poses). None if not previewable.
+    """
+    eng = engagement_placement(varset)
+    if eng is None:
+        return None
+    mover_body, anchor_body, seated = eng
+    to_origin = joint_role_frames(varset)[anchor_body][
+        "landing"].getGlobalPlacement().inverse()
+    return [(anchor_body, to_origin.multiply(anchor_body.Placement)),
+            (mover_body, to_origin.multiply(seated))]
+
+
+def preview_group_label(varset):
+    return f"Preview_{varset.Label}"
+
+
+def find_preview(varset):
+    """The existing preview group for this joint, or None."""
+    groups = varset.Document.getObjectsByLabel(preview_group_label(varset))
+    return groups[0] if groups else None
+
+
+def remove_preview(group):
+    """Delete a preview group and its links. Caller owns the transaction."""
+    doc = group.Document
+    for link in list(group.Group):
+        doc.removeObject(link.Name)
+    doc.removeObject(group.Name)
+    doc.recompute()
+
+
+def create_preview(varset):
+    """Non-destructive engaged view: App::Links to both halves, posed
+    with the anchor's landing frame at the world origin. Real body
+    placements are never touched (finding #11). Replaces any prior
+    preview of this joint. Returns the group, or None if not
+    previewable. Caller owns the transaction."""
+    placements = preview_placements(varset)
+    if placements is None:
+        return None
+    doc = varset.Document
+    existing = find_preview(varset)
+    if existing is not None:
+        remove_preview(existing)
+    group = doc.addObject("App::DocumentObjectGroup", "JointPreview")
+    group.Label = preview_group_label(varset)
+    for body, placement in placements:
+        link = doc.addObject("App::Link", "PreviewLink")
+        link.Label = f"Preview_{body.Label}_{varset.Label}"
+        link.setLink(body)
+        link.LinkTransform = False
+        link.Placement = placement
+        group.addObject(link)
+    doc.recompute()
+    return group
+
+
+# --------------------------------------------------------------------------
 # Rebuilding in the target document
 # --------------------------------------------------------------------------
 

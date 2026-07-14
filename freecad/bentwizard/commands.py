@@ -12,7 +12,9 @@ import FreeCADGui as Gui
 from PySide import QtWidgets
 
 from .apply_joint import (JointError, TemplateSpec, apply_joint,
-                          dims_varset, joint_members, remove_joint)
+                          create_preview, dims_varset, engagement_placement,
+                          find_preview, joint_members, remove_joint,
+                          remove_preview)
 from .timber import TimberError, new_timber
 
 LIBRARY_DIR = Path(__file__).resolve().parents[2] / "library"
@@ -106,6 +108,32 @@ def _timber_bodies(doc):
     targets, resolved structurally so renamed timbers still qualify."""
     return [o for o in doc.Objects
             if o.TypeId == "PartDesign::Body" and dims_varset(o) is not None]
+
+
+def _pick_joint(doc, title):
+    """Prompt for a joint instance VarSet, preselected from the current
+    selection (its VarSet, or any joint member — the landing frame is
+    3D-clickable, and member labels carry the joint's _Kind_ID suffix).
+    Returns the VarSet, or None if cancelled / none present."""
+    joints = [o for o in doc.Objects
+              if o.TypeId == "App::VarSet" and o.Label.startswith("Joint_")]
+    if not joints:
+        QtWidgets.QMessageBox.information(
+            Gui.getMainWindow(), title, "No joint instances in this document.")
+        return None
+    labels = [j.Label for j in joints]
+    current = 0
+    sel_labels = [o.Label for o in Gui.Selection.getSelection()]
+    for i, joint in enumerate(joints):
+        suffix = joint.Label.replace("Joint", "", 1)      # "_MT_B2a"
+        if any(s == joint.Label or s.endswith(suffix) for s in sel_labels):
+            current = i
+            break
+    label, ok = QtWidgets.QInputDialog.getItem(
+        Gui.getMainWindow(), title, "Joint instance:", labels, current, False)
+    if not ok:
+        return None
+    return joints[labels.index(label)]
 
 
 class ApplyJointDialog(QtWidgets.QDialog):
@@ -346,31 +374,9 @@ class RemoveJointCommand:
 
     def Activated(self):
         doc = App.ActiveDocument
-        joints = [o for o in doc.Objects
-                  if o.TypeId == "App::VarSet" and o.Label.startswith("Joint_")]
-        if not joints:
-            QtWidgets.QMessageBox.information(
-                Gui.getMainWindow(), "Remove Joint",
-                "No joint instances in this document.")
+        varset = _pick_joint(doc, "Remove Joint")
+        if varset is None:
             return
-        labels = [j.Label for j in joints]
-        # preselect from the selection: the VarSet itself, or ANY member
-        # of a joint (its landing frame is clickable in the 3D view —
-        # member labels carry the joint's _Kind_ID suffix)
-        current = 0
-        sel_labels = [o.Label for o in Gui.Selection.getSelection()]
-        for i, joint in enumerate(joints):
-            suffix = joint.Label.replace("Joint", "", 1)   # "_MT_B2a"
-            if any(s == joint.Label or s.endswith(suffix)
-                   for s in sel_labels):
-                current = i
-                break
-        label, ok = QtWidgets.QInputDialog.getItem(
-            Gui.getMainWindow(), "Remove Joint", "Joint instance:",
-            labels, current, False)
-        if not ok:
-            return
-        varset = joints[labels.index(label)]
         members = joint_members(varset)
         bodies = sorted({o.getParentGeoFeatureGroup().Label
                          for o in members if o.getParentGeoFeatureGroup()})
@@ -390,11 +396,63 @@ class RemoveJointCommand:
         doc.commitTransaction()
 
 
+class PreviewJointCommand:
+    def GetResources(self):
+        return {
+            "MenuText": "Preview Mated Joint",
+            "ToolTip": "Show both halves of a joint engaged (a ghost view "
+                       "with the joint centered at the origin), to verify "
+                       "fit — real timber placements are untouched. Run "
+                       "again to clear.",
+        }
+
+    def IsActive(self):
+        return App.ActiveDocument is not None
+
+    def Activated(self):
+        doc = App.ActiveDocument
+        varset = _pick_joint(doc, "Preview Mated Joint")
+        if varset is None:
+            return
+        existing = find_preview(varset)
+        if existing is not None:                 # toggle off
+            doc.openTransaction(f"Clear preview {varset.Label}")
+            try:
+                remove_preview(existing)
+            except Exception:
+                doc.abortTransaction()
+                raise
+            doc.commitTransaction()
+            return
+        if engagement_placement(varset) is None:
+            QtWidgets.QMessageBox.warning(
+                Gui.getMainWindow(), "Preview Mated Joint",
+                f"{varset.Label} has no mate frame, so its engaged pose is "
+                f"not defined. Joints applied before mate frames were added "
+                f"to the template cannot be previewed; re-apply to enable it.")
+            return
+        doc.openTransaction(f"Preview {varset.Label}")
+        try:
+            group = create_preview(varset)
+        except Exception:
+            doc.abortTransaction()
+            raise
+        doc.commitTransaction()
+        Gui.Selection.clearSelection()
+        if group is not None:
+            Gui.Selection.addSelection(group)
+            try:
+                Gui.SendMsgToActiveView("ViewFit")
+            except Exception:
+                pass
+
+
 def register():
     Gui.addCommand("BentWizard_NewTimber", NewTimberCommand())
     Gui.addCommand("BentWizard_ApplyJoint", ApplyJointCommand())
     Gui.addCommand("BentWizard_RemoveJoint", RemoveJointCommand())
+    Gui.addCommand("BentWizard_PreviewJoint", PreviewJointCommand())
 
 
 ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_ApplyJoint",
-                "BentWizard_RemoveJoint"]
+                "BentWizard_RemoveJoint", "BentWizard_PreviewJoint"]
