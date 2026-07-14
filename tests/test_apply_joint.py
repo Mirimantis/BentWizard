@@ -66,6 +66,20 @@ class ApplyJointTest(unittest.TestCase):
         self.assertAlmostEqual(post_cut, 24 + 51 + bore * 8 - bore * 2, places=3)
         self.assertAlmostEqual(beam_cut, 144 + bore * 2, places=3)
 
+    def test_renamed_body_binds_its_actual_dims_varset(self):
+        # The live bug: body renamed after creation, its Dims VarSet
+        # keeping the old label. The junction bindings must resolve the
+        # ACTUAL VarSet structurally, and keep tracking it.
+        self.beam.Label = "Beam Renamed"
+        vs = self.apply()
+        engine = {p.lstrip("."): e for p, e in vs.ExpressionEngine}
+        self.assertIn("<<TimberDims_B3-1>>", engine["Housing_Width"])
+        cut0, _ = self.cuts()
+        self.doc.getObjectsByLabel("TimberDims_B3-1")[0].Width = "8 in"
+        self.doc.recompute()
+        cut1, _ = self.cuts()
+        self.assertGreater(cut1, cut0)
+
     def test_junction_binding_tracks_mating_timber(self):
         self.apply()
         cut0, _ = self.cuts()

@@ -591,6 +591,13 @@ def rule_naming_conventions(model):
                 "naming-convention", ADVISORY, body.name, body.label,
                 f"body label is not a MemberID "
                 f"([RolePrefix][Bent]-[Position], e.g. P2-1)"))
+        dims = model.body_dims(body)
+        if dims is not None and dims.label != f"TimberDims_{body.label}":
+            findings.append(Finding(
+                "naming-convention", ADVISORY, dims.name, dims.label,
+                f"Dims VarSet label should be 'TimberDims_{body.label}' to "
+                f"match its timber — tools resolve the binding "
+                f"structurally, but drifted labels invite mistakes"))
     return findings
 
 

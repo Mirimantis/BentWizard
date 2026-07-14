@@ -17,6 +17,8 @@ architecture) and layers on next.
 
 from __future__ import annotations
 
+import re
+
 import FreeCAD as App
 import Part
 import Sketcher
@@ -62,6 +64,32 @@ _SUPPORTED_GEOMETRY = ("line", "circle")
 
 class JointError(ValueError):
     """An apply-joint request that cannot be honored."""
+
+
+_LABEL_IN_EXPR = re.compile(r"<<([^<>]+)>>")
+
+
+def dims_varset(body):
+    """The Dims VarSet driving a timber body's base pad, or None.
+
+    Resolved structurally (whatever the pad's Length expression binds
+    to), never by label convention: a renamed body whose VarSet kept
+    the old label must still resolve — the live bug was such a timber
+    being silently excluded and another body substituted for it.
+    """
+    doc = body.Document
+    for obj in body.Group:
+        if obj.TypeId != "PartDesign::Pad":
+            continue
+        for path, expr in obj.ExpressionEngine:
+            if path.lstrip(".") == "Length":
+                m = _LABEL_IN_EXPR.search(expr)
+                if m:
+                    hits = doc.getObjectsByLabel(m.group(1))
+                    if hits and hits[0].TypeId == "App::VarSet":
+                        return hits[0]
+        break   # the first Pad is the base feature
+    return None
 
 
 # --------------------------------------------------------------------------
@@ -301,22 +329,24 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
             f"{sorted(template.roles)}")
 
     # Label/expression rewrite table: template joint + each role's
-    # MemberID and Dims label -> target equivalents.
+    # MemberID and Dims label -> target equivalents. The target Dims
+    # label is resolved structurally from the body's base pad, so a
+    # renamed body binds its ACTUAL VarSet, whatever it is called.
     renames = {template.joint_label: new_joint_label,
                # feature labels carry the joint ID as a suffix
                f"_{template.kind}_{template.template_jid}":
                f"_{template.kind}_{joint_id}"}
+    role_dims = {}
     for tmpl_label, body in body_map.items():
-        renames[template.dims_labels[tmpl_label]] = f"TimberDims_{body.Label}"
+        dims = dims_varset(body)
+        if dims is None:
+            raise JointError(
+                f"{body.Label!r} has no Dims VarSet driving its base pad — "
+                f"is it a BentWizard timber?")
+        role_dims[tmpl_label] = dims.Label
+        renames[template.dims_labels[tmpl_label]] = dims.Label
         renames[tmpl_label] = body.Label
     expr_renames = {f"<<{k}>>": f"<<{v}>>" for k, v in renames.items()}
-
-    # Target Dims sanity: each mapped body must have its Dims VarSet.
-    for tmpl_label, body in body_map.items():
-        if not doc.getObjectsByLabel(f"TimberDims_{body.Label}"):
-            raise JointError(
-                f"{body.Label!r} has no TimberDims_{body.Label} VarSet — "
-                f"is it a BentWizard timber?")
 
     # --- joint VarSet -----------------------------------------------------
     varset = doc.addObject("App::VarSet", "JointVarSet")
@@ -363,7 +393,7 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
             # origin sits at the footprint center, so the §4.6 handed-
             # mate setback complement is a pure coordinate mirror.
             "flip_x": str(opts.get("hand", "template")).lower() == "mirrored",
-            "dims_label": f"TimberDims_{body.Label}",
+            "dims_label": role_dims[tmpl_label],
             "frame_name": next((s["name"] for s in stack
                                 if s["type_id"] == "Part::LocalCoordinateSystem"),
                                None),

@@ -11,7 +11,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
-from .apply_joint import JointError, TemplateSpec, apply_joint
+from .apply_joint import JointError, TemplateSpec, apply_joint, dims_varset
 from .timber import TimberError, new_timber
 
 LIBRARY_DIR = Path(__file__).resolve().parents[2] / "library"
@@ -101,10 +101,10 @@ class NewTimberCommand:
 
 
 def _timber_bodies(doc):
-    """Bodies that carry a TimberDims VarSet — valid joint targets."""
+    """Bodies with a Dims VarSet driving their base pad — valid joint
+    targets, resolved structurally so renamed timbers still qualify."""
     return [o for o in doc.Objects
-            if o.TypeId == "PartDesign::Body"
-            and doc.getObjectsByLabel(f"TimberDims_{o.Label}")]
+            if o.TypeId == "PartDesign::Body" and dims_varset(o) is not None]
 
 
 class ApplyJointDialog(QtWidgets.QDialog):
@@ -177,12 +177,14 @@ class ApplyJointDialog(QtWidgets.QDialog):
         self.hand_boxes = {}
         for i, role in enumerate(self.spec.roles):
             box = QtWidgets.QComboBox(self)
+            # never guess a timber: preseed only from the selection,
+            # otherwise force an explicit choice (a silent fallback once
+            # applied a joint to a body the user never selected)
+            box.addItem("— choose a timber —", None)
             for b in bodies:
                 box.addItem(b.Label, b.Name)
             if i < len(selected):
-                box.setCurrentIndex(bodies.index(selected[i]))
-            elif i < len(bodies):
-                box.setCurrentIndex(i)
+                box.setCurrentIndex(bodies.index(selected[i]) + 1)
             self.role_boxes[role] = box
             self.roles_form.addRow(f"{role} timber:", box)
             if role in self.spec.end_landing_roles:
@@ -249,9 +251,10 @@ class ApplyJointDialog(QtWidgets.QDialog):
             raise JointError("no template loaded")
         body_map = {}
         for role, box in self.role_boxes.items():
-            obj = self.doc.getObject(box.currentData())
+            name = box.currentData()
+            obj = self.doc.getObject(name) if name else None
             if obj is None:
-                raise JointError(f"no timber chosen for role {role!r}")
+                raise JointError(f"choose a timber for the {role!r} role")
             body_map[role] = obj
         if len({b.Name for b in body_map.values()}) != len(body_map):
             raise JointError("each role needs a different timber")

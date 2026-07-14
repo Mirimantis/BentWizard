@@ -112,6 +112,11 @@ class SessionTwelveBehavior(LinterFixtureTest):
 
     FIXTURE = SESSION_12
 
+    def test_dims_label_drift_flagged(self):
+        # PostDims should be TimberDims_Post per the convention; the
+        # drifted label is advisory (tools resolve structurally).
+        self.assertFinding("naming-convention", contains="TimberDims_Post")
+
     def test_symmetric_constraint_detected(self):
         # Socket_DT1 sketch still carries one Symmetric constraint.
         self.assertFinding("symmetry-constraint", obj="Sketch010")
