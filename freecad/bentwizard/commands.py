@@ -11,7 +11,8 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
-from .apply_joint import JointError, TemplateSpec, apply_joint, dims_varset
+from .apply_joint import (JointError, TemplateSpec, apply_joint,
+                          dims_varset, joint_members, remove_joint)
 from .timber import TimberError, new_timber
 
 LIBRARY_DIR = Path(__file__).resolve().parents[2] / "library"
@@ -306,9 +307,62 @@ class ApplyJointCommand:
             return
 
 
+class RemoveJointCommand:
+    def GetResources(self):
+        return {
+            "MenuText": "Remove Joint",
+            "ToolTip": "Remove a joint instance completely: every cut, "
+                       "sketch, and landing frame on both timbers, plus "
+                       "the joint VarSet",
+        }
+
+    def IsActive(self):
+        return App.ActiveDocument is not None
+
+    def Activated(self):
+        doc = App.ActiveDocument
+        joints = [o for o in doc.Objects
+                  if o.TypeId == "App::VarSet" and o.Label.startswith("Joint_")]
+        if not joints:
+            QtWidgets.QMessageBox.information(
+                Gui.getMainWindow(), "Remove Joint",
+                "No joint instances in this document.")
+            return
+        labels = [j.Label for j in joints]
+        current = 0
+        for sel in Gui.Selection.getSelection():
+            if sel in joints:
+                current = joints.index(sel)
+        label, ok = QtWidgets.QInputDialog.getItem(
+            Gui.getMainWindow(), "Remove Joint", "Joint instance:",
+            labels, current, False)
+        if not ok:
+            return
+        varset = joints[labels.index(label)]
+        members = joint_members(varset)
+        bodies = sorted({o.getParentGeoFeatureGroup().Label
+                         for o in members if o.getParentGeoFeatureGroup()})
+        answer = QtWidgets.QMessageBox.question(
+            Gui.getMainWindow(), "Remove Joint",
+            f"Remove {label} — {len(members)} objects across "
+            f"{', '.join(bodies) or 'no bodies'} — plus the VarSet?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+        if answer != QtWidgets.QMessageBox.Yes:
+            return
+        doc.openTransaction(f"Remove joint {label}")
+        try:
+            remove_joint(varset)
+        except Exception:
+            doc.abortTransaction()
+            raise
+        doc.commitTransaction()
+
+
 def register():
     Gui.addCommand("BentWizard_NewTimber", NewTimberCommand())
     Gui.addCommand("BentWizard_ApplyJoint", ApplyJointCommand())
+    Gui.addCommand("BentWizard_RemoveJoint", RemoveJointCommand())
 
 
-ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_ApplyJoint"]
+ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_ApplyJoint",
+                "BentWizard_RemoveJoint"]

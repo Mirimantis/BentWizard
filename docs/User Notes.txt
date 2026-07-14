@@ -1,5 +1,7 @@
+Add to joint templates: a toggle if a joint is Handed or not. Some joint designs may be fully symmetrical and defined from the center line. In that case applying them can be a simple rotation or mirror.
+
+Is Square Rule necessary to enforce, or can it be an option selected during joint design? Could we have Mill Rule joints as well, or joints that are defined from a datum?
+
 A thought about the joint design: tenons are often full-depth on their timber. Fewer cuts that have to be made if they extend directly from the shoulder. In that case, a MT joint would be able to have the same Tenon_Height as Beam Height. This design breaks due to the coincident edges in that case; Maybe it just needs to be a different joint in the library in the future.
-
-
 
 Another note for future joint designs: Tenon_Setback_Face1 and Tenon_Setback_Face2 are not descriptive enough, and should indicate which direction (from the bottom or side). I suppose Face 1 is currently set as the bottom of a beam, but that may be editable in the future.

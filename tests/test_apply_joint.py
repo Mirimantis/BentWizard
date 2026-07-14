@@ -301,6 +301,47 @@ class ApplyJointTest(unittest.TestCase):
         self.doc.recompute()
         self.assertAlmostEqual(self.post.Shape.Volume, v_post, places=6)
 
+    def test_remove_joint_restores_the_timbers(self):
+        from freecad.bentwizard.apply_joint import remove_joint
+        vs = self.apply()
+        remove_joint(vs)
+        self.assertEqual(self.cuts(), (0.0, 0.0))
+        leftovers = [o.Label for o in self.doc.Objects
+                     if "MT_B3a" in o.Label]
+        self.assertEqual(leftovers, [])
+
+    def test_remove_one_joint_leaves_the_other_untouched(self):
+        # the live accident: cleaning up one joint by hand deleted parts
+        # of another
+        import math
+        from freecad.bentwizard.apply_joint import remove_joint
+        vs_a = self.apply("B3a", values={"Joint_Station":
+                                         App.Units.Quantity("60 in")})
+        self.apply("B3b", values={"Joint_Station":
+                                  App.Units.Quantity("20 in")},
+                   placement={"B0-1": {"end": "B"}})
+        remove_joint(vs_a)
+        post_cut, beam_cut = self.cuts()
+        self.assertAlmostEqual(post_cut,
+                               24 + 51 + math.pi * 0.25 * 8
+                               - math.pi * 0.25 * 2, places=3)
+        self.assertAlmostEqual(beam_cut, 144 + math.pi * 0.25 * 2, places=3)
+        self.assertTrue(any("MT_B3b" in o.Label for o in self.doc.Objects))
+        self.assertFalse(any("MT_B3a" in o.Label for o in self.doc.Objects))
+
+    def test_expression_values_bind(self):
+        # a string value is applied as an expression: bind Joint_Station
+        # to a project-level VarSet at apply time
+        proj = self.doc.addObject("App::VarSet", "ProjectVars")
+        proj.Label = "Project_Main"
+        proj.addProperty("App::PropertyLength", "Tie_Height", "Project", "t")
+        proj.Tie_Height = "60 in"
+        vs = self.apply(values={"Joint_Station": "<<Project_Main>>.Tie_Height"})
+        self.assertAlmostEqual(vs.Joint_Station.Value, 60 * 25.4, places=6)
+        proj.Tie_Height = "50 in"
+        self.doc.recompute()
+        self.assertAlmostEqual(vs.Joint_Station.Value, 50 * 25.4, places=6)
+
     def test_output_lints_completely_clean(self):
         from freecad.bentwizard.linter import lint
         self.apply()

@@ -238,6 +238,87 @@ class TemplateSpec:
 
 
 # --------------------------------------------------------------------------
+# Joint instance membership and removal
+# --------------------------------------------------------------------------
+
+def joint_members(varset):
+    """Every object belonging to a joint instance (the VarSet excluded).
+
+    Structural, not label-based: anything whose expressions reference
+    the joint VarSet, closed over attachment supports (the landing
+    frames, which may carry no expressions of their own) and the
+    frames' child datum features.
+    """
+    doc = varset.Document
+    token = f"<<{varset.Label}>>"
+    members = set()
+    for obj in doc.Objects:
+        if obj is varset:
+            continue
+        engine = getattr(obj, "ExpressionEngine", None) or []
+        if any(token in expr for _path, expr in engine):
+            members.add(obj)
+    # profile-consumer closure: a Through-All pocket may carry no
+    # expressions of its own (depth implicit, diameter in the sketch) —
+    # it belongs to the joint through its profile sketch
+    for obj in doc.Objects:
+        profile = getattr(obj, "Profile", None)
+        if profile:
+            target = profile[0] if isinstance(profile, tuple) else profile
+            if target in members:
+                members.add(obj)
+    # attachment-support closure: landing frames and datums the members
+    # hang off (only within the members' own bodies)
+    for obj in list(members):
+        for link in (getattr(obj, "AttachmentSupport", None) or []):
+            target = link[0]
+            if target.TypeId.startswith(("Part::LocalCoordinateSystem",
+                                         "Part::Datum")):
+                members.add(target)
+    # LCS child features (axes/planes/origin) die with their frame
+    for obj in list(members):
+        if obj.TypeId == "Part::LocalCoordinateSystem":
+            members.update(getattr(obj, "OriginFeatures", []))
+    return members
+
+
+def remove_joint(varset):
+    """Remove a joint instance: all members from both timbers, then the
+    VarSet. Returns the number of objects removed. Caller owns the
+    transaction."""
+    doc = varset.Document
+    member_names = {o.Name for o in joint_members(varset)}
+    ordered = []
+    for obj in doc.Objects:
+        if obj.TypeId != "PartDesign::Body":
+            continue
+        # later features chain on earlier ones: remove dependents first
+        ordered.extend(child.Name for child in reversed(list(obj.Group))
+                       if child.Name in member_names)
+    ordered.extend(member_names.difference(ordered))   # LCS children etc.
+    removed = 0
+    for name in ordered:
+        obj = doc.getObject(name)
+        if obj is None:                        # may cascade with a parent
+            continue
+        # the API does not relink the solid chain on removal: point any
+        # dependent feature (and the body Tip) past the leaving feature
+        base = getattr(obj, "BaseFeature", None)
+        if base is not None or hasattr(obj, "BaseFeature"):
+            for other in doc.Objects:
+                if getattr(other, "BaseFeature", None) is obj:
+                    other.BaseFeature = base
+            body = obj.getParentGeoFeatureGroup()
+            if body is not None and body.Tip is obj:
+                body.Tip = base
+        doc.removeObject(name)
+        removed += 1
+    doc.removeObject(varset.Name)
+    doc.recompute()
+    return removed + 1
+
+
+# --------------------------------------------------------------------------
 # Rebuilding in the target document
 # --------------------------------------------------------------------------
 
@@ -356,7 +437,13 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
         setattr(varset, p["name"], p["value"])
     for p in template.parameters:
         if p["name"] in values:
-            setattr(varset, p["name"], values[p["name"]])   # literal override
+            v = values[p["name"]]
+            if isinstance(v, str):
+                # a string value is an expression (e.g. bind a parameter
+                # to a project VarSet at apply time)
+                varset.setExpression(p["name"], v)
+            else:
+                setattr(varset, p["name"], v)    # literal override
         elif p["expression"]:
             varset.setExpression(p["name"],
                                  _rewrite(p["expression"], expr_renames))
