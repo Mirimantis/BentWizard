@@ -5,7 +5,12 @@ One ordinary `.FCStd` file per joint template. A template contains:
 - one VarSet — the joint's parameter schema (the apply dialog is generated
   from it; tooltips mandatory on every property),
 - per-role feature stacks (e.g. mortise side / tenon side) built to the
-  Phase 0 workflow conventions,
+  Phase 0 workflow conventions, each hanging off one landing-frame LCS
+  (side-landing roles authored on Face 4, frame origin at the footprint
+  center; end-landing roles on end A),
+- a **mate frame** LCS on each role that enters its mate, coinciding
+  axis-for-axis with the mating role's landing frame when engaged
+  (drives Preview Mated Joint and assembly),
 - non-geometric schedule data (e.g. `Peg_Count`) as VarSet properties.
 
 Templates must lint clean (strict **and** advisory):

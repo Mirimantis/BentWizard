@@ -259,4 +259,26 @@ Shakedown expectations (from the live run):
 
 Built: `library/Joint_HousedMT.FCStd`, mirrored as a test fixture —
 the template must stay completely clean (strict and advisory) for the
-suite to pass. Next: the "New Timber from template" command.
+suite to pass.
+
+---
+
+## Part F — the mate frame (added for Preview Mated Joint)
+
+Convention: a role that enters its mate carries one **mate frame** — a
+datum LCS declaring "when engaged, this frame coincides with the
+mating role's landing frame, axis for axis." Preview (and later,
+assembly) aligns two frames and needs no joint-specific knowledge; a
+future scarf or lap defines its own engagement the same way.
+
+1. Activate `B0-1`. **Create coordinate system**
+   `B0-1_MateFrame_MT_0a`: attach "XY on plane" to
+   `B0-1_JointFrame_MT_0a`'s **XY plane** child (tree-select).
+2. Offset expressions:
+   - `Base.x = <<TimberDims_B0-1>>.Width / 2`
+   - `Base.y = <<TimberDims_B0-1>>.Depth / 2`
+   - `Base.z = <<Joint_MT_0a>>.Tenon_Length`
+3. Verify: origin at the beam's section center on the shoulder plane
+   (3, 4, 4) in; axes parallel to the beam's own (X across Width, Y
+   across Depth, Z along the stick, away from the tenon).
+4. Lint, save, and refresh the test fixture copy.
