@@ -297,10 +297,14 @@ def remove_joint(varset):
                        if child.Name in member_names)
     ordered.extend(member_names.difference(ordered))   # LCS children etc.
     removed = 0
+    affected_bodies = set()
     for name in ordered:
         obj = doc.getObject(name)
         if obj is None:                        # may cascade with a parent
             continue
+        parent = obj.getParentGeoFeatureGroup()
+        if parent is not None:
+            affected_bodies.add(parent)
         # the API does not relink the solid chain on removal: point any
         # dependent feature (and the body Tip) past the leaving feature
         base = getattr(obj, "BaseFeature", None)
@@ -315,6 +319,12 @@ def remove_joint(varset):
         removed += 1
     doc.removeObject(varset.Name)
     doc.recompute()
+    # deleting a body's visible tip leaves the relinked tip hidden (the
+    # GUI restores it on delete; the API does not) — the timber would
+    # look deleted
+    for body in affected_bodies:
+        if body.Tip is not None:
+            body.Tip.Visibility = True
     return removed + 1
 
 
@@ -441,7 +451,11 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
             if isinstance(v, str):
                 # a string value is an expression (e.g. bind a parameter
                 # to a project VarSet at apply time)
-                varset.setExpression(p["name"], v)
+                try:
+                    varset.setExpression(p["name"], v)
+                except Exception as exc:
+                    raise JointError(
+                        f"{p['name']}: invalid expression {v!r} — {exc}")
             else:
                 setattr(varset, p["name"], v)    # literal override
         elif p["expression"]:
@@ -453,6 +467,12 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
     # this is where template defaults meet a too-small stick. Refuse
     # before cutting anything (roadmap: apply-dialog sanity bounds).
     doc.recompute()
+    if "Invalid" in varset.State or "Error" in varset.State:
+        # an expression that parsed but cannot evaluate (e.g. a VarSet
+        # or property that does not exist) surfaces here
+        raise JointError(
+            f"{varset.Label} failed to compute — check the expression "
+            f"values entered for this joint")
 
     def lookup(name):
         p = getattr(varset, name, None)

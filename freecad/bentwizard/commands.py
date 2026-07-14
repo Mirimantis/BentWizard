@@ -243,8 +243,26 @@ class ApplyJointDialog(QtWidgets.QDialog):
                 continue
             field = _quantity_field(float(p["value"]))
             field.setToolTip(p["tooltip"])
-            self.param_fields[p["name"]] = field
-            self.params_form.addRow(f"{p['name']}:", field)
+            expr_edit = QtWidgets.QLineEdit(self)
+            expr_edit.setPlaceholderText("<<VarSet>>.Property")
+            expr_edit.setToolTip(p["tooltip"])
+            expr_edit.hide()
+            fx = QtWidgets.QToolButton(self)
+            fx.setText("ƒx")
+            fx.setCheckable(True)
+            fx.setToolTip("Bind this parameter to an expression instead "
+                          "of a value (e.g. <<Floor>>.Height)")
+            fx.toggled.connect(
+                lambda checked, f=field, e=expr_edit:
+                (f.setVisible(not checked), e.setVisible(checked)))
+            row = QtWidgets.QWidget(self)
+            hbox = QtWidgets.QHBoxLayout(row)
+            hbox.setContentsMargins(0, 0, 0, 0)
+            hbox.addWidget(field)
+            hbox.addWidget(expr_edit)
+            hbox.addWidget(fx)
+            self.param_fields[p["name"]] = (field, expr_edit, fx)
+            self.params_form.addRow(f"{p['name']}:", row)
 
     def request(self):
         """(spec, joint_id, body_map, values); raises JointError."""
@@ -260,9 +278,16 @@ class ApplyJointDialog(QtWidgets.QDialog):
         if len({b.Name for b in body_map.values()}) != len(body_map):
             raise JointError("each role needs a different timber")
         values = {}
-        for name, field in self.param_fields.items():
-            raw = field.property("rawValue")
-            values[name] = App.Units.Quantity(f"{raw} mm")
+        for name, (field, expr_edit, fx) in self.param_fields.items():
+            if fx.isChecked():
+                text = expr_edit.text().strip()
+                if not text:
+                    raise JointError(
+                        f"{name}: expression entry is on but empty")
+                values[name] = text        # applied as an expression
+            else:
+                raw = field.property("rawValue")
+                values[name] = App.Units.Quantity(f"{raw} mm")
         placement = {}
         for role, box in self.end_boxes.items():
             placement.setdefault(role, {})["end"] = box.currentData()
@@ -329,10 +354,17 @@ class RemoveJointCommand:
                 "No joint instances in this document.")
             return
         labels = [j.Label for j in joints]
+        # preselect from the selection: the VarSet itself, or ANY member
+        # of a joint (its landing frame is clickable in the 3D view —
+        # member labels carry the joint's _Kind_ID suffix)
         current = 0
-        for sel in Gui.Selection.getSelection():
-            if sel in joints:
-                current = joints.index(sel)
+        sel_labels = [o.Label for o in Gui.Selection.getSelection()]
+        for i, joint in enumerate(joints):
+            suffix = joint.Label.replace("Joint", "", 1)   # "_MT_B2a"
+            if any(s == joint.Label or s.endswith(suffix)
+                   for s in sel_labels):
+                current = i
+                break
         label, ok = QtWidgets.QInputDialog.getItem(
             Gui.getMainWindow(), "Remove Joint", "Joint instance:",
             labels, current, False)

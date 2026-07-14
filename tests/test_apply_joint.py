@@ -309,6 +309,15 @@ class ApplyJointTest(unittest.TestCase):
         leftovers = [o.Label for o in self.doc.Objects
                      if "MT_B3a" in o.Label]
         self.assertEqual(leftovers, [])
+        # the relinked tips must stay visible (the timber looked
+        # deleted in the live run)
+        self.assertTrue(self.post.Tip.Visibility)
+        self.assertTrue(self.beam.Tip.Visibility)
+
+    def test_bad_expression_value_refused(self):
+        from freecad.bentwizard.apply_joint import JointError
+        with self.assertRaises(JointError):
+            self.apply(values={"Joint_Station": "<<Nowhere>>.Missing"})
 
     def test_remove_one_joint_leaves_the_other_untouched(self):
         # the live accident: cleaning up one joint by hand deleted parts
