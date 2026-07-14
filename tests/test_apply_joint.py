@@ -385,26 +385,41 @@ class ApplyJointTest(unittest.TestCase):
         self.doc.recompute()
         self.assertIsNone(engagement_placement(vs))
 
-    def test_preview_creates_engaged_links_without_moving_bodies(self):
+    def test_preview_ghosts_secondary_seated_in_real_primary(self):
         from freecad.bentwizard.apply_joint import (create_preview,
-                                                    find_preview)
+                                                    find_preview,
+                                                    remove_preview)
         vs = self.apply()
         post_pose = self.post.Placement.copy()
         beam_pose = self.beam.Placement.copy()
         group = create_preview(vs)
         self.assertIsNotNone(group)
         links = list(group.Group)
-        self.assertEqual(len(links), 2)
-        self.assertTrue(all(l.TypeId == "App::Link" for l in links))
-        # real bodies untouched (finding #11)
+        # one ghost — the secondary (beam), the mate-frame carrier
+        self.assertEqual(len(links), 1)
+        self.assertEqual(links[0].TypeId, "App::Link")
+        self.assertIs(links[0].getLinkedObject(), self.beam)
+        # placements never touched (finding #11)
         self.assertEqual(self.post.Placement.Base, post_pose.Base)
         self.assertEqual(self.beam.Placement.Base, beam_pose.Base)
-        # idempotent: a second preview replaces, not duplicates
+        # real secondary hidden, primary stays visible
+        self.assertFalse(self.beam.Visibility)
+        self.assertTrue(self.post.Visibility)
+        # clearing restores the secondary's visibility
+        remove_preview(group)
+        self.assertTrue(self.beam.Visibility)
+        self.assertIsNone(find_preview(vs))
+
+    def test_preview_idempotent(self):
+        from freecad.bentwizard.apply_joint import create_preview, find_preview
+        vs = self.apply()
         create_preview(vs)
+        create_preview(vs)                          # replaces, not duplicates
         groups = [o for o in self.doc.Objects
                   if o.Label == f"Preview_{vs.Label}"]
         self.assertEqual(len(groups), 1)
         self.assertEqual(find_preview(vs), groups[0])
+        self.assertFalse(self.beam.Visibility)      # still hidden, not double
 
     def test_preview_none_without_mate_frame(self):
         from freecad.bentwizard.apply_joint import create_preview

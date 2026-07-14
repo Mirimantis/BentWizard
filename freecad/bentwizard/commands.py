@@ -377,6 +377,7 @@ class RemoveJointCommand:
         varset = _pick_joint(doc, "Remove Joint")
         if varset is None:
             return
+        label = varset.Label
         members = joint_members(varset)
         bodies = sorted({o.getParentGeoFeatureGroup().Label
                          for o in members if o.getParentGeoFeatureGroup()})

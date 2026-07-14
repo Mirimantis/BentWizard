@@ -380,21 +380,6 @@ def engagement_placement(varset):
     return mover_body, anchor_body, seated
 
 
-def preview_placements(varset):
-    """[(body, placement), ...] to display the joint engaged with the
-    anchor's landing frame at the world origin (a fixed, predictable
-    spot regardless of the real bodies' poses). None if not previewable.
-    """
-    eng = engagement_placement(varset)
-    if eng is None:
-        return None
-    mover_body, anchor_body, seated = eng
-    to_origin = joint_role_frames(varset)[anchor_body][
-        "landing"].getGlobalPlacement().inverse()
-    return [(anchor_body, to_origin.multiply(anchor_body.Placement)),
-            (mover_body, to_origin.multiply(seated))]
-
-
 def preview_group_label(varset):
     return f"Preview_{varset.Label}"
 
@@ -406,36 +391,47 @@ def find_preview(varset):
 
 
 def remove_preview(group):
-    """Delete a preview group and its links. Caller owns the transaction."""
+    """Delete a preview group and its link, restoring the hidden
+    secondary body's visibility. Caller owns the transaction."""
     doc = group.Document
+    hidden = getattr(group, "HiddenBody", "")
     for link in list(group.Group):
         doc.removeObject(link.Name)
+    body = doc.getObject(hidden) if hidden else None
+    if body is not None:
+        body.Visibility = True
     doc.removeObject(group.Name)
     doc.recompute()
 
 
 def create_preview(varset):
-    """Non-destructive engaged view: App::Links to both halves, posed
-    with the anchor's landing frame at the world origin. Real body
-    placements are never touched (finding #11). Replaces any prior
-    preview of this joint. Returns the group, or None if not
-    previewable. Caller owns the transaction."""
-    placements = preview_placements(varset)
-    if placements is None:
+    """Non-destructive engaged view: a ghost (App::Link) of the joint's
+    secondary half — the mate-frame carrier, the piece that enters —
+    seated in the real primary half at its actual location. The real
+    secondary body is hidden so it doesn't overlap its ghost; the
+    primary stays as the visible reference. No placement is ever touched
+    (finding #11). Replaces any prior preview of this joint. Returns the
+    group, or None if not previewable. Caller owns the transaction."""
+    eng = engagement_placement(varset)
+    if eng is None:
         return None
+    mover_body, _anchor_body, seated = eng
     doc = varset.Document
     existing = find_preview(varset)
     if existing is not None:
         remove_preview(existing)
     group = doc.addObject("App::DocumentObjectGroup", "JointPreview")
     group.Label = preview_group_label(varset)
-    for body, placement in placements:
-        link = doc.addObject("App::Link", "PreviewLink")
-        link.Label = f"Preview_{body.Label}_{varset.Label}"
-        link.setLink(body)
-        link.LinkTransform = False
-        link.Placement = placement
-        group.addObject(link)
+    group.addProperty("App::PropertyString", "HiddenBody", "Preview",
+                      "Real body hidden while its ghost is displayed")
+    group.HiddenBody = mover_body.Name
+    link = doc.addObject("App::Link", "PreviewLink")
+    link.Label = f"Preview_{mover_body.Label}_{varset.Label}"
+    link.setLink(mover_body)
+    link.LinkTransform = False
+    link.Placement = seated
+    group.addObject(link)
+    mover_body.Visibility = False
     doc.recompute()
     return group
 
