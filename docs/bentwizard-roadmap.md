@@ -75,6 +75,24 @@ Always labeled design guidance, not stamped engineering.
 ## Phase 5 — Building Composition (future, preserved from prior iteration)
 Ground planes and bearing-point projection; auto-generated sill beams; split-level ground planes; frame openings (stairwells, dormers) generating headers/trimmers with load redistribution; wall-opening placeholders; chimney clearance zones; cantilever load paths; bent layout templates (King Post, Queen Post, Hammer Beam) as saved native layouts.
 
+## Layout rules — Mill Rule / Line Rule support (assessed Phase 1)
+
+Square Rule is **not** a foundation; it is a template-authoring convention riding on rule-neutral machinery. The rule is a *contract* between two templates — the timber template says where the reference planes are (section corner at the body origin → reference faces on the XZ/YZ origin planes), the joint template measures joinery from those planes — and the tools mostly clone whatever the author built rather than knowing geometry.
+
+Genuinely square-rule-baked pieces, exhaustively:
+1. `new_timber`'s section (reference corner at origin).
+2. The `FACES` table + `_face_transform` in `apply_joint` — the only square-rule-baked *tool code* (corner-referenced face complements `ddim - T`); ~20 isolated lines.
+3. Two linter checks reference housing concepts (`joint-exceeds-footprint`, housing≤50% severing) — already no-op when a template has no `Housing_*` properties.
+4. The `_Face1`/`_Face2` naming vocabulary.
+
+Rule-agnostic (the bulk): the clone/rebuild machinery, `remove_joint`, junction-point coupling, end/hand placement transforms (frame-relative), the schema-driven dialog, and the **MateFrame** (a pure "these two frames coincide when engaged" declaration — zero knowledge of how either frame was derived; the reason engagement and future assembly are rule-blind by construction).
+
+Cost:
+- **Mill Rule ≈ free.** Essentially Square Rule with housings → 0 (accurate stock needs no reduce-to-ideal step). Same corner-referenced section, so `new_timber` and `FACES` are unchanged. It is new joint templates (fewer/no housings) in `library/` plus a label — no core code; the footprint check simply does not fire without housing properties.
+- **Line Rule = moderate but contained.** Reference datum moves corner→center: a centered timber-template variant (centerline construction + half-widths; origin planes become centerplanes), a second `FACES` table (reflections about center, not corner complements, ~15 lines), and rule-aware linter vocabulary. Landing-frame expressions differ but are authored in the template, not tool code. No changes to clone/rebuild/mate/remove.
+
+Structure when built: a single Tier 2 `Rule` property (`SquareRule`/`MillRule`/`LineRule`) on timber Dims and joint templates; templates filter/label by it; New Timber offers the choice; `FACES` becomes rule-keyed; Apply Joint validates rule-compatibility; the linter branches face-vocabulary and housing checks on it. Caveat: a real Line Rule port wants an audit pass over every linter rule and the placement transforms to catch any corner-assumption under-counted above.
+
 ## Open Items
 - New Timber dialog: Role/Bent/Position selectors with auto-generated MemberIDs once bents exist (ties to the Phase 2 Role property); custom labels stay allowed for non-standard roles, nudged by the advisory naming rule.
 - Apply-Joint parameter bounds, phase 2 of: live min/max clamps on the dialog fields computed from the chosen timbers (the pre-flight refusal on resolved values exists); longer term, constraint relationships declared in the joint template itself (Tier 2 metadata) instead of name-keyed heuristics.
