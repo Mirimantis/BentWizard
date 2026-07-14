@@ -351,6 +351,13 @@ class ApplyJointTest(unittest.TestCase):
         self.doc.recompute()
         self.assertAlmostEqual(vs.Joint_Station.Value, 50 * 25.4, places=6)
 
+    def test_placement_record_written(self):
+        vs = self.apply(placement={"P0-1": {"face": 2, "hand": "mirrored"},
+                                   "B0-1": {"end": "B"}})
+        self.assertEqual(
+            vs.Placement_Record,
+            "P0-1 -> P3-1: face 2, hand mirrored; B0-1 -> B3-1: end B")
+
     def test_output_lints_completely_clean(self):
         from freecad.bentwizard.linter import lint
         self.apply()

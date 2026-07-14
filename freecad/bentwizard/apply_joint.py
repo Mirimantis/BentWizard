@@ -485,6 +485,22 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
         + "\n  ".join(problems)
         + "\nreduce the tenon/setback values or use larger timbers")
 
+    # Placement provenance (Tier 2): which face/end/hand each role was
+    # applied with — the input for Preview Mated Joint and future
+    # re-place operations (e.g. rotating a mortise onto another face).
+    record = "; ".join(
+        f"{role} -> {body_map[role].Label}: "
+        + (f"end {str(placement.get(role, {}).get('end', 'A')).upper()}"
+           if role in template.end_landing_roles else
+           f"face {placement.get(role, {}).get('face', TEMPLATE_FACE)}, "
+           f"hand {str(placement.get(role, {}).get('hand', 'template')).lower()}")
+        for role in template.roles)
+    varset.addProperty(
+        "App::PropertyString", "Placement_Record", "Placement",
+        "How each template role was placed (timber, face/end, hand) — "
+        "written by Apply Joint; used by preview and re-place tools.")
+    varset.Placement_Record = record
+
     # --- per-role stacks ----------------------------------------------------
     made = []
     for tmpl_label, stack in template.roles.items():
