@@ -422,11 +422,14 @@ def create_preview(varset):
 
     The ghost is *attached* to the primary's landing frame, so it tracks
     parameter edits live: the landing frame moves with Joint_Station and
-    the post section, and the linked body reshapes for every tenon/peg
+    the primary section, and the linked body reshapes for every joint
     parameter. It seats correctly wherever the primary body currently
-    sits. Two edits are not tracked and need a refresh (toggle off/on):
-    Tenon_Length (relocates the mate frame within the secondary) and
-    moving a body with the transform tool while the preview is up."""
+    sits. What is NOT tracked (needs a refresh — toggle off/on): edits
+    that move the mate frame WITHIN the secondary, i.e. the secondary's
+    Width or Depth (mate frame at Width/2, Depth/2) or Tenon_Length (its
+    Z) — the attachment offset to that frame is fixed at creation — and
+    moving a body with the transform tool while the preview is up. The
+    complete fix is a recompute-driven ghost placement (see roadmap)."""
     eng = engagement_placement(varset)
     if eng is None:
         return None
