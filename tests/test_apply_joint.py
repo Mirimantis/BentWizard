@@ -443,6 +443,19 @@ class ApplyJointTest(unittest.TestCase):
         self.assertTrue(self.beam.Visibility)
         self.assertIsNone(find_preview(vs))
 
+    def test_preview_follows_station_change_live(self):
+        # the ghost is attached to the landing frame, so moving the joint
+        # station moves the ghost with the mortise (live fit adjustment)
+        from freecad.bentwizard.apply_joint import (create_preview,
+                                                    engagement_placement)
+        vs = self.apply(values={"Joint_Station": App.Units.Quantity("60 in")})
+        group = create_preview(vs)
+        link = group.Group[0]
+        vs.Joint_Station = App.Units.Quantity("90 in")
+        self.doc.recompute()
+        _, _, seated = engagement_placement(vs)
+        self.assertLess(link.Placement.Base.sub(seated.Base).Length, 1e-6)
+
     def test_remove_joint_clears_its_live_preview(self):
         # the live bug: removing a joint while its preview was up
         # orphaned the ghost and left the secondary hidden

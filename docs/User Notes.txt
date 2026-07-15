@@ -5,3 +5,13 @@ Add support for joints with more parts, like the wedge in a tusk tenon, or a wed
 Add support for angled shoulders on perpendicular intersections.
 
 Add support for angled joints on angled intersections.
+
+Add Duplicate tool to create an exact copy of a timber with all dims pre-filled except the name.
+
+Name vs. Internal Name in the Tree's Model column: is Internal name the persistent name that is actually tracked in the code? Right now it's just Body00n sequentially numbered. Can we use it for something more useful or descriptive? 
+
+Right now our naming convention is a bit hard to search visually in a list. I might want to spell out more of the information, like Post001-B1 and Beam012-B2
+
+Tool: click to place a landing frame on one timber, then a second landing frame on another timber. During the operation they are connected by a visible line. When the second landing frame is placed, a timber is generated at the length and angle of the line, and joints populate the two landing frames. A 2-click beam. Might need to constrain the angle depending on the joint (current MT must be perpendicular but want angled joints in future).
+
+Preview joint: have a slider to increase and decrease the distance between the landing frame and the mating frame, to visually slide the timber in and out to check alignment?

@@ -418,11 +418,18 @@ def create_preview(varset):
     secondary body is hidden so it doesn't overlap its ghost; the
     primary stays as the visible reference. No placement is ever touched
     (finding #11). Replaces any prior preview of this joint. Returns the
-    group, or None if not previewable. Caller owns the transaction."""
+    group, or None if not previewable. Caller owns the transaction.
+
+    The ghost is *attached* to the primary's landing frame, so it tracks
+    parameter edits live: the landing frame moves with Joint_Station and
+    the post section, and the linked body reshapes for every tenon/peg
+    parameter. Only the mate frame's own position within the secondary
+    (moved by Tenon_Length) is not tracked, so a Tenon_Length edit
+    shifts the ghost until the preview is refreshed."""
     eng = engagement_placement(varset)
     if eng is None:
         return None
-    mover_body, _anchor_body, seated = eng
+    mover_body, anchor_body, seated = eng
     doc = varset.Document
     existing = find_preview(varset)
     if existing is not None:
@@ -436,7 +443,13 @@ def create_preview(varset):
     link.Label = f"Preview_{mover_body.Label}_{varset.Label}"
     link.setLink(mover_body)
     link.LinkTransform = False
-    link.Placement = seated
+    # attach to the landing frame so the ghost follows it on recompute;
+    # offset seats the linked body (link_global = landing * offset = seated)
+    landing = joint_role_frames(varset)[anchor_body]["landing"]
+    link.addExtension("Part::AttachExtensionPython")
+    link.AttachmentSupport = [(landing, "")]
+    link.MapMode = "ObjectXY"
+    link.AttachmentOffset = landing.getGlobalPlacement().inverse().multiply(seated)
     group.addObject(link)
     mover_body.Visibility = False
     doc.recompute()
