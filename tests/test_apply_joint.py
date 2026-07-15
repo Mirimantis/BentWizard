@@ -443,6 +443,23 @@ class ApplyJointTest(unittest.TestCase):
         self.assertTrue(self.beam.Visibility)
         self.assertIsNone(find_preview(vs))
 
+    def test_remove_joint_clears_its_live_preview(self):
+        # the live bug: removing a joint while its preview was up
+        # orphaned the ghost and left the secondary hidden
+        from freecad.bentwizard.apply_joint import (create_preview,
+                                                    find_preview, remove_joint)
+        vs = self.apply()
+        create_preview(vs)
+        self.assertFalse(self.beam.Visibility)
+        remove_joint(vs)
+        # ghost gone, secondary visible again, nothing orphaned
+        self.assertTrue(self.beam.Visibility)
+        self.assertEqual(
+            [o for o in self.doc.Objects if o.Label.startswith("Preview_")],
+            [])
+        self.assertEqual(
+            [o for o in self.doc.Objects if o.TypeId == "App::Link"], [])
+
     def test_preview_idempotent(self):
         from freecad.bentwizard.apply_joint import create_preview, find_preview
         vs = self.apply()

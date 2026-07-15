@@ -287,6 +287,13 @@ def remove_joint(varset):
     VarSet. Returns the number of objects removed. Caller owns the
     transaction."""
     doc = varset.Document
+    # clear any live preview first — its ghost link and group are not
+    # joint members (no expression ties them to the VarSet), so removing
+    # the joint would orphan the ghost and leave the secondary hidden
+    # with no VarSet left for the Preview tool to find
+    preview = find_preview(varset)
+    if preview is not None:
+        remove_preview(preview)
     member_names = {o.Name for o in joint_members(varset)}
     ordered = []
     for obj in doc.Objects:
