@@ -423,9 +423,10 @@ def create_preview(varset):
     The ghost is *attached* to the primary's landing frame, so it tracks
     parameter edits live: the landing frame moves with Joint_Station and
     the post section, and the linked body reshapes for every tenon/peg
-    parameter. Only the mate frame's own position within the secondary
-    (moved by Tenon_Length) is not tracked, so a Tenon_Length edit
-    shifts the ghost until the preview is refreshed."""
+    parameter. It seats correctly wherever the primary body currently
+    sits. Two edits are not tracked and need a refresh (toggle off/on):
+    Tenon_Length (relocates the mate frame within the secondary) and
+    moving a body with the transform tool while the preview is up."""
     eng = engagement_placement(varset)
     if eng is None:
         return None
@@ -443,13 +444,17 @@ def create_preview(varset):
     link.Label = f"Preview_{mover_body.Label}_{varset.Label}"
     link.setLink(mover_body)
     link.LinkTransform = False
-    # attach to the landing frame so the ghost follows it on recompute;
-    # offset seats the linked body (link_global = landing * offset = seated)
+    # attach to the landing frame so the ghost follows it on recompute.
+    # The attach engine resolves the support in its BODY-LOCAL frame, so
+    # the offset must be built from the frame's local placement too
+    # (using the global placement lands the ghost at the origin-relative
+    # spot when the primary body has been moved). link_local = landing *
+    # offset = seated at creation; station edits then track live.
     landing = joint_role_frames(varset)[anchor_body]["landing"]
     link.addExtension("Part::AttachExtensionPython")
     link.AttachmentSupport = [(landing, "")]
     link.MapMode = "ObjectXY"
-    link.AttachmentOffset = landing.getGlobalPlacement().inverse().multiply(seated)
+    link.AttachmentOffset = landing.Placement.inverse().multiply(seated)
     group.addObject(link)
     mover_body.Visibility = False
     doc.recompute()

@@ -443,6 +443,21 @@ class ApplyJointTest(unittest.TestCase):
         self.assertTrue(self.beam.Visibility)
         self.assertIsNone(find_preview(vs))
 
+    def test_preview_seats_when_primary_body_moved(self):
+        # the live bug: posts moved aside with the transform tool, then
+        # previewed — the ghost must seat at the moved post, not at the
+        # origin-relative spot
+        from freecad.bentwizard.apply_joint import (create_preview,
+                                                    engagement_placement)
+        vs = self.apply()
+        self.post.Placement = App.Placement(
+            App.Vector(-2000, 500, 100), App.Rotation(App.Vector(0, 0, 1), 25))
+        self.doc.recompute()
+        group = create_preview(vs)
+        link = group.Group[0]
+        _, _, seated = engagement_placement(vs)
+        self.assertLess(link.Placement.Base.sub(seated.Base).Length, 1e-6)
+
     def test_preview_follows_station_change_live(self):
         # the ghost is attached to the landing frame, so moving the joint
         # station moves the ghost with the mortise (live fit adjustment)
