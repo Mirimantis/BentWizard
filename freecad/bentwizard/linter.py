@@ -669,9 +669,12 @@ def rule_group_binding_deviation(model):
 def rule_stale_attachment_offset(model):
     """§5/§6 advisory: stale attachment-offset components.
 
-    Attachment offsets must be read in full — stray values hide in
-    unexamined components (finding #10). Flag nonzero offset components
-    that no expression drives.
+    Attachment offsets must be read in full — stray *translation* values
+    hide in unexamined components and send geometry to unexpected places
+    (finding #10, a translation along a rotated axis). Flag nonzero Base
+    components no expression drives. Rotation is not flagged: a literal
+    orientation on a datum is normal practice (e.g. the 180° flip
+    Apply-Joint writes on an end-B mate frame), not cruft.
     """
     findings = []
     for obj in model.doc.objects.values():
@@ -682,17 +685,14 @@ def rule_stale_attachment_offset(model):
         driven = {e.path.split(".")[-1].lower()
                   for e in obj.expressions
                   if "AttachmentOffset" in e.path}
-        stray = []
-        for comp, val in (("x", pl.px), ("y", pl.py), ("z", pl.pz)):
-            if abs(val) > 1e-9 and comp not in driven:
-                stray.append(f"Base.{comp}={val:.3f}")
-        if abs(pl.angle) > 1e-9 and "angle" not in driven:
-            stray.append(f"Angle={pl.angle:.3f}")
+        stray = [f"Base.{comp}={val:.3f}"
+                 for comp, val in (("x", pl.px), ("y", pl.py), ("z", pl.pz))
+                 if abs(val) > 1e-9 and comp not in driven]
         if stray:
             findings.append(Finding(
                 "stale-attachment-offset", ADVISORY, obj.name, obj.label,
                 f"attachment offset has expression-free nonzero "
-                f"component(s): {', '.join(stray)} — verify they are "
+                f"translation(s): {', '.join(stray)} — verify they are "
                 f"intended, not stale"))
     return findings
 

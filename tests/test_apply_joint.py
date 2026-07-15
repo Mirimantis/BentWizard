@@ -376,6 +376,39 @@ class ApplyJointTest(unittest.TestCase):
                 mate.Rotation.multVec(v).sub(landing.Rotation.multVec(v)).Length,
                 1e-6)
 
+    def _seated_interference(self, vs):
+        """Seat the mover per engagement and return (interference in^3,
+        mover-extends-out-of-primary bool). Non-destructive."""
+        from freecad.bentwizard.apply_joint import engagement_placement
+        mover, anchor, seated = engagement_placement(vs)
+        orig = mover.Placement
+        mover.Placement = seated
+        self.doc.recompute()
+        inter = anchor.Shape.common(mover.Shape).Volume / IN3
+        mb, ab = mover.Shape.BoundBox, anchor.Shape.BoundBox
+        # the mover must reach out past the primary somewhere, not sit
+        # entirely inside / driving through it
+        extends_out = (mb.XMax > ab.XMax + 25 or mb.XMin < ab.XMin - 25 or
+                       mb.YMax > ab.YMax + 25 or mb.YMin < ab.YMin - 25)
+        mover.Placement = orig
+        self.doc.recompute()
+        return inter, extends_out
+
+    def test_engagement_seats_without_interference_both_ends(self):
+        # a seated joint has ~0 solid interference (tenon fills the
+        # mortise void) AND the beam extends out of the post — not
+        # driving through it. The End-B mate frame must reverse its
+        # orientation or the beam seats backwards (live bent bug).
+        for jid, end in (("A", "A"), ("B", "B")):
+            with self.subTest(end=end):
+                vs = self.apply(f"E{jid}", placement={"B0-1": {"end": end}})
+                inter, out = self._seated_interference(vs)
+                self.assertLess(inter, 1.0,
+                                f"end {end}: {inter:.1f} in^3 interference — "
+                                f"beam driving through the post")
+                self.assertTrue(out, f"end {end}: beam does not reach out")
+                self._remove_joint(vs, f"MT_E{jid}")
+
     def test_engagement_none_without_mate_frame(self):
         # a joint whose mate frame was removed (older joints) → no pose
         from freecad.bentwizard.apply_joint import engagement_placement

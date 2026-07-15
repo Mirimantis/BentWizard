@@ -776,6 +776,19 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
         # reference faces don't change), translated to the far end
         obj.setExpression("AttachmentOffset.Base.z",
                           f"<<{ctx['dims_label']}>>.Length")
+
+    if ctx["flip_z"] and "MateFrame" in spec["label"]:
+        # the mate frame declares the engaged pose; end B translates its
+        # position (the shoulder moves to the far end) but must also
+        # REVERSE its orientation so its Z points back toward the beam
+        # body, not off the tenon end — otherwise engagement seats the
+        # joint backwards (tenon out, body through the timber). Rotate
+        # 180° about the frame's Depth axis (local Y): keeps Depth on the
+        # same reference face (square rule), flips Width — the "turn the
+        # stick end-for-end, keep it upright" motion.
+        off = obj.AttachmentOffset
+        off.Rotation = App.Rotation(App.Vector(0, 1, 0), 180)
+        obj.AttachmentOffset = off
     return obj
 
 
