@@ -39,10 +39,13 @@ Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive join
 
 ## Conventions (from the workflow doc — apply to all generated objects)
 
-- **Timber Bodies:** MemberID labels, `[RolePrefix][BentNumber]-[Position]` (e.g. `P2-1`); bay refs for longitudinal members (`PU-B2-3`).
-- **VarSet labels:** `Kind_Owner` — `TimberDims_P2-1`, `Joint_MT_B2a`, `Group_LoftDovetail`, `Project_Main`, `Order_Main`.
+- **Two names, two jobs:** the Label is the **permanent identity** (what the piece IS, never its position); position is Tier-2 data in the `Position_Tag` property on Dims/joint VarSets, display-only for drawings. FreeCAD's immutable Internal Name (`Body003`) is never used semantically. Legacy MemberIDs (`P2-1`) are grandfathered advisory-clean.
+- **Timber Bodies:** `T-<Role>[-<Qualifier>]-<serial>` — `T-Post-Level1-003`, `T-TieBeam_decorative-007`. The serial is the trailing all-digit segment; tools bump only that segment (never digits inside descriptive parts).
+- **Joint instances:** `J-<Kind>-<serial>` — `J-HousedMT-001`; kind token from the template file stem.
+- **VarSet labels:** `Kind_Owner` — `TimberDims_T-Post-003`, `Group_LoftDovetail`, `Project_Main`, `Order_Main`; a joint VarSet carries its joint's `J-<Kind>-<serial>` label directly.
+- **Tree organization:** Dims VarSets nest inside their Bodies; joint VarSets live in a `Joints` Std Group; bents/bays are user-arranged Std Groups (Duplicate Bent can create one). Pure organization, no geometric effect.
 - **Property names:** `Part_Attribute[_Qualifier]`, most-significant first — `Tenon_Thickness`, `Housing_Depth`, `Peg_Drawbore_Offset`. Face qualifiers `_Face1`/`_Face2` (Face 1 = XZ-plane face, Face 2 = YZ-plane face).
-- **Joint features in bodies:** body-qualified — `MemberID_Feature_JointID` (e.g. `P2-1_Mortise_MT_B2a`).
+- **Joint features in bodies:** body-qualified — `<TimberLabel>_<Feature>_<JointLabel>` (e.g. `T-Post-003_Mortise_J-HousedMT-001`).
 - **Tooltips mandatory** on every template-defined property: as brief as possible while still informative; always states which face/end it measures from.
 - **Units:** the workbench defers to the user's FreeCAD unit schema (e.g. "Building US" for fractional inches) — never force imperial or metric. Imperial values in docs are example data.
 - **Terminology:** use timber framing terms wherever applicable — names, UI, docs, instructions.
@@ -69,3 +72,5 @@ Linter rules (strict vs. advisory) are enumerated in workflow doc §6 — treat 
 Adam: FreeCAD driving, joinery domain decisions, testing against real workflow. Claude: all Python development, FreeCAD API research, step-by-step instructions, file-inspection verification.
 
 **Commit workflow:** build + headless-test, then Adam GUI-tests and approves BEFORE committing — low-hanging bugs get fixed pre-commit, so commits land tested. (Adopted after the Phase 1 shakedown.)
+
+**Worktree GUI testing:** the `Mod\BentWizard` junction targets one directory, so it loads whichever checkout it points at — by default the main repo, *not* a worktree Claude is working in. To GUI-test a worktree branch's *uncommitted* code (preserving "test before commit"), run `scripts/dev-install.ps1 here` from that worktree, restart FreeCAD, and test; run `scripts/dev-install.ps1 main` to point back once the branch is **merged and the main checkout is updated** (`git checkout main && git pull` in the main repo dir first — pointing back before then loads the pre-merge main checkout and FreeCAD drops the branch's changes). `dev-install.ps1` with no argument shows the current target. This is also why FreeCAD can seem to ignore a branch's changes: the junction is still on another checkout.

@@ -21,7 +21,7 @@ This is a from-scratch rewrite; an earlier attempt that generated custom-coded g
 - `docs/` — specification documents
 - `phase0/` — Phase 0 session models (`.FCStd`) and session macros (`.FCMacro`)
 
-A portable FreeCAD install is expected at `FreeCAD_1.1.1-Windows-x86_64-py311/` for development and testing; it is gitignored and not part of the repository.
+A portable FreeCAD install is expected outside the repo, alongside the project at `C:\Users\Adam\Documents\Projects\FreeCAD_1.1.1-Windows-x86_64-py311\`, for development and testing; it is not part of the repository (kept outside so it isn't exposed through the `Mod\BentWizard` dev-install junction).
 
 ## License
 

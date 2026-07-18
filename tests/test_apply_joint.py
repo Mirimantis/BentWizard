@@ -13,13 +13,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
+import _repo_path  # noqa: E402 — this repo's code must win the import
 
 try:
     import FreeCAD as App
-    import freecad
-    _repo_pkg = str(REPO_ROOT / "freecad")
-    if _repo_pkg not in freecad.__path__:
-        freecad.__path__.append(_repo_pkg)
+    _repo_path.graft()   # FreeCAD's init grafts the Mod copy; ours first
     HAVE_FREECAD = True
 except ImportError:
     HAVE_FREECAD = False
@@ -167,7 +165,7 @@ class ApplyJointTest(unittest.TestCase):
                                 placement={"P0-1": {"face": face}})
                 post_cut, _ = self.cuts()
                 slabs = self._face_slabs()
-                self._remove_joint(vs, f"MT_F{face}")   # before asserts
+                self._remove_joint(vs, f"J-HousedMT-F{face}")  # before asserts
                 # the peg bore crosses the across-face extent: the 10 in
                 # Width on faces 1/3, the 8 in Depth on faces 2/4
                 bore_len = 10 if face in (1, 3) else 8
@@ -233,7 +231,7 @@ class ApplyJointTest(unittest.TestCase):
                                        msg=f"face {face}: mortise void missing")
                 self.assertGreater(mirror, 25,
                                    msg=f"face {face}: mortise mirrored")
-                self._remove_joint(vs, f"MT_S{face}")
+                self._remove_joint(vs, f"J-HousedMT-S{face}")
 
     def test_mirrored_hand_swaps_the_mortise_side(self):
         # §4.6 handed mate: same asymmetric setback, hand mirrored — the
@@ -247,7 +245,7 @@ class ApplyJointTest(unittest.TestCase):
                             "Tenon_Setback_Face2": App.Units.Quantity("1 in")},
                     placement={"P0-1": {"face": face, "hand": "mirrored"}})
                 expected, mirror = self._mortise_probe(face)
-                self._remove_joint(vs, f"MT_H{face}")
+                self._remove_joint(vs, f"J-HousedMT-H{face}")
                 self.assertGreater(expected, 25,
                                    msg=f"face {face}: mirrored hand cut the "
                                        f"template side")
@@ -307,7 +305,7 @@ class ApplyJointTest(unittest.TestCase):
         remove_joint(vs)
         self.assertEqual(self.cuts(), (0.0, 0.0))
         leftovers = [o.Label for o in self.doc.Objects
-                     if "MT_B3a" in o.Label]
+                     if "J-HousedMT-B3a" in o.Label]
         self.assertEqual(leftovers, [])
         # the relinked tips must stay visible (the timber looked
         # deleted in the live run)
@@ -335,8 +333,10 @@ class ApplyJointTest(unittest.TestCase):
                                24 + 51 + math.pi * 0.25 * 8
                                - math.pi * 0.25 * 2, places=3)
         self.assertAlmostEqual(beam_cut, 144 + math.pi * 0.25 * 2, places=3)
-        self.assertTrue(any("MT_B3b" in o.Label for o in self.doc.Objects))
-        self.assertFalse(any("MT_B3a" in o.Label for o in self.doc.Objects))
+        self.assertTrue(any("J-HousedMT-B3b" in o.Label
+                            for o in self.doc.Objects))
+        self.assertFalse(any("J-HousedMT-B3a" in o.Label
+                             for o in self.doc.Objects))
 
     def test_expression_values_bind(self):
         # a string value is applied as an expression: bind Joint_Station
@@ -366,9 +366,9 @@ class ApplyJointTest(unittest.TestCase):
         mover.Placement = seated
         self.doc.recompute()
         landing = self.doc.getObjectsByLabel(
-            "P3-1_JointFrame_MT_B3a")[0].getGlobalPlacement()
+            "P3-1_JointFrame_J-HousedMT-B3a")[0].getGlobalPlacement()
         mate = self.doc.getObjectsByLabel(
-            "B3-1_MateFrame_MT_B3a")[0].getGlobalPlacement()
+            "B3-1_MateFrame_J-HousedMT-B3a")[0].getGlobalPlacement()
         self.assertLess(mate.Base.sub(landing.Base).Length, 1e-6)
         # axes coincide too (not just origins)
         for v in (App.Vector(1, 0, 0), App.Vector(0, 1, 0)):
@@ -407,13 +407,13 @@ class ApplyJointTest(unittest.TestCase):
                                 f"end {end}: {inter:.1f} in^3 interference — "
                                 f"beam driving through the post")
                 self.assertTrue(out, f"end {end}: beam does not reach out")
-                self._remove_joint(vs, f"MT_E{jid}")
+                self._remove_joint(vs, f"J-HousedMT-E{jid}")
 
     def test_engagement_none_without_mate_frame(self):
         # a joint whose mate frame was removed (older joints) → no pose
         from freecad.bentwizard.apply_joint import engagement_placement
         vs = self.apply()
-        mate = self.doc.getObjectsByLabel("B3-1_MateFrame_MT_B3a")[0]
+        mate = self.doc.getObjectsByLabel("B3-1_MateFrame_J-HousedMT-B3a")[0]
         self.doc.removeObject(mate.Name)
         self.doc.recompute()
         self.assertIsNone(engagement_placement(vs))
@@ -502,7 +502,7 @@ class ApplyJointTest(unittest.TestCase):
     def test_preview_none_without_mate_frame(self):
         from freecad.bentwizard.apply_joint import create_preview
         vs = self.apply()
-        mate = self.doc.getObjectsByLabel("B3-1_MateFrame_MT_B3a")[0]
+        mate = self.doc.getObjectsByLabel("B3-1_MateFrame_J-HousedMT-B3a")[0]
         self.doc.removeObject(mate.Name)
         self.doc.recompute()
         self.assertIsNone(create_preview(vs))
@@ -513,6 +513,18 @@ class ApplyJointTest(unittest.TestCase):
         self.assertEqual(
             vs.Placement_Record,
             "P0-1 -> P3-1: face 2, hand mirrored; B0-1 -> B3-1: end B")
+
+    def test_joint_label_and_tree_placement(self):
+        # new scheme: J-<Kind>-<serial>, kind token from the template's
+        # file stem; the VarSet parks in the Joints group; Position_Tag
+        # exists as empty display-only data
+        vs = self.apply("001")
+        self.assertEqual(vs.Label, "J-HousedMT-001")
+        group = next(o for o in self.doc.Objects
+                     if o.TypeId == "App::DocumentObjectGroup"
+                     and o.Label == "Joints")
+        self.assertIn(vs, list(group.Group))
+        self.assertEqual(vs.Position_Tag, "")
 
     def test_output_lints_completely_clean(self):
         from freecad.bentwizard.linter import lint
