@@ -19,10 +19,11 @@ Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive join
 
 ## Environment
 
-- Portable FreeCAD 1.1.1 lives at `FreeCAD_1.1.1-Windows-x86_64-py311/` (gitignored — dev/test tool, not repo content).
-  - GUI: `FreeCAD_1.1.1-Windows-x86_64-py311/bin/freecad.exe`
-  - Headless (scripts, file inspection, future CI-style checks): `FreeCAD_1.1.1-Windows-x86_64-py311/bin/freecadcmd.exe <script.py>`
-  - Bundled Python 3.11: `FreeCAD_1.1.1-Windows-x86_64-py311/bin/python.exe` (imports `FreeCAD` directly)
+- Portable FreeCAD 1.1.1 lives **outside the repo** at `C:\Users\Adam\Documents\Projects\FreeCAD_1.1.1-Windows-x86_64-py311\` (sibling of the project; not repo content). It is deliberately outside so it isn't exposed through the `Mod\BentWizard` junction (see below).
+  - GUI: `C:\Users\Adam\Documents\Projects\FreeCAD_1.1.1-Windows-x86_64-py311\bin\freecad.exe`
+  - Headless (scripts, file inspection, future CI-style checks): `C:\Users\Adam\Documents\Projects\FreeCAD_1.1.1-Windows-x86_64-py311\bin\freecadcmd.exe <script.py>`
+  - Bundled Python 3.11: `C:\Users\Adam\Documents\Projects\FreeCAD_1.1.1-Windows-x86_64-py311\bin\python.exe` (imports `FreeCAD` directly)
+- FreeCAD loads the workbench live via a **directory junction**: `C:\Users\Adam\AppData\Roaming\FreeCAD\v1-1\Mod\BentWizard` → the repo root. Edit code in the repo, restart FreeCAD (or reload the workbench), and it's live — never copy the folder into `Mod`. (The portable FreeCAD is kept out of the repo so it isn't seen nested inside this junction.)
 - `.FCStd` files are zip archives; inspect by unzipping and reading `Document.xml` (see Verification below).
 - FreeCAD 1.1 API gotcha: on Pad/Pocket (FeatureExtrude), `Midplane`/`Reversed` are deprecated and ignored — direction/symmetry live in `SideType` (GUI "Mode"; enum index 2 = Symmetric). Read/write `SideType` in tools and file checks.
 
