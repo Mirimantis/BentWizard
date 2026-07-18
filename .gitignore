@@ -22,5 +22,5 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-# local scratch files in library
-library/PostBeamBug.FCStd
+# local scratch files directory
+scratch/
