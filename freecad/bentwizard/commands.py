@@ -15,6 +15,7 @@ from .apply_joint import (JointError, TemplateSpec, apply_joint,
                           create_preview, dims_varset, engagement_placement,
                           find_preview, joint_members, remove_joint,
                           remove_preview)
+from .duplicate import bent_joints, duplicate_bent
 from .timber import TimberError, new_timber
 
 LIBRARY_DIR = Path(__file__).resolve().parents[2] / "library"
@@ -448,12 +449,137 @@ class PreviewJointCommand:
                 pass
 
 
+import re as _re
+
+
+def _swap_bent_number(text, new_number):
+    """P1-1 -> P2-1, TB-1 -> TB-1 (no bent digits), '1a' -> '2a'."""
+    return _re.sub(r"\d+", str(new_number), text, count=1)
+
+
+class DuplicateBentDialog(QtWidgets.QDialog):
+    """New labels for the selected timbers and new IDs for their joints,
+    prefilled by a bent-number swap the user can override per row."""
+
+    def __init__(self, doc, bodies, parent=None):
+        super().__init__(parent)
+        self.doc = doc
+        self.bodies = bodies
+        self.setWindowTitle("Duplicate Bent")
+        layout = QtWidgets.QVBoxLayout(self)
+
+        top = QtWidgets.QFormLayout()
+        self.bent_number = QtWidgets.QSpinBox(self)
+        self.bent_number.setRange(0, 999)
+        self.bent_number.setValue(2)
+        self.bent_number.setToolTip(
+            "Prefills the new names by swapping the first number in each "
+            "label/ID; every row stays editable.")
+        self.bent_number.valueChanged.connect(self._prefill)
+        top.addRow("New bent number:", self.bent_number)
+        layout.addLayout(top)
+
+        form = QtWidgets.QFormLayout()
+        self.body_fields = {}
+        for body in bodies:
+            edit = QtWidgets.QLineEdit(self)
+            self.body_fields[body] = edit
+            form.addRow(f"{body.Label} →", edit)
+        self.joints_inside, self.joints_outside = bent_joints(doc, bodies)
+        self.joint_fields = {}
+        for joint in self.joints_inside:
+            edit = QtWidgets.QLineEdit(self)
+            edit.setToolTip("New joint ID (becomes Joint_<Kind>_<ID>)")
+            self.joint_fields[joint] = edit
+            form.addRow(f"{joint.Label} →", edit)
+        layout.addLayout(form)
+        if self.joints_outside:
+            note = QtWidgets.QLabel(
+                "Skipped (other timber not selected): "
+                + ", ".join(j.Label for j in self.joints_outside), self)
+            note.setWordWrap(True)
+            layout.addWidget(note)
+        self._prefill()
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
+            parent=self)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _prefill(self, *_):
+        n = self.bent_number.value()
+        for body, edit in self.body_fields.items():
+            edit.setText(_swap_bent_number(body.Label, n))
+        for joint, edit in self.joint_fields.items():
+            jid = joint.Label.split("_")[-1]
+            edit.setText(_swap_bent_number(jid, n))
+
+    def request(self):
+        member_map = {b: e.text().strip() for b, e in self.body_fields.items()}
+        joint_ids = {j.Label: e.text().strip()
+                     for j, e in self.joint_fields.items()}
+        if any(not v for v in joint_ids.values()):
+            raise JointError("every joint needs a new ID")
+        return member_map, joint_ids
+
+
+class DuplicateBentCommand:
+    def GetResources(self):
+        return {
+            "MenuText": "Duplicate Bent",
+            "ToolTip": "Duplicate the selected timbers with their joints: "
+                       "each copy owns its Dims and joint VarSets; group "
+                       "bindings stay on the same shared VarSets",
+        }
+
+    def IsActive(self):
+        return App.ActiveDocument is not None
+
+    def Activated(self):
+        doc = App.ActiveDocument
+        bodies = [o for o in Gui.Selection.getSelection()
+                  if o in _timber_bodies(doc)]
+        if not bodies:
+            QtWidgets.QMessageBox.information(
+                Gui.getMainWindow(), "Duplicate Bent",
+                "Select the timbers to duplicate first (their joints come "
+                "along automatically when both mating timbers are selected).")
+            return
+        dialog = DuplicateBentDialog(doc, bodies, Gui.getMainWindow())
+        while dialog.exec() == QtWidgets.QDialog.Accepted:
+            try:
+                member_map, joint_ids = dialog.request()
+                doc.openTransaction("Duplicate bent")
+                try:
+                    new_bodies, new_joints, skipped = duplicate_bent(
+                        doc, member_map, joint_ids, LIBRARY_DIR)
+                except Exception:
+                    doc.abortTransaction()
+                    raise
+                doc.commitTransaction()
+            except JointError as err:
+                QtWidgets.QMessageBox.warning(dialog, "Duplicate Bent",
+                                              str(err))
+                continue
+            msg = (f"Created {len(new_bodies)} timber(s) and "
+                   f"{len(new_joints)} joint(s).")
+            if skipped:
+                msg += f" Skipped (reach outside the set): {', '.join(skipped)}."
+            QtWidgets.QMessageBox.information(
+                Gui.getMainWindow(), "Duplicate Bent", msg)
+            return
+
+
 def register():
     Gui.addCommand("BentWizard_NewTimber", NewTimberCommand())
     Gui.addCommand("BentWizard_ApplyJoint", ApplyJointCommand())
     Gui.addCommand("BentWizard_RemoveJoint", RemoveJointCommand())
     Gui.addCommand("BentWizard_PreviewJoint", PreviewJointCommand())
+    Gui.addCommand("BentWizard_DuplicateBent", DuplicateBentCommand())
 
 
 ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_ApplyJoint",
-                "BentWizard_RemoveJoint", "BentWizard_PreviewJoint"]
+                "BentWizard_RemoveJoint", "BentWizard_PreviewJoint",
+                "BentWizard_DuplicateBent"]

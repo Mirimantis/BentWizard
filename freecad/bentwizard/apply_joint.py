@@ -118,6 +118,8 @@ class TemplateSpec:
                 f"Joint_<Kind>_<ID>")
         self.kind = "_".join(parts[1:-1])              # e.g. MT
         self.template_jid = parts[-1]                  # e.g. 0a
+        import os
+        self.source_name = os.path.splitext(os.path.basename(self.path))[0]
 
         # Parameter schema: (name, type_id, value, tooltip, expression)
         exprs = {e.path.lstrip("."): e.expression
@@ -636,6 +638,11 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
         "How each template role was placed (timber, face/end, hand) — "
         "written by Apply Joint; used by preview and re-place tools.")
     varset.Placement_Record = record
+    varset.addProperty(
+        "App::PropertyString", "Template_Source", "Placement",
+        "Library template this joint was applied from — used by "
+        "Duplicate Bent to re-apply the joint on the copies.")
+    varset.Template_Source = template.source_name
 
     # --- per-role stacks ----------------------------------------------------
     made = []
