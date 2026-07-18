@@ -28,7 +28,7 @@ Done and on `main`, all output lints clean, full suite green
 
 - **Duplicate Bent** (`duplicate.py`) — merged.
 
-**In review (this PR, branch `claude/timber-naming-conventions-451894`):**
+**In review (PR #3, branch `claude/timber-naming-conventions-451894`):**
 the naming overhaul decided at the shakedown. Permanent serial labels
 (`T-<Role>[-<Qualifier>]-<serial>` timbers, `J-<Kind>-<serial>` joints;
 `naming.py` holds the pure helpers) split from position, which is now
@@ -41,6 +41,16 @@ labels stay accepted (advisory-clean) so the library template and
 Adam's existing docs keep working; the template's internals
 (`Joint_MT_0a`, roles `P0-1`/`B0-1`) are untouched — new joint labels
 take their kind token from the template file stem (`HousedMT`).
+
+**Landing PR #3** (the recommended worktree workflow, in order): (1)
+merge the PR; (2) in the MAIN repo dir `…\Projects\BentWizard` — which
+sits on `duplicate-bent`, not `main` — run `git checkout main && git
+pull` so the main checkout actually holds the merged code; (3)
+`scripts/dev-install.ps1 main` + restart FreeCAD. The point-back is a
+*post-merge* step: pointing the junction at `main` before then loads the
+pre-naming main checkout and FreeCAD silently drops the new dialogs.
+Keeping the main checkout on `main` is the hygiene that makes
+`dev-install.ps1 main` mean what it says.
 
 ## Architecture cheat-sheet (why the code is shaped this way)
 
