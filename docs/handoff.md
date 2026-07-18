@@ -26,8 +26,21 @@ Done and on `main`, all output lints clean, full suite green
   primary, attached to the landing frame so it tracks most edits live
   (see the mate-frame-moving caveat below).
 
-**In review (this PR, branch `duplicate-bent`):** Duplicate Bent
-(`duplicate.py`) — Adam GUI-approved; awaiting merge.
+- **Duplicate Bent** (`duplicate.py`) — merged.
+
+**In review (this PR, branch `claude/timber-naming-conventions-451894`):**
+the naming overhaul decided at the shakedown. Permanent serial labels
+(`T-<Role>[-<Qualifier>]-<serial>` timbers, `J-<Kind>-<serial>` joints;
+`naming.py` holds the pure helpers) split from position, which is now
+display-only Tier-2 data (`Position_Tag` on Dims and joint VarSets).
+Tree organization: Dims VarSets nest inside their Bodies, joint VarSets
+park in a `Joints` Std Group, Duplicate Bent can group its copies.
+Suggestion tools bump only the trailing serial segment (the old
+first-number bent swap is gone — it mangled descriptive names). Legacy
+labels stay accepted (advisory-clean) so the library template and
+Adam's existing docs keep working; the template's internals
+(`Joint_MT_0a`, roles `P0-1`/`B0-1`) are untouched — new joint labels
+take their kind token from the template file stem (`HousedMT`).
 
 ## Architecture cheat-sheet (why the code is shaped this way)
 
@@ -52,11 +65,18 @@ Done and on `main`, all output lints clean, full suite green
 
 ## Running things
 
-- Tests: `FreeCAD_1.1.1-Windows-x86_64-py311/bin/python.exe -m unittest discover -s tests`
+- Tests: `C:\Users\Adam\Documents\Projects\FreeCAD_1.1.1-Windows-x86_64-py311\bin\python.exe -m unittest discover -s tests`
+  (portable FreeCAD now lives outside the repo — see CLAUDE.md Environment)
 - Lint a file: `... python.exe -m freecad.bentwizard.linter <file.FCStd>`
 - Headless scripting: `freecadcmd.exe <script.py>`; to import the repo
-  package, append `<repo>/freecad` to the already-imported `freecad`
-  namespace `__path__` (freecadcmd pre-imports its own `freecad`).
+  package, front-load `<repo>/freecad` on the already-imported `freecad`
+  package's `__path__` (freecadcmd pre-imports its own `freecad`).
+- **Worktree gotcha:** FreeCAD's Mod scan grafts the junction (the MAIN
+  repo) onto `freecad.__path__` ahead of a worktree checkout — an
+  `append` silently runs the main repo's code. `tests/_repo_path.py`
+  front-loads the checkout under test (each test module imports it and
+  re-grafts after `import FreeCAD`); do the same in ad-hoc scripts run
+  from a worktree.
 - The workbench is dev-installed via a junction at
   `%APPDATA%/FreeCAD/v1-1/Mod/BentWizard` → repo root, so the working
   tree runs live (uncommitted code included). Adam must restart FreeCAD

@@ -94,7 +94,7 @@ class Model:
             label = vs.label
             if label.startswith("TimberDims_"):
                 self.kind[vs.name] = "dims"
-            elif label.startswith("Joint_"):
+            elif label.startswith(("Joint_", "J-")):
                 self.kind[vs.name] = "joint"
             elif label.startswith(("Group_", "Project_", "Order_")):
                 self.kind[vs.name] = "group"
@@ -551,8 +551,16 @@ def rule_joint_fits_footprint(model):
 # Advisory rules
 # --------------------------------------------------------------------------
 
-_VARSET_LABEL = re.compile(r"^(TimberDims|Joint|Group|Project|Order)_\S+$")
-_MEMBER_ID = re.compile(r"^[A-Z]{1,3}\d*-\d+$|^[A-Z]{1,3}-B\d+-\d+$")
+# VarSet labels: Kind_Owner (TimberDims_/Group_/Project_/Order_), joint
+# instances J-<Kind>-<serial> (legacy Joint_<Kind>_<ID> grandfathered).
+_VARSET_LABEL = re.compile(
+    r"^(TimberDims|Joint|Group|Project|Order)_\S+$|^J-\S+-\S+$")
+# Timber labels: T-<Role>[-<Qualifier>...]-<serial> with a trailing
+# all-digit serial segment; legacy MemberIDs ([RolePrefix][Bent]-[Pos])
+# grandfathered so pre-convention files stay advisory-clean.
+_MEMBER_ID = re.compile(
+    r"^T(-[A-Za-z0-9_]+)+-\d+$"
+    r"|^[A-Z]{1,3}\d*-\d+$|^[A-Z]{1,3}-B\d+-\d+$")
 _PROPERTY_NAME = re.compile(r"^[A-Z][A-Za-z0-9]*(_[A-Z0-9][A-Za-z0-9]*)+$")
 _DIMS_BASE_PROPS = {"Width", "Depth", "Length"}
 
@@ -560,7 +568,8 @@ _DIMS_BASE_PROPS = {"Width", "Depth", "Length"}
 def rule_naming_conventions(model):
     """§3 advisory: labels and property names follow the decided scheme.
 
-    VarSets are Kind_Owner; timber bodies carry MemberIDs; template
+    VarSets are Kind_Owner (joint instances J-<Kind>-<serial>); timber
+    bodies carry permanent serial names (T-Post-Level1-003); template
     properties are Part_Attribute[_Qualifier]. §7 debts 5/6 (prototype
     names predate the convention; ProjectVars et al.).
     """
@@ -570,7 +579,7 @@ def rule_naming_conventions(model):
             findings.append(Finding(
                 "naming-convention", ADVISORY, vs.name, vs.label,
                 f"VarSet label does not follow Kind_Owner "
-                f"(TimberDims_/Joint_/Group_/Project_/Order_)"))
+                f"(TimberDims_/Group_/Project_/Order_) or J-<Kind>-<serial>"))
         is_dims = model.kind.get(vs.name) == "dims"
         bad_props = []
         for p in vs.properties.values():
@@ -589,8 +598,8 @@ def rule_naming_conventions(model):
         if not _MEMBER_ID.match(body.label):
             findings.append(Finding(
                 "naming-convention", ADVISORY, body.name, body.label,
-                f"body label is not a MemberID "
-                f"([RolePrefix][Bent]-[Position], e.g. P2-1)"))
+                f"body label is not a permanent timber name "
+                f"(T-<Role>[-<Qualifier>]-<serial>, e.g. T-Post-Level1-003)"))
         dims = model.body_dims(body)
         if dims is not None and dims.label != f"TimberDims_{body.label}":
             findings.append(Finding(
@@ -718,7 +727,7 @@ def rule_auto_labels(model):
             findings.append(Finding(
                 "auto-generated-label", ADVISORY, obj.name, obj.label,
                 f"label is FreeCAD's auto-generated name — rename per "
-                f"convention (MemberID_Feature_JointID)"))
+                f"convention (Timber_Feature_JointLabel)"))
     return findings
 
 

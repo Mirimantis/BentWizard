@@ -23,6 +23,7 @@ import FreeCAD as App
 import Part
 import Sketcher
 
+from . import naming
 from .fcstd import FcstdDocument
 from .linter import Model, footprint_violations
 
@@ -92,6 +93,21 @@ def dims_varset(body):
     return None
 
 
+JOINTS_GROUP_LABEL = "Joints"
+
+
+def joints_group(doc):
+    """The document's 'Joints' Std Group (created on first use): joint
+    VarSets live there instead of scattered through the tree. Pure
+    organization — an App::DocumentObjectGroup has no geometric effect."""
+    for obj in doc.getObjectsByLabel(JOINTS_GROUP_LABEL):
+        if obj.TypeId == "App::DocumentObjectGroup":
+            return obj
+    group = doc.addObject("App::DocumentObjectGroup", "Joints")
+    group.Label = JOINTS_GROUP_LABEL
+    return group
+
+
 # --------------------------------------------------------------------------
 # Template specification (pure reading, no FreeCAD document mutation)
 # --------------------------------------------------------------------------
@@ -111,15 +127,23 @@ class TemplateSpec:
                 f"found {len(joints)}")
         self.joint = joints[0]
         self.joint_label = self.joint.label            # e.g. Joint_MT_0a
-        parts = self.joint_label.split("_")
-        if len(parts) < 3 or parts[0] != "Joint":
+        parsed = naming.parse_joint_label(self.joint_label)
+        if parsed is None:
             raise JointError(
                 f"joint VarSet label {self.joint_label!r} is not "
-                f"Joint_<Kind>_<ID>")
-        self.kind = "_".join(parts[1:-1])              # e.g. MT
-        self.template_jid = parts[-1]                  # e.g. 0a
+                f"J-<Kind>-<ID> or legacy Joint_<Kind>_<ID>")
+        self.kind, self.template_jid = parsed          # e.g. ("MT", "0a")
         import os
         self.source_name = os.path.splitext(os.path.basename(self.path))[0]
+        # descriptive kind token for new joint labels (J-<token>-<serial>):
+        # the library file stem carries the readable name (Joint_HousedMT
+        # -> HousedMT), which beats a terse internal kind like "MT"
+        self.kind_token = naming.kind_token_from_source(self.source_name)
+        # the suffix template feature labels carry (MemberID_Feature_<suffix>)
+        if self.joint_label.startswith(naming.JOINT_PREFIX):
+            self.member_suffix = f"_{self.joint_label}"
+        else:
+            self.member_suffix = f"_{self.kind}_{self.template_jid}"
 
         # Parameter schema: (name, type_id, value, tooltip, expression)
         exprs = {e.path.lstrip("."): e.expression
@@ -549,7 +573,7 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
     joint_id = (joint_id or "").strip()
     if not joint_id or "<" in joint_id or ">" in joint_id:
         raise JointError("joint ID must be a non-empty string without <>")
-    new_joint_label = f"Joint_{template.kind}_{joint_id}"
+    new_joint_label = naming.joint_label(template.kind_token, joint_id)
     if doc.getObjectsByLabel(new_joint_label):
         raise JointError(f"label {new_joint_label!r} already exists")
     if set(body_map) != set(template.roles):
@@ -562,9 +586,8 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
     # label is resolved structurally from the body's base pad, so a
     # renamed body binds its ACTUAL VarSet, whatever it is called.
     renames = {template.joint_label: new_joint_label,
-               # feature labels carry the joint ID as a suffix
-               f"_{template.kind}_{template.template_jid}":
-               f"_{template.kind}_{joint_id}"}
+               # feature labels carry the joint label as a suffix
+               template.member_suffix: f"_{new_joint_label}"}
     role_dims = {}
     for tmpl_label, body in body_map.items():
         dims = dims_varset(body)
@@ -580,6 +603,7 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
     # --- joint VarSet -----------------------------------------------------
     varset = doc.addObject("App::VarSet", "JointVarSet")
     varset.Label = new_joint_label
+    joints_group(doc).addObject(varset)
     for p in template.parameters:
         varset.addProperty(p["type_id"], p["name"], p["group"], p["tooltip"])
         setattr(varset, p["name"], p["value"])
@@ -643,6 +667,11 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
         "Library template this joint was applied from — used by "
         "Duplicate Bent to re-apply the joint on the copies.")
     varset.Template_Source = template.source_name
+    varset.addProperty(
+        "App::PropertyString", "Position_Tag", "Tag",
+        "Where this joint sits in the structure (e.g. 'Bent 2, north "
+        "girt') — display-only label for drawings and lists. Nothing "
+        "binds to it; set, change, or clear it freely.")
 
     # --- per-role stacks ----------------------------------------------------
     made = []

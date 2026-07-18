@@ -1,10 +1,14 @@
 """New Timber from template — core logic (no GUI imports).
 
 Constructs a pristine parametric timber per workflow doc §4.1: one Body
-labeled with the MemberID, a TimberDims VarSet, a section sketch on the
+labeled with the timber's permanent name (T-<Role>[-<Qualifier>]-<serial>,
+e.g. T-Post-Level1-003 — see naming.py), a TimberDims VarSet nested
+inside the Body so the tree keeps them together, a section sketch on the
 XY origin plane (rectangle in the first quadrant, corner pinned to the
 origin), and a Pad to Dims.Length. The origin planes become the square-
-rule reference faces (Face 1 = XZ, Face 2 = YZ).
+rule reference faces (Face 1 = XZ, Face 2 = YZ). Position in the
+structure is NOT part of the name: it lives in the Dims VarSet's
+Position_Tag, display-only data for drawings.
 
 Built fresh instead of copied-and-remapped: duplication of existing
 bodies is the phantom-feature / stale-expression trap (findings #2,
@@ -14,13 +18,9 @@ writes every expression (finding #1) and every label (finding #6).
 
 from __future__ import annotations
 
-import re
-
 import FreeCAD as App
 import Part
 import Sketcher
-
-MEMBER_ID = re.compile(r"^[A-Z]{1,3}\d*-\d+$|^[A-Z]{1,3}-B\d+-\d+$")
 
 TOOLTIPS = {
     "Width": "Section extent along local X, measured from reference "
@@ -29,6 +29,10 @@ TOOLTIPS = {
              "Face 1 (the XZ origin plane).",
     "Length": "Stick length from end A (Z=0) to end B, including "
               "tenons, etc.",
+    "Position_Tag": "Where this stick lands in the structure (e.g. "
+                    "'Bent 2, north post') — display-only label for "
+                    "layout drawings and lists. Nothing binds to it; "
+                    "set, change, or clear it freely.",
 }
 
 
@@ -43,21 +47,22 @@ def _origin_plane(body, role):
     raise TimberError(f"body has no origin plane {role!r}")
 
 
-def new_timber(doc, member_id, width, depth, length):
+def new_timber(doc, member_id, width, depth, length, position_tag=""):
     """Create one pristine timber; returns (body, dims_varset).
 
+    `member_id` is the permanent label (T-Post-001 style recommended);
+    `position_tag` optionally pre-fills the display-only Position_Tag.
     `width`/`depth`/`length` are App.Units.Quantity (or anything its
     constructor accepts, e.g. "8 in"). Raises TimberError on a bad
-    MemberID, duplicate labels, or failed verification. The caller owns
+    label, duplicate labels, or failed verification. The caller owns
     the transaction.
     """
-    # Any unique label is accepted (custom roles are legitimate; the
-    # naming-convention linter rule is advisory, and Role/Bent/Position
-    # auto-numbering arrives with Phase 2). Only reject what breaks
-    # expression references.
+    # Any unique label is accepted (custom names are legitimate; the
+    # naming-convention linter rule is advisory). Only reject what
+    # breaks expression references.
     member_id = (member_id or "").strip()
     if not member_id:
-        raise TimberError("the timber needs a label (MemberID like P2-1 "
+        raise TimberError("the timber needs a label (T-Post-001 style "
                           "recommended)")
     if "<" in member_id or ">" in member_id:
         raise TimberError(f"{member_id!r}: '<' and '>' would break "
@@ -79,10 +84,16 @@ def new_timber(doc, member_id, width, depth, length):
     for prop, value in (("Width", width), ("Depth", depth), ("Length", length)):
         dims.addProperty("App::PropertyLength", prop, "Dims", TOOLTIPS[prop])
         setattr(dims, prop, value)
+    dims.addProperty("App::PropertyString", "Position_Tag", "Tag",
+                     TOOLTIPS["Position_Tag"])
+    dims.Position_Tag = (position_tag or "").strip()
 
-    # Body
+    # Body — with the Dims VarSet nested inside it, so the tree keeps a
+    # timber and its data together (pure organization; the binding is by
+    # expression, not by membership)
     body = doc.addObject("PartDesign::Body", "Body")
     body.Label = member_id
+    body.addObject(dims)
 
     # Section sketch: first-quadrant rectangle, corner pinned to origin.
     sketch = body.newObject("Sketcher::SketchObject", "SectionSketch")

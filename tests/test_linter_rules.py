@@ -14,6 +14,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
+import _repo_path  # noqa: E402, F401 — this repo's code must win the import
 
 from freecad.bentwizard.fcstd import FcstdDocument   # noqa: E402
 from freecad.bentwizard.linter import lint_document  # noqa: E402

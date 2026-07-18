@@ -20,12 +20,35 @@ Faces numbered 1–4: Face 1 is the reference face, 2–4 clockwise viewed from 
 
 One document per prototype scope (single doc held four timbers, three joints, assembly, drawings, cut list without strain; multi-file split is an open item for large frames). Objects at root: one VarSet per timber (Dims), one VarSet per joint instance, group VarSets (section/project), timber Bodies, the Assembly, TechDraw pages, spreadsheets.
 
-Naming (decided, supersedes prototype ad-hoc names):
-- **Timber Bodies**: MemberID labels per the adopted convention (`P2-1`).
-- **VarSet labels**: `Kind_Owner` with a descriptive kind prefix — `TimberDims_P2-1`, `Joint_MT_B2a`, `Group_LoftDovetail`, `Project_Main`, `Order_Main`.
+Naming (decided at the Phase 1 shakedown, supersedes the earlier
+positional MemberID scheme — which is grandfathered as advisory-clean in
+existing files):
+- **Two names, two jobs.** The **Label is the permanent identity**:
+  chosen at creation, descriptive of what the piece IS, and never
+  encodes position (a new timber has no position yet, and positions get
+  reassigned). **Position is Tier-2 data**: the `Position_Tag` string
+  property on the Dims / joint VarSet ("Bent 2, north post"), displayed
+  on layout drawings and lists; nothing binds to it, so it can change
+  freely. (FreeCAD's own immutable Internal Name, `Body003`, is file
+  plumbing — never used semantically.)
+- **Timber Bodies**: `T-<Role>[-<Qualifier>...]-<serial>` —
+  `T-Post-Level1-003`, `T-TieBeam_decorative-007`. The serial is the
+  trailing all-digit segment; tools allocate the next free serial per
+  base and only ever touch that segment (digits inside a descriptive
+  part, like `Level1`, are never rewritten).
+- **Joint instances**: `J-<Kind>-<serial>` — `J-HousedMT-001`. The kind
+  token comes from the library template's file stem.
+- **VarSet labels**: `Kind_Owner` with a descriptive kind prefix —
+  `TimberDims_T-Post-003`, `Group_LoftDovetail`, `Project_Main`,
+  `Order_Main`; joint VarSets carry the joint's own `J-<Kind>-<serial>`
+  label (one VarSet per joint instance, the VarSet IS the joint).
+- **Tree organization** (pure organization, zero geometric effect): each
+  Dims VarSet nests inside its timber's Body; joint VarSets live in a
+  `Joints` Std Group; bents/bays are user-arranged (optionally nested)
+  Std Groups of Bodies — Duplicate Bent can create one for the copies.
 - **Property names**: `Part_Attribute[_Qualifier]`, most-significant first: `Tenon_Thickness`, `Tenon_Setback_Face2`, `Housing_Depth`, `Peg_Drawbore_Offset`, `Peg_Count`. Reference-face qualifiers use `_Face1`/`_Face2` (stable regardless of timber orientation; Face 1 = XZ-plane face, Face 2 = YZ-plane face). Alphabetical property sorting then clusters each part's parameters automatically.
 - **Tooltips**: mandatory on every template-defined property, written by the template author, cloned on apply. As brief as possible while still informative; always states which face/end it measures from; timber framing terminology. Missing tooltip = advisory linter failure.
-- **Joint features within bodies**: body-qualified to avoid document-unique label collisions — convention `MemberID_Feature_JointID` (e.g. `P2-1_Mortise_MT_B2a`), to be confirmed in template design.
+- **Joint features within bodies**: body-qualified to avoid document-unique label collisions — convention `<TimberLabel>_<Feature>_<JointLabel>` (e.g. `T-Post-003_Mortise_J-HousedMT-001`; legacy `P2-1_Mortise_MT_B2a`).
 
 ## 4. Proven Recipes
 
@@ -38,7 +61,7 @@ What duplicates vs. stays shared follows intent and the group-layer boundary. Ne
 ### 4.3 Joint instance VarSet
 One VarSet per joint instance, holding all parameters for both halves (the mated-pair mechanism). Properties may pass through by expression to group VarSets (see 4.9). Prototype shortcut to avoid in production: MT1 drove both beam ends; real frames use one instance per joint.
 
-**Junction point for cross-timber coupling (decided at Phase 1 start).** A joint parameter that must track a mating timber's dimension is a property on the joint VarSet, bound by expression to that timber's Dims — e.g. `Joint_MT_B2a.Housing_Width = <<TimberDims_B2-1>>.Depth`. Features inside a body reference only their own timber's Dims and joint VarSets, never another timber's Dims directly (the prototype's housing sketches did, and `PegHole_MT1_sketch2 → PostDims` shows how it fails silently after duplication). Propagation stays fully native — resizing a timber flows through the joint VarSet into both halves with no workbench involvement — while all cross-timber coupling for a joint is enumerated in one visible, auditable, remappable place. Overriding a tracked dimension is the standard group-override move: replace the expression with a literal on the joint VarSet.
+**Junction point for cross-timber coupling (decided at Phase 1 start).** A joint parameter that must track a mating timber's dimension is a property on the joint VarSet, bound by expression to that timber's Dims — e.g. `J-HousedMT-001.Housing_Width = <<TimberDims_T-TieBeam-001>>.Depth`. Features inside a body reference only their own timber's Dims and joint VarSets, never another timber's Dims directly (the prototype's housing sketches did, and `PegHole_MT1_sketch2 → PostDims` shows how it fails silently after duplication). Propagation stays fully native — resizing a timber flows through the joint VarSet into both halves with no workbench involvement — while all cross-timber coupling for a joint is enumerated in one visible, auditable, remappable place. Overriding a tracked dimension is the standard group-override move: replace the expression with a literal on the joint VarSet.
 
 ### 4.4 End tenon — island pocket
 Sketch on the end's plane (XY origin plane at end A; offset datum from XY at `Length` for end B). Two loops: outer rectangle = full section (corner at origin, Dims-bound), inner = tenon profile (Setbacks and dimensions bound to the joint VarSet). One Pocket, depth = TenonLength, cutting into the stick. The inner loop survives as the tenon. Requires the island strictly interior to the outer loop.

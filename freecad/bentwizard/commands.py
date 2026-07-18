@@ -11,11 +11,13 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
+from . import naming
 from .apply_joint import (JointError, TemplateSpec, apply_joint,
                           create_preview, dims_varset, engagement_placement,
                           find_preview, joint_members, remove_joint,
                           remove_preview)
-from .duplicate import bent_joints, duplicate_bent
+from .duplicate import (bent_joints, duplicate_bent, suggest_joint_ids,
+                        suggest_member_labels)
 from .timber import TimberError, new_timber
 
 LIBRARY_DIR = Path(__file__).resolve().parents[2] / "library"
@@ -34,8 +36,9 @@ def _quantity_field(default_mm):
 
 
 class NewTimberDialog(QtWidgets.QDialog):
-    """Label + section + length. Values persist across validation
-    retries so the user fixes input instead of retyping it."""
+    """Permanent name + section + length + optional position tag. Values
+    persist across validation retries so the user fixes input instead of
+    retyping it."""
 
     DEFAULTS = (203.2, 203.2, 2438.4)   # mm internally; displayed per schema
 
@@ -44,17 +47,27 @@ class NewTimberDialog(QtWidgets.QDialog):
         self.setWindowTitle("New Timber")
         form = QtWidgets.QFormLayout(self)
         self.member_id = QtWidgets.QLineEdit(self)
-        self.member_id.setPlaceholderText("P2-1")
+        self.member_id.setPlaceholderText("T-Post-001")
         self.member_id.setToolTip(
-            "MemberID ([RolePrefix][Bent]-[Position], e.g. P2-1) "
-            "recommended — the linter flags other names as advisory. "
-            "Any unique label is accepted for custom roles.")
-        form.addRow("Label / MemberID:", self.member_id)
+            "Permanent name: T-<Role>[-<Qualifier>]-<serial>, e.g. "
+            "T-Post-Level1-003 — describes what the stick IS, never its "
+            "position (that goes in the position tag below). Leave the "
+            "serial off and the next free one is appended for you. Any "
+            "unique label is accepted; the linter nudges as advisory.")
+        form.addRow("Name:", self.member_id)
         self.fields = {}
         for label, default in zip(("Width", "Depth", "Length"), self.DEFAULTS):
             field = _quantity_field(default)
             self.fields[label] = field
             form.addRow(f"{label}:", field)
+        self.position_tag = QtWidgets.QLineEdit(self)
+        self.position_tag.setPlaceholderText("e.g. Bent 2, north post")
+        self.position_tag.setToolTip(
+            "Optional, display-only: where the stick lands in the "
+            "structure, for layout drawings and lists. Stored as "
+            "Position_Tag on the Dims VarSet; change it freely later — "
+            "nothing binds to it.")
+        form.addRow("Position tag:", self.position_tag)
         buttons = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
             parent=self)
@@ -63,11 +76,12 @@ class NewTimberDialog(QtWidgets.QDialog):
         form.addRow(buttons)
 
     def values(self):
-        """(member_id, width, depth, length); raises TimberError."""
+        """(member_id, width, depth, length, position_tag)."""
         out = [self.member_id.text()]
         for name in ("Width", "Depth", "Length"):
             raw = self.fields[name].property("rawValue")
             out.append(App.Units.Quantity(f"{raw} mm"))
+        out.append(self.position_tag.text())
         return tuple(out)
 
 
@@ -88,10 +102,16 @@ class NewTimberCommand:
         dialog = NewTimberDialog(Gui.getMainWindow())
         while dialog.exec() == QtWidgets.QDialog.Accepted:
             try:
-                member_id, width, depth, length = dialog.values()
-                doc.openTransaction(f"New timber {member_id.strip()}")
+                member_id, width, depth, length, tag = dialog.values()
+                member_id = member_id.strip()
+                # no trailing serial segment -> append the next free one
+                if member_id and naming.split_serial(member_id)[1] is None:
+                    member_id = naming.successor_label(
+                        [o.Label for o in doc.Objects], member_id)
+                doc.openTransaction(f"New timber {member_id}")
                 try:
-                    body, _dims = new_timber(doc, member_id, width, depth, length)
+                    body, _dims = new_timber(doc, member_id, width, depth,
+                                             length, position_tag=tag)
                 except Exception:
                     doc.abortTransaction()
                     raise
@@ -117,7 +137,8 @@ def _pick_joint(doc, title):
     3D-clickable, and member labels carry the joint's _Kind_ID suffix).
     Returns the VarSet, or None if cancelled / none present."""
     joints = [o for o in doc.Objects
-              if o.TypeId == "App::VarSet" and o.Label.startswith("Joint_")]
+              if o.TypeId == "App::VarSet"
+              and naming.is_joint_varset_label(o.Label)]
     if not joints:
         QtWidgets.QMessageBox.information(
             Gui.getMainWindow(), title, "No joint instances in this document.")
@@ -126,7 +147,12 @@ def _pick_joint(doc, title):
     current = 0
     sel_labels = [o.Label for o in Gui.Selection.getSelection()]
     for i, joint in enumerate(joints):
-        suffix = joint.Label.replace("Joint", "", 1)      # "_MT_B2a"
+        # member labels carry the joint label as a suffix: "_J-HousedMT-001"
+        # (legacy members: "_MT_B2a", the label minus its "Joint" prefix)
+        if joint.Label.startswith(naming.JOINT_PREFIX):
+            suffix = "_" + joint.Label
+        else:
+            suffix = joint.Label.replace("Joint", "", 1)  # "_MT_B2a"
         if any(s == joint.Label or s.endswith(suffix) for s in sel_labels):
             current = i
             break
@@ -155,11 +181,13 @@ class ApplyJointDialog(QtWidgets.QDialog):
         self.template_box.currentIndexChanged.connect(self._load_template)
         top.addRow("Joint template:", self.template_box)
         self.joint_id = QtWidgets.QLineEdit(self)
-        self.joint_id.setPlaceholderText("B2a")
+        self.joint_id.setPlaceholderText("001")
         self.joint_id.setToolTip(
-            "Joint instance ID — becomes Joint_<Kind>_<ID> and the "
-            "suffix on every cloned feature (e.g. B2a for bent 2, joint a)")
-        top.addRow("Joint ID:", self.joint_id)
+            "Joint serial — becomes J-<Kind>-<serial> (e.g. "
+            "J-HousedMT-001) and the suffix on every cloned feature. "
+            "Prefilled with the next free serial; position info belongs "
+            "in the joint's Position_Tag, not here.")
+        top.addRow("Joint serial:", self.joint_id)
         layout.addLayout(top)
 
         self.roles_form = QtWidgets.QFormLayout()
@@ -197,6 +225,11 @@ class ApplyJointDialog(QtWidgets.QDialog):
             QtWidgets.QMessageBox.warning(self, "Apply Joint", str(err))
             self.spec = None
             return
+        # next free serial in this kind's J-<Kind>-NNN family
+        suggested = naming.next_serial(
+            [o.Label for o in self.doc.Objects],
+            naming.JOINT_PREFIX + self.spec.kind_token)
+        self.joint_id.setText(naming.split_serial(suggested)[1])
 
         # Role assignment: one combo per template role, preseeded from
         # the current selection order.
@@ -449,17 +482,11 @@ class PreviewJointCommand:
                 pass
 
 
-import re as _re
-
-
-def _swap_bent_number(text, new_number):
-    """P1-1 -> P2-1, TB-1 -> TB-1 (no bent digits), '1a' -> '2a'."""
-    return _re.sub(r"\d+", str(new_number), text, count=1)
-
-
 class DuplicateBentDialog(QtWidgets.QDialog):
-    """New labels for the selected timbers and new IDs for their joints,
-    prefilled by a bent-number swap the user can override per row."""
+    """New permanent names for the selected timbers and new serials for
+    their joints, prefilled with the next free serial per name family
+    (only the trailing serial changes — descriptive parts are never
+    rewritten). Every row stays editable."""
 
     def __init__(self, doc, bodies, parent=None):
         super().__init__(parent)
@@ -468,28 +495,24 @@ class DuplicateBentDialog(QtWidgets.QDialog):
         self.setWindowTitle("Duplicate Bent")
         layout = QtWidgets.QVBoxLayout(self)
 
-        top = QtWidgets.QFormLayout()
-        self.bent_number = QtWidgets.QSpinBox(self)
-        self.bent_number.setRange(0, 999)
-        self.bent_number.setValue(2)
-        self.bent_number.setToolTip(
-            "Prefills the new names by swapping the first number in each "
-            "label/ID; every row stays editable.")
-        self.bent_number.valueChanged.connect(self._prefill)
-        top.addRow("New bent number:", self.bent_number)
-        layout.addLayout(top)
-
         form = QtWidgets.QFormLayout()
         self.body_fields = {}
+        suggested = suggest_member_labels(doc, bodies)
         for body in bodies:
             edit = QtWidgets.QLineEdit(self)
+            edit.setText(suggested[body])
+            edit.setToolTip(
+                "Permanent name for the copy — same base, next free "
+                "serial. Edit freely; only uniqueness is required.")
             self.body_fields[body] = edit
             form.addRow(f"{body.Label} →", edit)
         self.joints_inside, self.joints_outside = bent_joints(doc, bodies)
         self.joint_fields = {}
+        suggested_ids = suggest_joint_ids(doc, self.joints_inside)
         for joint in self.joints_inside:
             edit = QtWidgets.QLineEdit(self)
-            edit.setToolTip("New joint ID (becomes Joint_<Kind>_<ID>)")
+            edit.setText(suggested_ids[joint])
+            edit.setToolTip("New joint serial (becomes J-<Kind>-<serial>)")
             self.joint_fields[joint] = edit
             form.addRow(f"{joint.Label} →", edit)
         layout.addLayout(form)
@@ -499,7 +522,23 @@ class DuplicateBentDialog(QtWidgets.QDialog):
                 + ", ".join(j.Label for j in self.joints_outside), self)
             note.setWordWrap(True)
             layout.addWidget(note)
-        self._prefill()
+
+        extras = QtWidgets.QFormLayout()
+        self.position_tag = QtWidgets.QLineEdit(self)
+        self.position_tag.setPlaceholderText("e.g. Bent 2")
+        self.position_tag.setToolTip(
+            "Optional, display-only Position_Tag written on every "
+            "copy's Dims VarSet — where the new bent stands. Change it "
+            "freely later; nothing binds to it.")
+        extras.addRow("Position tag for copies:", self.position_tag)
+        self.group_label = QtWidgets.QLineEdit(self)
+        self.group_label.setPlaceholderText("e.g. Bent 2")
+        self.group_label.setToolTip(
+            "Optional: put the copies in a group of this name (created "
+            "if absent) to keep the tree organized. Groups are pure "
+            "organization — drag timbers between them freely.")
+        extras.addRow("Add copies to group:", self.group_label)
+        layout.addLayout(extras)
 
         buttons = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
@@ -508,21 +547,14 @@ class DuplicateBentDialog(QtWidgets.QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-    def _prefill(self, *_):
-        n = self.bent_number.value()
-        for body, edit in self.body_fields.items():
-            edit.setText(_swap_bent_number(body.Label, n))
-        for joint, edit in self.joint_fields.items():
-            jid = joint.Label.split("_")[-1]
-            edit.setText(_swap_bent_number(jid, n))
-
     def request(self):
         member_map = {b: e.text().strip() for b, e in self.body_fields.items()}
         joint_ids = {j.Label: e.text().strip()
                      for j, e in self.joint_fields.items()}
         if any(not v for v in joint_ids.values()):
-            raise JointError("every joint needs a new ID")
-        return member_map, joint_ids
+            raise JointError("every joint needs a new serial")
+        return (member_map, joint_ids,
+                self.position_tag.text(), self.group_label.text())
 
 
 class DuplicateBentCommand:
@@ -550,11 +582,12 @@ class DuplicateBentCommand:
         dialog = DuplicateBentDialog(doc, bodies, Gui.getMainWindow())
         while dialog.exec() == QtWidgets.QDialog.Accepted:
             try:
-                member_map, joint_ids = dialog.request()
+                member_map, joint_ids, tag, group = dialog.request()
                 doc.openTransaction("Duplicate bent")
                 try:
                     new_bodies, new_joints, skipped = duplicate_bent(
-                        doc, member_map, joint_ids, LIBRARY_DIR)
+                        doc, member_map, joint_ids, LIBRARY_DIR,
+                        position_tag=tag, group_label=group)
                 except Exception:
                     doc.abortTransaction()
                     raise

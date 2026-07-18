@@ -19,6 +19,7 @@ from pathlib import Path
 
 import FreeCAD as App
 
+from . import naming
 from .apply_joint import (JointError, TemplateSpec, apply_joint,
                           dims_varset, joint_role_frames)
 from .timber import new_timber
@@ -48,7 +49,9 @@ def parse_placement_record(record):
 
 def find_template(kind, library_dir, source_name=None):
     """TemplateSpec for a joint: by recorded source name if available,
-    else the library's single template of this kind."""
+    else the library's single template of this kind (matching either the
+    template's internal kind or its descriptive kind token — joint
+    labels of the two schemes carry one or the other)."""
     library = Path(library_dir)
     if source_name:
         path = library / f"{source_name}.FCStd"
@@ -60,7 +63,7 @@ def find_template(kind, library_dir, source_name=None):
             spec = TemplateSpec(path)
         except JointError:
             continue
-        if spec.kind == kind:
+        if kind in (spec.kind, spec.kind_token):
             matches.append(spec)
     if len(matches) == 1:
         return matches[0]
@@ -77,7 +80,8 @@ def bent_joints(doc, bodies):
     body_set = set(bodies)
     inside, outside = [], []
     for obj in doc.Objects:
-        if obj.TypeId != "App::VarSet" or not obj.Label.startswith("Joint_"):
+        if obj.TypeId != "App::VarSet" \
+                or not naming.is_joint_varset_label(obj.Label):
             continue
         joint_bodies = set(joint_role_frames(obj))
         if not joint_bodies:
@@ -117,12 +121,50 @@ def _role_body_map(varset, template):
     return {mate_role: mate_body, other_role: other_body}
 
 
-def duplicate_bent(doc, member_map, joint_id_map, library_dir):
+def suggest_member_labels(doc, bodies):
+    """{body -> suggested copy label}: same base, next free serial (only
+    the trailing serial segment is ever touched — descriptive middles
+    keep their digits). Suggestions in one batch never collide."""
+    labels = [o.Label for o in doc.Objects]
+    taken, out = [], {}
+    for body in bodies:
+        label = naming.successor_label(labels, body.Label, taken=taken)
+        out[body] = label
+        taken.append(label)
+    return out
+
+
+def suggest_joint_ids(doc, joints):
+    """{joint VarSet -> suggested new joint ID (serial)} for the copies.
+    The kind token is read from the joint's label (new scheme) or its
+    Template_Source (legacy labels), so the serial is allocated against
+    the right J-<Kind>-NNN family."""
+    labels = [o.Label for o in doc.Objects]
+    taken, out = [], {}
+    for joint in joints:
+        parsed = naming.parse_joint_label(joint.Label)
+        if joint.Label.startswith(naming.JOINT_PREFIX) and parsed:
+            token = parsed[0]
+        else:
+            source = getattr(joint, "Template_Source", "")
+            token = (naming.kind_token_from_source(source) if source
+                     else (parsed[0] if parsed else "Joint"))
+        label = naming.next_serial(labels, naming.JOINT_PREFIX + token,
+                                   taken=taken)
+        taken.append(label)
+        out[joint] = naming.split_serial(label)[1]
+    return out
+
+
+def duplicate_bent(doc, member_map, joint_id_map, library_dir,
+                   position_tag="", group_label=""):
     """Duplicate the timbers in member_map ({source body -> new label})
     plus every joint fully inside the set (joint_id_map: {source joint
-    VarSet label -> new joint ID}). Returns (new_bodies: {source ->
-    copy}, new_joints: [VarSet], skipped: [VarSet label]). Caller owns
-    the transaction.
+    VarSet label -> new joint ID}). `position_tag` pre-fills the copies'
+    display-only Position_Tag; `group_label` puts the new bodies in a
+    Std Group of that label (created if absent). Returns (new_bodies:
+    {source -> copy}, new_joints: [VarSet], skipped: [VarSet label]).
+    Caller owns the transaction.
     """
     for label in member_map.values():
         if not label or not label.strip():
@@ -143,7 +185,8 @@ def duplicate_bent(doc, member_map, joint_id_map, library_dir):
             doc, new_label.strip(),
             App.Units.Quantity(f"{dims.Width.Value} mm"),
             App.Units.Quantity(f"{dims.Depth.Value} mm"),
-            App.Units.Quantity(f"{dims.Length.Value} mm"))
+            App.Units.Quantity(f"{dims.Length.Value} mm"),
+            position_tag=position_tag)
         new_bodies[src] = body
         label_renames[f"<<{src.Label}>>"] = f"<<{body.Label}>>"
         label_renames[f"<<{dims.Label}>>"] = f"<<{new_dims.Label}>>"
@@ -160,8 +203,9 @@ def duplicate_bent(doc, member_map, joint_id_map, library_dir):
     for varset in inside:
         if varset.Label not in joint_id_map:
             raise JointError(f"no new joint ID given for {varset.Label}")
+        parsed = naming.parse_joint_label(varset.Label)
         template = find_template(
-            "_".join(varset.Label.split("_")[1:-1]), library_dir,
+            parsed[0] if parsed else "", library_dir,
             getattr(varset, "Template_Source", None))
         role_bodies = _role_body_map(varset, template)
         body_map = {role: new_bodies[body]
@@ -187,5 +231,16 @@ def duplicate_bent(doc, member_map, joint_id_map, library_dir):
         new_joints.append(apply_joint(
             doc, template, joint_id_map[varset.Label], body_map,
             values=values, placement=placement))
+
+    # --- tree organization: optional Std Group for the copies -----------
+    group_label = (group_label or "").strip()
+    if group_label:
+        group = next(
+            (o for o in doc.getObjectsByLabel(group_label)
+             if o.TypeId == "App::DocumentObjectGroup"), None)
+        if group is None:
+            group = doc.addObject("App::DocumentObjectGroup", "BentGroup")
+            group.Label = group_label
+        group.addObjects(list(new_bodies.values()))
 
     return new_bodies, new_joints, [v.Label for v in outside]
