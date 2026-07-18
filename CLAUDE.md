@@ -66,3 +66,5 @@ Linter rules (strict vs. advisory) are enumerated in workflow doc §6 — treat 
 ## Division of labor
 
 Adam: FreeCAD driving, joinery domain decisions, testing against real workflow. Claude: all Python development, FreeCAD API research, step-by-step instructions, file-inspection verification.
+
+**Commit workflow:** build + headless-test, then Adam GUI-tests and approves BEFORE committing — low-hanging bugs get fixed pre-commit, so commits land tested. (Adopted after the Phase 1 shakedown.)
