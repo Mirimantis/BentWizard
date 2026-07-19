@@ -70,7 +70,11 @@ class NewTimberTest(unittest.TestCase):
 
     def test_rejects_bad_input(self):
         self.assertRejected("", "8 in", "8 in", "8 ft")
-        self.assertRejected("a<b", "8 in", "8 in", "8 ft")
+        # reserved characters (permissive naming, July 2026): only what
+        # breaks expressions or placement records is refused
+        self.assertRejected("a>b", "8 in", "8 in", "8 ft")
+        self.assertRejected("a;b", "8 in", "8 in", "8 ft")
+        self.assertRejected("a\\b", "8 in", "8 in", "8 ft")
         self.assertRejected("T-Post-001", "0 in", "8 in", "8 ft")
         self.new("T-Post-001", "8 in", "8 in", "8 ft")
         self.assertRejected("T-Post-001", "8 in", "8 in", "8 ft")  # duplicate
@@ -84,6 +88,46 @@ class NewTimberTest(unittest.TestCase):
         self.doc.recompute()
         self.assertAlmostEqual(body.Shape.Volume / 25.4 ** 3,
                                10 * 8 * 96, places=6)
+
+    def test_dotted_label_binds_expressions(self):
+        # July 2026: dotted serial style is first-class
+        body, dims = self.new("T-Post.Balcony.001", "8 in", "8 in", "8 ft")
+        self.assertEqual(dims.Label, "TimberDims_T-Post.Balcony.001")
+        dims.Length = "10 ft"
+        self.doc.recompute()
+        self.assertAlmostEqual(body.Shape.Volume / 25.4 ** 3,
+                               8 * 8 * 120, places=6)
+
+    def test_expression_bound_dimension(self):
+        # July 2026: '=<expression>' binds the Dims property — the front
+        # door to group VarSets ("membership IS the binding")
+        group = self.doc.addObject("App::VarSet", "GroupVars")
+        group.Label = "PostDims_Balcony"
+        group.addProperty("App::PropertyLength", "Post_Height", "Dims",
+                          "Balcony post height")
+        group.Post_Height = "10 ft"
+        body, dims = self.new("T.Post.Balcony.001", "8 in", "8 in",
+                              "=<<PostDims_Balcony>>.Post_Height")
+        self.assertAlmostEqual(body.Shape.Volume / 25.4 ** 3,
+                               8 * 8 * 120, places=6)
+        # the binding is live: edit the group, every bound post follows
+        group.Post_Height = "12 ft"
+        self.doc.recompute()
+        self.assertAlmostEqual(body.Shape.Volume / 25.4 ** 3,
+                               8 * 8 * 144, places=6)
+
+    def test_bad_expression_rejected_without_debris(self):
+        before = len(self.doc.Objects)
+        self.assertRejected("T-Post-001", "8 in", "8 in",
+                            "=<<Nowhere>>.Nothing")
+        self.assertRejected("T-Post-001", "8 in", "8 in", "=")
+        group = self.doc.addObject("App::VarSet", "G")
+        group.Label = "Group_Zero"
+        group.addProperty("App::PropertyLength", "Zip", "d", "zero")
+        self.assertRejected("T-Post-001", "8 in", "8 in",
+                            "=<<Group_Zero>>.Zip")   # resolves to 0
+        # rejections leave no half-built objects behind
+        self.assertEqual(len(self.doc.Objects), before + 1)  # just Group_Zero
 
     def test_output_lints_clean(self):
         from freecad.bentwizard.linter import lint

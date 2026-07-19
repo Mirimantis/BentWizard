@@ -1,6 +1,6 @@
 # BentWizard
 
-A timber framing workbench for FreeCAD 1.1.1: square-rule layout, subtractive joinery, and — the governing rule — **all geometry stays native**. Everything the workbench produces is ordinary FreeCAD (Sketches, Part Design features, datums, Assembly joints) and remains fully hand-editable with the workbench uninstalled.
+A timber framing workbench for FreeCAD 1.1.1: Mill Rule layout, subtractive joinery, and — the governing rule — **all geometry stays native**. Everything the workbench produces is ordinary FreeCAD (Sketches, Part Design features, datums, Assembly joints) and remains fully hand-editable with the workbench uninstalled.
 
 This is a from-scratch rewrite; an earlier attempt that generated custom-coded geometry is kept only as a record of lessons learned.
 

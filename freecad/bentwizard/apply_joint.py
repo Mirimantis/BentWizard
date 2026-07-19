@@ -31,7 +31,7 @@ DIMENSIONAL = {6, 7, 8, 9, 11, 18, 19}   # constraint types carrying a value
 Constraint_DISTANCE_X = 7
 Constraint_DISTANCE_Y = 8
 
-# Square-rule faces (workflow doc §2): Face 1 = XZ reference face (y=0),
+# Reference faces (workflow doc §2): Face 1 = XZ reference face (y=0),
 # Face 2 = YZ reference face (x=0), Faces 3/4 opposite them. Side-
 # landing templates are authored on Face 4 (canonical FlatFace on
 # YZ_Plane; validated at apply time). Each target face is a transform
@@ -643,7 +643,7 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
     of a junction binding replaces the expression, per §4.9).
     placement: optional {template body label -> options}:
       {"end": "A"|"B"} for end-landing roles — end B keeps the frame
-      orientation (square rule: setbacks keep measuring from the same
+      orientation (reference-face rule: setbacks keep measuring from the same
       reference faces), translates it to Dims.Length, flips along-axis
       cut directions, and negates along-axis positions, including the
       drawbore sign flip (§4.7);
@@ -945,8 +945,8 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
         obj.setExpression(clean, expression)
 
     if ctx["end_b"] and is_frame:
-        # the landing frame itself: same orientation (square rule — the
-        # reference faces don't change), translated to the far end
+        # the landing frame itself: same orientation (the reference
+        # faces don't change), translated to the far end
         obj.setExpression("AttachmentOffset.Base.z",
                           f"<<{ctx['dims_label']}>>.Length")
 
@@ -957,7 +957,7 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
         # body, not off the tenon end — otherwise engagement seats the
         # joint backwards (tenon out, body through the timber). Rotate
         # 180° about the frame's Depth axis (local Y): keeps Depth on the
-        # same reference face (square rule), flips Width — the "turn the
+        # same reference face, flips Width — the "turn the
         # stick end-for-end, keep it upright" motion.
         off = obj.AttachmentOffset
         off.Rotation = App.Rotation(App.Vector(0, 1, 0), 180)

@@ -17,6 +17,7 @@ import re
 import sys
 from dataclasses import dataclass
 
+from . import naming
 from .fcstd import (
     Constraint,
     FcstdDocument,
@@ -547,20 +548,36 @@ def rule_joint_fits_footprint(model):
     return findings
 
 
+def rule_label_reserved_characters(model):
+    """§3 strict: Body and VarSet labels avoid the reserved characters.
+
+    Labels are otherwise free-form (permissive naming, July 2026), but
+    these labels get embedded verbatim in expressions (<<Label>>.Prop)
+    and in Placement_Record strings, where '>', '\\', ';' and line
+    breaks break parsing (verified against FreeCAD 1.1.1).
+    """
+    findings = []
+    for obj in list(model.bodies) + list(model.varsets):
+        bad = naming.reserved_in_label(obj.label)
+        if bad:
+            findings.append(Finding(
+                "label-reserved-characters", STRICT, obj.name, obj.label,
+                f"label contains reserved character(s) {bad!r} — '>', "
+                f"'\\', ';' and line breaks break <<Label>> expression "
+                f"references or the Placement_Record; any other "
+                f"characters are fine"))
+    return findings
+
+
 # --------------------------------------------------------------------------
 # Advisory rules
 # --------------------------------------------------------------------------
 
 # VarSet labels: Kind_Owner (TimberDims_/Group_/Project_/Order_), joint
 # instances J-<Kind>-<serial> (legacy Joint_<Kind>_<ID> grandfathered).
+# The owner part is free-form (permissive naming, July 2026).
 _VARSET_LABEL = re.compile(
-    r"^(TimberDims|Joint|Group|Project|Order)_\S+$|^J-\S+-\S+$")
-# Timber labels: T-<Role>[-<Qualifier>...]-<serial> with a trailing
-# all-digit serial segment; legacy MemberIDs ([RolePrefix][Bent]-[Pos])
-# grandfathered so pre-convention files stay advisory-clean.
-_MEMBER_ID = re.compile(
-    r"^T(-[A-Za-z0-9_]+)+-\d+$"
-    r"|^[A-Z]{1,3}\d*-\d+$|^[A-Z]{1,3}-B\d+-\d+$")
+    r"^(TimberDims|Joint|Group|Project|Order)_.+$|^J-.+-.+$")
 _PROPERTY_NAME = re.compile(r"^[A-Z][A-Za-z0-9]*(_[A-Z0-9][A-Za-z0-9]*)+$")
 _DIMS_BASE_PROPS = {"Width", "Depth", "Length"}
 
@@ -569,9 +586,10 @@ def rule_naming_conventions(model):
     """§3 advisory: labels and property names follow the decided scheme.
 
     VarSets are Kind_Owner (joint instances J-<Kind>-<serial>); timber
-    bodies carry permanent serial names (T-Post-Level1-003); template
-    properties are Part_Attribute[_Qualifier]. §7 debts 5/6 (prototype
-    names predate the convention; ProjectVars et al.).
+    bodies are free-form but end in a separator + serial (permissive
+    naming, July 2026 — 'T-Post-Level1-003', 'T-Post.Balcony.001');
+    template properties are Part_Attribute[_Qualifier]. §7 debts 5/6
+    (prototype names predate the convention; ProjectVars et al.).
     """
     findings = []
     for vs in model.varsets:
@@ -595,11 +613,13 @@ def rule_naming_conventions(model):
                 f"{len(bad_props)} property name(s) do not follow "
                 f"Part_Attribute[_Qualifier]: {', '.join(sorted(bad_props))}"))
     for body in model.bodies:
-        if not _MEMBER_ID.match(body.label):
+        if naming.split_serial(body.label)[1] is None:
             findings.append(Finding(
                 "naming-convention", ADVISORY, body.name, body.label,
-                f"body label is not a permanent timber name "
-                f"(T-<Role>[-<Qualifier>]-<serial>, e.g. T-Post-Level1-003)"))
+                f"body label has no trailing serial (separator + digits, "
+                f"e.g. 'T-Post-003' or 'T-Post.Balcony.001') — naming is "
+                f"otherwise free-form, but copy tools bump the serial and "
+                f"will append '-001' to this label"))
         dims = model.body_dims(body)
         if dims is not None and dims.label != f"TimberDims_{body.label}":
             findings.append(Finding(
@@ -785,6 +805,7 @@ STRICT_RULES = [
     rule_island_interior,
     rule_severing_limits,
     rule_joint_fits_footprint,
+    rule_label_reserved_characters,
 ]
 
 ADVISORY_RULES = [

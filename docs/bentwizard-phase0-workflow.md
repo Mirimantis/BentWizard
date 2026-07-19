@@ -10,7 +10,7 @@ Status: Phase 0 complete. This document records the manual workflow proven acros
 
 **Subtractive joinery.** Joints are modeled the way wood is cut — pockets and holes, not pads. `Length` in a timber's VarSet is the full stick as purchased; shoulders land at joinery offsets from the stick ends; drawings dimension the way a tape measure reads.
 
-**Square rule.** Every timber's two reference faces lie on its XZ and YZ origin planes (section sketch pinned corner-to-origin). Housings cut to bearing planes referenced from origin planes. Joint layout dimensions always measure from reference faces and stick ends.
+**Mill Rule** *(reframed July 2026 — this rule was labeled "Square rule" through Phase 0; the geometry is unchanged)*. Every timber's two reference faces lie on its XZ and YZ origin planes (section sketch pinned corner-to-origin). Joint layout dimensions always measure from reference faces and stick ends. Drawings dimension an idealized straight, square timber — a Mill Rule drawing. Housings are optional bearing features cut to designed depths referenced from origin planes; Square Rule's reduce-to-ideal housing (cutting a rough stick down to the ideal timber inside it) depends on the individual log, never appears as a drawn dimension, and is field work outside the model.
 
 ## 2. Vocabulary
 
@@ -31,11 +31,27 @@ existing files):
   on layout drawings and lists; nothing binds to it, so it can change
   freely. (FreeCAD's own immutable Internal Name, `Body003`, is file
   plumbing — never used semantically.)
-- **Timber Bodies**: `T-<Role>[-<Qualifier>...]-<serial>` —
-  `T-Post-Level1-003`, `T-TieBeam_decorative-007`. The serial is the
-  trailing all-digit segment; tools allocate the next free serial per
-  base and only ever touch that segment (digits inside a descriptive
-  part, like `Level1`, are never rewritten).
+- **Timber Bodies** (loosened July 2026 — since labels no longer carry
+  position and are never rewritten when a bent is renumbered, the only
+  constraints left are what the tooling needs): a **free-form label
+  ending in a separator + digit serial**. Recommended style stays
+  `T-<Role>[-<Qualifier>...]-<serial>` (`T-Post-Level1-003`); dotted or
+  spaced forms (`T-Post.Balcony.001`) are equally valid. The serial is
+  the trailing digit run after a separator (`-`, `.`, `_`, or space);
+  tools allocate the next free serial per base, preserve the user's
+  separator, and only ever touch that segment (digits glued to letters,
+  like `Level1`, are never rewritten). A label without a serial gets
+  one appended: ending the name with a separator picks it
+  (`T.Post.solarium.` → `T.Post.solarium.101`, counting the existing
+  family); otherwise the family's own separator is adopted, then the
+  base's last separator (`T-Post` stays hyphenated), defaulting to a
+  dot (`Solarium` → `Solarium.001`). Advisory lint nudges toward
+  adding a serial.
+  **Reserved characters** — strict lint, verified against the 1.1.1
+  expression engine: `>`, `\`, `;`, and line breaks break `<<Label>>`
+  expression references or the `Placement_Record`; everything else
+  survives the round trip (dots, spaces, quotes, unicode, `<`, `#`,
+  `&`, parentheses, …).
 - **Joint instances**: `J-<Kind>-<serial>` — `J-HousedMT-001`. The kind
   token comes from the library template's file stem.
 - **VarSet labels**: `Kind_Owner` with a descriptive kind prefix —
@@ -86,7 +102,7 @@ Assembly workbench, one grounded timber, Fixed joints between tree-selected datu
 Instance VarSet properties bound by expression to group VarSets; groups to higher groups (instance → type → section → project, keep it ≤3 layers). Override = replace one property's expression with a literal. Group membership IS the binding — no hidden state. Validated end-to-end: ProjectVars.FloorHeight moved the entire bent.
 
 ### 4.10 TechDraw
-Sheets are generated per FabricationSignature by default — one sheet per fabrication group, listing quantity and all MemberIDs in the group — with a per-timber option for shops that travel a sheet with each stick. Projection group per sheet (front + plan minimum), hidden lines on, scale to sheet. Dimensions from stick ends and reference faces per square rule. Dimension/font styles set explicitly per document, never inherited from preferences. Parametric round trip verified: model changes flow to views and dimensions.
+Sheets are generated per FabricationSignature by default — one sheet per fabrication group, listing quantity and all MemberIDs in the group — with a per-timber option for shops that travel a sheet with each stick. Projection group per sheet (front + plan minimum), hidden lines on, scale to sheet. Dimensions from stick ends and reference faces per the reference-face convention (Mill Rule). Dimension/font styles set explicitly per document, never inherited from preferences. Parametric round trip verified: model changes flow to views and dimensions.
 
 ### 4.11 Cut list
 Spreadsheet as procurement document: ID, species, grade, moisture, finish, cut type, section, designed length, cut length (= designed + `OrderVars.TrimAllowance`), board feet, order total (`=sum(range)`). Dimension cells bound by expression to the correct timber's own Dims VarSet — cross-referencing a sibling's VarSet is the recurring silent bug. Joinery callouts belong on drawings, not here.
@@ -97,9 +113,9 @@ In-model: top/side orthographic views (never trust wireframe when profiles align
 
 ## 6. Findings → Linter
 
-Strict (breaks the clone mechanism or the model): one VarSet per joint instance; no multi-instance sketches; no cross-timber Dims references; no solid-face references (sketch supports, assembly joints, dimensions); islands strictly interior or removal regions used; expression audit on duplicated objects; parameter values within severing limits (mortise ≤75%, housing ≤50%).
+Strict (breaks the clone mechanism or the model): one VarSet per joint instance; no multi-instance sketches; no cross-timber Dims references; no solid-face references (sketch supports, assembly joints, dimensions); islands strictly interior or removal regions used; expression audit on duplicated objects; parameter values within severing limits (mortise ≤75%, housing ≤50%); Body/VarSet labels free of the reserved characters (`>`, `\`, `;`, line breaks) that break `<<Label>>` expressions and the `Placement_Record`.
 
-Advisory (style and drift): naming conventions; centerline + half-width in place of Symmetry; parameter values past the 35% caution threshold; instances deviating from their group bindings; stale attachment-offset components; unrenamed auto-labeled features.
+Advisory (style and drift): naming conventions (Kind_Owner VarSets, trailing serial on body labels — otherwise free-form per §3); centerline + half-width in place of Symmetry; parameter values past the 35% caution threshold; instances deviating from their group bindings; stale attachment-offset components; unrenamed auto-labeled features.
 
 ## 7. Known Prototype Debts (fix before reuse as templates)
 

@@ -10,7 +10,7 @@ import FreeCADGui as Gui
 
 class BentWizardWorkbench(Gui.Workbench):
     MenuText = "BentWizard"
-    ToolTip = "Timber framing — square-rule joinery on native geometry"
+    ToolTip = "Timber framing — Mill Rule joinery on native geometry"
 
     def Initialize(self):
         from freecad.bentwizard import commands
