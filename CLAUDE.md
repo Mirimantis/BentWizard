@@ -2,7 +2,7 @@
 
 Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive joinery, all geometry native. A prior attempt (old GitHub repo) failed by generating custom-coded geometry; it is reference-only — this repo starts from scratch on the lessons learned.
 
-**Status:** Phase 0 complete. Phase 1 in progress: linter, `Joint_HousedMT` template (with mate frame), New Timber, Apply-Joint with full placement (end A/B, faces 1–4, hand), Remove Joint, and Preview Mated Joint done — all output lints clean. Next: build the test bent with the tools (validation shakedown), duplicate-bent tooling, Save-as-joint-template.
+**Status:** Phase 0 complete. Phase 1 in progress: linter, `Joint_HousedMT` template (with mate frame), New Timber, Apply-Joint with full placement (end A/B, faces 1–4, hand) **plus auto-assembly** (each timber joint seats in the structure assembly the moment it's created), Remove Joint (also removes the joint's Fixed assembly joint), Preview Mated Joint, Duplicate Timbers (copies assemble into an offset bent sub-assembly), and Assemble Timbers (bulk/repair/reground) — done, all output lints clean. Architecture: **two-level structure assembly** — bent sub-assemblies inside a parent frame, grounded at the Principal Post, tie-beam `Length` drives bay width parametrically (see roadmap's adopted-design bullet, incl. the mate-parity rule for faces 1–3). Next: rebuild the test bent (second shakedown), per-joint 3D handle, Save-as-joint-template.
 
 ## Read first
 
@@ -43,12 +43,12 @@ Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive join
 - **Timber Bodies:** `T-<Role>[-<Qualifier>]-<serial>` — `T-Post-Level1-003`, `T-TieBeam_decorative-007`. The serial is the trailing all-digit segment; tools bump only that segment (never digits inside descriptive parts).
 - **Joint instances:** `J-<Kind>-<serial>` — `J-HousedMT-001`; kind token from the template file stem.
 - **VarSet labels:** `Kind_Owner` — `TimberDims_T-Post-003`, `Group_LoftDovetail`, `Project_Main`, `Order_Main`; a joint VarSet carries its joint's `J-<Kind>-<serial>` label directly.
-- **Tree organization:** Dims VarSets nest inside their Bodies; joint VarSets live in a `Joints` Std Group; bents/bays are user-arranged Std Groups (Duplicate Bent can create one). Pure organization, no geometric effect.
+- **Tree organization:** Dims VarSets nest inside their Bodies; joint VarSets live in a `TimberJointVars` Std Group (renamed from `Joints`, which collides with the `Joints` group every FreeCAD Assembly carries; `joints_group()` migrates legacy documents); bents/bays are user-arranged Std Groups (Duplicate Timbers can create one). Pure organization, no geometric effect.
 - **Property names:** `Part_Attribute[_Qualifier]`, most-significant first — `Tenon_Thickness`, `Housing_Depth`, `Peg_Drawbore_Offset`. Face qualifiers `_Face1`/`_Face2` (Face 1 = XZ-plane face, Face 2 = YZ-plane face).
 - **Joint features in bodies:** body-qualified — `<TimberLabel>_<Feature>_<JointLabel>` (e.g. `T-Post-003_Mortise_J-HousedMT-001`).
 - **Tooltips mandatory** on every template-defined property: as brief as possible while still informative; always states which face/end it measures from.
 - **Units:** the workbench defers to the user's FreeCAD unit schema (e.g. "Building US" for fractional inches) — never force imperial or metric. Imperial values in docs are example data.
-- **Terminology:** use timber framing terms wherever applicable — names, UI, docs, instructions.
+- **Terminology:** use timber framing terms wherever applicable — names, UI, docs, instructions. BentWizard's joinery is a **timber joint** ("TimberJoint") in all user-facing text — plain "joint" alone is ambiguous against FreeCAD Assembly joints.
 - **Width horizontal, Depth vertical** in a member's installed orientation, wherever applicable (soft convention — timbers meet in many orientations).
 - **One VarSet per joint instance**, holding parameters for both halves (mated-pair mechanism).
 - **Cross-timber coupling only via the joint VarSet** (workflow doc §4.3): a parameter tracking the mating timber's dimension is a joint VarSet property bound to that timber's Dims; body-internal features never reference a foreign Dims VarSet.

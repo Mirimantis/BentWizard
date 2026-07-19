@@ -1,4 +1,4 @@
-"""Duplicate Bent — copy a set of timbers with their joints.
+"""Duplicate Timbers — copy a set of timbers with their timber joints.
 
 Rebuild, not copy (the phantom-feature / stale-expression trap of
 findings #2/#12 cannot occur when nothing is copy-remapped): each
@@ -14,37 +14,15 @@ and reported.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import FreeCAD as App
 
 from . import naming
 from .apply_joint import (JointError, TemplateSpec, apply_joint,
-                          dims_varset, joint_role_frames)
+                          bent_joints, dims_varset, joint_role_frames,
+                          parse_placement_record)
 from .timber import new_timber
-
-_SEGMENT = re.compile(
-    r"(?P<role>[^;]+?) -> (?P<body>.+?): "
-    r"(?:face (?P<face>\d), hand (?P<hand>\w+)|end (?P<end>[AB]))")
-
-
-def parse_placement_record(record):
-    """(role -> body label, placement dict) from a Placement_Record."""
-    role_bodies, placement = {}, {}
-    for seg in record.split(";"):
-        m = _SEGMENT.match(seg.strip())
-        if not m:
-            raise JointError(f"cannot parse placement record segment "
-                             f"{seg.strip()!r}")
-        role = m.group("role").strip()
-        role_bodies[role] = m.group("body").strip()
-        if m.group("end"):
-            placement[role] = {"end": m.group("end")}
-        else:
-            placement[role] = {"face": int(m.group("face")),
-                               "hand": m.group("hand")}
-    return role_bodies, placement
 
 
 def find_template(kind, library_dir, source_name=None):
@@ -72,23 +50,6 @@ def find_template(kind, library_dir, source_name=None):
     raise JointError(
         f"multiple library templates of kind {kind!r} and the joint does "
         f"not record its Template_Source — cannot choose")
-
-
-def bent_joints(doc, bodies):
-    """(inside, outside): joint VarSets whose role bodies are all within
-    `bodies`, and those that reach outside the set (skipped)."""
-    body_set = set(bodies)
-    inside, outside = [], []
-    for obj in doc.Objects:
-        if obj.TypeId != "App::VarSet" \
-                or not naming.is_joint_varset_label(obj.Label):
-            continue
-        joint_bodies = set(joint_role_frames(obj))
-        if not joint_bodies:
-            continue
-        if joint_bodies & body_set:
-            (inside if joint_bodies <= body_set else outside).append(obj)
-    return inside, outside
 
 
 def _role_body_map(varset, template):
@@ -157,14 +118,25 @@ def suggest_joint_ids(doc, joints):
 
 
 def duplicate_bent(doc, member_map, joint_id_map, library_dir,
-                   position_tag="", group_label=""):
+                   position_tag="", group_label="", assembly_label="",
+                   offset=None):
     """Duplicate the timbers in member_map ({source body -> new label})
     plus every joint fully inside the set (joint_id_map: {source joint
     VarSet label -> new joint ID}). `position_tag` pre-fills the copies'
     display-only Position_Tag; `group_label` puts the new bodies in a
-    Std Group of that label (created if absent). Returns (new_bodies:
-    {source -> copy}, new_joints: [VarSet], skipped: [VarSet label]).
-    Caller owns the transaction.
+    Std Group of that label (created if absent).
+
+    Copies reproduce the sources' relative placements. When
+    `assembly_label` is given the copies are assembled into a new bent
+    sub-assembly of that name (their joints become Fixed assembly
+    joints; the copy of the sources' principal timber is grounded) and
+    `offset` (App.Vector, mm) places the new bent relative to the
+    source — a provisional position, overridden parametrically once the
+    connecting timber joints (tie beams) are applied. Without
+    `assembly_label`, `offset` shifts the loose copies directly.
+
+    Returns (new_bodies: {source -> copy}, new_joints: [VarSet],
+    skipped: [VarSet label]). Caller owns the transaction.
     """
     for label in member_map.values():
         if not label or not label.strip():
@@ -232,9 +204,37 @@ def duplicate_bent(doc, member_map, joint_id_map, library_dir,
             doc, template, joint_id_map[varset.Label], body_map,
             values=values, placement=placement))
 
+    # --- placement: copies reproduce the sources' relative layout -------
+    # (poses relative to the sources' shared bent, when they have one)
+    from .assemble import (assemble_timbers, container_assembly,
+                           refresh_joint_display)
+    source_asms = {container_assembly(src) for src in member_map}
+    base = (source_asms.pop().getGlobalPlacement()
+            if len(source_asms) == 1 and None not in source_asms
+            else App.Placement())
+    shift = App.Placement(offset or App.Vector(), App.Rotation())
+    for src, copy in new_bodies.items():
+        rel = base.inverse().multiply(src.getGlobalPlacement())
+        copy.Placement = rel if assembly_label else \
+            shift.multiply(base).multiply(rel)
+    doc.recompute()
+
+    # --- assembly: copies become a new bent sub-assembly ----------------
+    assembly_label = (assembly_label or "").strip()
+    if assembly_label:
+        principal_src = next(
+            (src for src in member_map
+             if grounded_by(src, inside)), None) or next(iter(member_map))
+        asm, _skipped, _misfits = assemble_timbers(
+            doc, list(new_bodies.values()), label=assembly_label,
+            grounded=new_bodies[principal_src])
+        asm.Placement = shift.multiply(base)
+        doc.recompute()
+        refresh_joint_display(asm)      # icons follow the offset bent
+
     # --- tree organization: optional Std Group for the copies -----------
     group_label = (group_label or "").strip()
-    if group_label:
+    if group_label and not assembly_label:
         group = next(
             (o for o in doc.getObjectsByLabel(group_label)
              if o.TypeId == "App::DocumentObjectGroup"), None)
@@ -244,3 +244,18 @@ def duplicate_bent(doc, member_map, joint_id_map, library_dir,
         group.addObjects(list(new_bodies.values()))
 
     return new_bodies, new_joints, [v.Label for v in outside]
+
+
+def grounded_by(body, joints):
+    """True when `body` anchors a joint in `joints` without ever being
+    the entering half — the principal-timber heuristic, matching
+    assemble.pick_grounded."""
+    from .assemble import _engagement_frames
+    movers, anchors = set(), set()
+    for varset in joints:
+        pair = _engagement_frames(varset)
+        if pair is None:
+            continue
+        movers.add(pair[0][0])
+        anchors.add(pair[1][0])
+    return body in anchors and body not in movers

@@ -44,8 +44,10 @@ existing files):
   label (one VarSet per joint instance, the VarSet IS the joint).
 - **Tree organization** (pure organization, zero geometric effect): each
   Dims VarSet nests inside its timber's Body; joint VarSets live in a
-  `Joints` Std Group; bents/bays are user-arranged (optionally nested)
-  Std Groups of Bodies — Duplicate Bent can create one for the copies.
+  `TimberJointVars` Std Group (renamed from `Joints`, which collides
+  with the `Joints` group inside every FreeCAD Assembly; legacy
+  documents are migrated); bents/bays are user-arranged (optionally nested)
+  Std Groups of Bodies — Duplicate Timbers can create one for the copies.
 - **Property names**: `Part_Attribute[_Qualifier]`, most-significant first: `Tenon_Thickness`, `Tenon_Setback_Face2`, `Housing_Depth`, `Peg_Drawbore_Offset`, `Peg_Count`. Reference-face qualifiers use `_Face1`/`_Face2` (stable regardless of timber orientation; Face 1 = XZ-plane face, Face 2 = YZ-plane face). Alphabetical property sorting then clusters each part's parameters automatically.
 - **Tooltips**: mandatory on every template-defined property, written by the template author, cloned on apply. As brief as possible while still informative; always states which face/end it measures from; timber framing terminology. Missing tooltip = advisory linter failure.
 - **Joint features within bodies**: body-qualified to avoid document-unique label collisions — convention `<TimberLabel>_<Feature>_<JointLabel>` (e.g. `T-Post-003_Mortise_J-HousedMT-001`; legacy `P2-1_Mortise_MT_B2a`).
@@ -77,6 +79,8 @@ Hole features (through-all) on sketches on origin planes. Post bores at true pos
 
 ### 4.8 Assembly
 Assembly workbench, one grounded timber, Fixed joints between tree-selected datums only (never 3D-picked solid faces). Shoulder datums on stick ends offset by expression. Expect orientation iteration: a plane mate leaves two orientations (rotate 180° about the connector normal to flip), and rotation pivots at the connector origin, requiring a compensating in-plane offset (often a full timber width). Handedness surfaces here — posts in a bent are often mirror pairs, but bents can be asymmetrical: hand is a per-joint-application property, never assumed from bent symmetry.
+
+*(Automated in Phase 1: Apply Timber Joint seats each joint on creation via the JointFrame/MateFrame records — the orientation iteration above is eliminated by the mate-parity rule and pre-seating; see the roadmap's two-level structure assembly design. This section stays as the manual ground truth the tools reproduce.)*
 
 ### 4.9 Parameter groups
 Instance VarSet properties bound by expression to group VarSets; groups to higher groups (instance → type → section → project, keep it ≤3 layers). Override = replace one property's expression with a literal. Group membership IS the binding — no hidden state. Validated end-to-end: ProjectVars.FloorHeight moved the entire bent.

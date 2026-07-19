@@ -132,7 +132,7 @@ def _timber_bodies(doc):
 
 
 def _pick_joint(doc, title):
-    """Prompt for a joint instance VarSet, preselected from the current
+    """Prompt for a timber-joint instance VarSet, preselected from the current
     selection (its VarSet, or any joint member — the landing frame is
     3D-clickable, and member labels carry the joint's _Kind_ID suffix).
     Returns the VarSet, or None if cancelled / none present."""
@@ -141,7 +141,7 @@ def _pick_joint(doc, title):
               and naming.is_joint_varset_label(o.Label)]
     if not joints:
         QtWidgets.QMessageBox.information(
-            Gui.getMainWindow(), title, "No joint instances in this document.")
+            Gui.getMainWindow(), title, "No timber joints in this document.")
         return None
     labels = [j.Label for j in joints]
     current = 0
@@ -157,7 +157,7 @@ def _pick_joint(doc, title):
             current = i
             break
     label, ok = QtWidgets.QInputDialog.getItem(
-        Gui.getMainWindow(), title, "Joint instance:", labels, current, False)
+        Gui.getMainWindow(), title, "Timber joint:", labels, current, False)
     if not ok:
         return None
     return joints[labels.index(label)]
@@ -171,7 +171,7 @@ class ApplyJointDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self.doc = doc
         self.spec = None
-        self.setWindowTitle("Apply Joint")
+        self.setWindowTitle("Apply Timber Joint")
         layout = QtWidgets.QVBoxLayout(self)
 
         top = QtWidgets.QFormLayout()
@@ -179,7 +179,7 @@ class ApplyJointDialog(QtWidgets.QDialog):
         for f in sorted(LIBRARY_DIR.glob("*.FCStd")):
             self.template_box.addItem(f.stem, str(f))
         self.template_box.currentIndexChanged.connect(self._load_template)
-        top.addRow("Joint template:", self.template_box)
+        top.addRow("Timber joint template:", self.template_box)
         self.joint_id = QtWidgets.QLineEdit(self)
         self.joint_id.setPlaceholderText("001")
         self.joint_id.setToolTip(
@@ -195,6 +195,18 @@ class ApplyJointDialog(QtWidgets.QDialog):
         self.params_group = QtWidgets.QGroupBox("Parameters", self)
         self.params_form = QtWidgets.QFormLayout(self.params_group)
         layout.addWidget(self.params_group)
+
+        self.assemble_now = QtWidgets.QCheckBox(
+            "Assemble now (seat the joint in the structure assembly)", self)
+        self.assemble_now.setChecked(True)
+        self.assemble_now.setToolTip(
+            "Seat this timber joint the moment it is created: the "
+            "timbers join the structure assembly (created on the first "
+            "joint, grounded at the Principal timber) and a Fixed "
+            "assembly joint locks the engaged pose — visible "
+            "immediately, parametric, undoable. Uncheck to only cut "
+            "the joinery.")
+        layout.addWidget(self.assemble_now)
 
         buttons = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
@@ -222,7 +234,7 @@ class ApplyJointDialog(QtWidgets.QDialog):
         try:
             self.spec = TemplateSpec(path)
         except (JointError, OSError) as err:
-            QtWidgets.QMessageBox.warning(self, "Apply Joint", str(err))
+            QtWidgets.QMessageBox.warning(self, "Apply Timber Joint", str(err))
             self.spec = None
             return
         # next free serial in this kind's J-<Kind>-NNN family
@@ -363,16 +375,17 @@ class ApplyJointDialog(QtWidgets.QDialog):
 class ApplyJointCommand:
     def GetResources(self):
         return {
-            "MenuText": "Apply Joint",
-            "ToolTip": "Apply a joint template between two timbers: clones "
-                       "the template's cuts into both, driven by one shared "
-                       "joint VarSet",
+            "MenuText": "Apply Timber Joint",
+            "ToolTip": "Apply a timber joint template between two timbers: "
+                       "clones the template's cuts into both, driven by one "
+                       "shared joint VarSet",
         }
 
     def IsActive(self):
         return App.ActiveDocument is not None
 
     def Activated(self):
+        from .assemble import assimilate_joint, is_misfit
         doc = App.ActiveDocument
         dialog = ApplyJointDialog(doc, Gui.getMainWindow())
         while dialog.exec() == QtWidgets.QDialog.Accepted:
@@ -382,13 +395,31 @@ class ApplyJointCommand:
                 try:
                     varset = apply_joint(doc, spec, joint_id, body_map,
                                          values=values, placement=placement)
+                    result = (assimilate_joint(doc, varset)
+                              if dialog.assemble_now.isChecked() else None)
                 except Exception:
                     doc.abortTransaction()
                     raise
                 doc.commitTransaction()
             except JointError as err:
-                QtWidgets.QMessageBox.warning(dialog, "Apply Joint", str(err))
+                QtWidgets.QMessageBox.warning(dialog, "Apply Timber Joint",
+                                              str(err))
                 continue
+            if result is not None and result.new_assembly is not None:
+                QtWidgets.QMessageBox.information(
+                    Gui.getMainWindow(), "Apply Timber Joint",
+                    f"{result.new_assembly.Label} created. Principal "
+                    f"(grounded) member: {result.principal.Label} — "
+                    f"everything else seats against it. Use Assemble "
+                    f"Timbers to reground if another member should be "
+                    f"the Principal.")
+            if dialog.assemble_now.isChecked() and is_misfit(varset):
+                QtWidgets.QMessageBox.warning(
+                    Gui.getMainWindow(), "Apply Timber Joint",
+                    f"{varset.Label} was created, but its halves "
+                    f"disagree about where the timber sits (check the "
+                    f"joint's stations/faces against the other joints "
+                    f"on this timber).")
             Gui.Selection.clearSelection()
             Gui.Selection.addSelection(varset)
             return
@@ -397,8 +428,8 @@ class ApplyJointCommand:
 class RemoveJointCommand:
     def GetResources(self):
         return {
-            "MenuText": "Remove Joint",
-            "ToolTip": "Remove a joint instance completely: every cut, "
+            "MenuText": "Remove Timber Joint",
+            "ToolTip": "Remove a timber joint completely: every cut, "
                        "sketch, and landing frame on both timbers, plus "
                        "the joint VarSet",
         }
@@ -408,7 +439,7 @@ class RemoveJointCommand:
 
     def Activated(self):
         doc = App.ActiveDocument
-        varset = _pick_joint(doc, "Remove Joint")
+        varset = _pick_joint(doc, "Remove Timber Joint")
         if varset is None:
             return
         label = varset.Label
@@ -416,7 +447,7 @@ class RemoveJointCommand:
         bodies = sorted({o.getParentGeoFeatureGroup().Label
                          for o in members if o.getParentGeoFeatureGroup()})
         answer = QtWidgets.QMessageBox.question(
-            Gui.getMainWindow(), "Remove Joint",
+            Gui.getMainWindow(), "Remove Timber Joint",
             f"Remove {label} — {len(members)} objects across "
             f"{', '.join(bodies) or 'no bodies'} — plus the VarSet?",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
@@ -434,7 +465,7 @@ class RemoveJointCommand:
 class PreviewJointCommand:
     def GetResources(self):
         return {
-            "MenuText": "Preview Mated Joint",
+            "MenuText": "Preview Mated Timber Joint",
             "ToolTip": "Show both halves of a joint engaged (a ghost view "
                        "with the joint centered at the origin), to verify "
                        "fit — real timber placements are untouched. Run "
@@ -446,7 +477,7 @@ class PreviewJointCommand:
 
     def Activated(self):
         doc = App.ActiveDocument
-        varset = _pick_joint(doc, "Preview Mated Joint")
+        varset = _pick_joint(doc, "Preview Mated Timber Joint")
         if varset is None:
             return
         existing = find_preview(varset)
@@ -461,7 +492,7 @@ class PreviewJointCommand:
             return
         if engagement_placement(varset) is None:
             QtWidgets.QMessageBox.warning(
-                Gui.getMainWindow(), "Preview Mated Joint",
+                Gui.getMainWindow(), "Preview Mated Timber Joint",
                 f"{varset.Label} has no mate frame, so its engaged pose is "
                 f"not defined. Joints applied before mate frames were added "
                 f"to the template cannot be previewed; re-apply to enable it.")
@@ -492,7 +523,7 @@ class DuplicateBentDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self.doc = doc
         self.bodies = bodies
-        self.setWindowTitle("Duplicate Bent")
+        self.setWindowTitle("Duplicate Timbers")
         layout = QtWidgets.QVBoxLayout(self)
 
         form = QtWidgets.QFormLayout()
@@ -531,13 +562,35 @@ class DuplicateBentDialog(QtWidgets.QDialog):
             "copy's Dims VarSet — where the new bent stands. Change it "
             "freely later; nothing binds to it.")
         extras.addRow("Position tag for copies:", self.position_tag)
+        self.assembly_label = QtWidgets.QLineEdit(self)
+        self.assembly_label.setText(naming.next_serial(
+            [o.Label for o in doc.Objects], "Bent"))
+        self.assembly_label.setToolTip(
+            "Assemble the copies into a new bent sub-assembly of this "
+            "name: rigid among themselves (their joints seat "
+            "immediately), free-floating and user-movable until tie "
+            "beams connect them to the frame — then their position "
+            "becomes parametric. Clear the field to make loose copies "
+            "instead.")
+        extras.addRow("New bent assembly:", self.assembly_label)
+        self.offset_fields = {}
+        for axis in ("X", "Y", "Z"):
+            field = _quantity_field(0.0)
+            field.setProperty("minimum", -1e9)
+            field.setToolTip(
+                "Provisional offset of the copies from the originals "
+                "along this axis (e.g. one bay depth) — replaced by "
+                "the parametric position once connecting timber "
+                "joints are applied.")
+            self.offset_fields[axis] = field
+            extras.addRow(f"Offset {axis}:", field)
         self.group_label = QtWidgets.QLineEdit(self)
         self.group_label.setPlaceholderText("e.g. Bent 2")
         self.group_label.setToolTip(
-            "Optional: put the copies in a group of this name (created "
-            "if absent) to keep the tree organized. Groups are pure "
+            "Without a bent assembly: put the copies in a Std Group of "
+            "this name (created if absent). Groups are pure "
             "organization — drag timbers between them freely.")
-        extras.addRow("Add copies to group:", self.group_label)
+        extras.addRow("Or add copies to group:", self.group_label)
         layout.addLayout(extras)
 
         buttons = QtWidgets.QDialogButtonBox(
@@ -553,17 +606,22 @@ class DuplicateBentDialog(QtWidgets.QDialog):
                      for j, e in self.joint_fields.items()}
         if any(not v for v in joint_ids.values()):
             raise JointError("every joint needs a new serial")
-        return (member_map, joint_ids,
-                self.position_tag.text(), self.group_label.text())
+        offset = App.Vector(*(self.offset_fields[a].property("rawValue")
+                              for a in ("X", "Y", "Z")))
+        return (member_map, joint_ids, self.position_tag.text(),
+                self.group_label.text(), self.assembly_label.text(), offset)
 
 
 class DuplicateBentCommand:
     def GetResources(self):
         return {
-            "MenuText": "Duplicate Bent",
-            "ToolTip": "Duplicate the selected timbers with their joints: "
-                       "each copy owns its Dims and joint VarSets; group "
-                       "bindings stay on the same shared VarSets",
+            "MenuText": "Duplicate Timbers",
+            "ToolTip": "Duplicate the selected timbers with their timber "
+                       "joints — the next bent, one action: each copy owns "
+                       "its Dims and joint VarSets (group bindings stay "
+                       "shared), and the copies assemble into a new bent "
+                       "sub-assembly at a provisional offset, ready for "
+                       "tie beams.",
         }
 
     def IsActive(self):
@@ -575,25 +633,27 @@ class DuplicateBentCommand:
                   if o in _timber_bodies(doc)]
         if not bodies:
             QtWidgets.QMessageBox.information(
-                Gui.getMainWindow(), "Duplicate Bent",
+                Gui.getMainWindow(), "Duplicate Timbers",
                 "Select the timbers to duplicate first (their joints come "
                 "along automatically when both mating timbers are selected).")
             return
         dialog = DuplicateBentDialog(doc, bodies, Gui.getMainWindow())
         while dialog.exec() == QtWidgets.QDialog.Accepted:
             try:
-                member_map, joint_ids, tag, group = dialog.request()
-                doc.openTransaction("Duplicate bent")
+                member_map, joint_ids, tag, group, asm_label, offset = \
+                    dialog.request()
+                doc.openTransaction("Duplicate timbers")
                 try:
                     new_bodies, new_joints, skipped = duplicate_bent(
                         doc, member_map, joint_ids, LIBRARY_DIR,
-                        position_tag=tag, group_label=group)
+                        position_tag=tag, group_label=group,
+                        assembly_label=asm_label, offset=offset)
                 except Exception:
                     doc.abortTransaction()
                     raise
                 doc.commitTransaction()
             except JointError as err:
-                QtWidgets.QMessageBox.warning(dialog, "Duplicate Bent",
+                QtWidgets.QMessageBox.warning(dialog, "Duplicate Timbers",
                                               str(err))
                 continue
             msg = (f"Created {len(new_bodies)} timber(s) and "
@@ -601,7 +661,142 @@ class DuplicateBentCommand:
             if skipped:
                 msg += f" Skipped (reach outside the set): {', '.join(skipped)}."
             QtWidgets.QMessageBox.information(
-                Gui.getMainWindow(), "Duplicate Bent", msg)
+                Gui.getMainWindow(), "Duplicate Timbers", msg)
+            return
+
+
+class AssembleTimbersDialog(QtWidgets.QDialog):
+    """Assembly (new or existing) + Principal timber, with the timber
+    joints that will become Fixed assembly joints listed."""
+
+    def __init__(self, doc, bodies, parent=None):
+        super().__init__(parent)
+        from .assemble import _engagement_frames, pick_grounded
+        self.doc = doc
+        self.bodies = bodies
+        self.setWindowTitle("Assemble Timbers")
+        layout = QtWidgets.QVBoxLayout(self)
+
+        form = QtWidgets.QFormLayout()
+        self.assembly_box = QtWidgets.QComboBox(self)
+        self.assembly_box.addItem("New assembly:", None)
+        for obj in doc.Objects:
+            if obj.TypeId == "Assembly::AssemblyObject":
+                self.assembly_box.addItem(obj.Label, obj.Name)
+        self.assembly_box.setToolTip(
+            "Where the timbers assemble: a new bent sub-assembly, or "
+            "an existing assembly to extend.")
+        form.addRow("Assembly:", self.assembly_box)
+        self.new_name = QtWidgets.QLineEdit(self)
+        self.new_name.setText(naming.next_serial(
+            [o.Label for o in doc.Objects], "Bent"))
+        self.new_name.setToolTip(
+            "Name for the new bent sub-assembly (used only when "
+            "creating one).")
+        form.addRow("New assembly name:", self.new_name)
+        self.assembly_box.currentIndexChanged.connect(
+            lambda *_: self.new_name.setEnabled(
+                self.assembly_box.currentData() is None))
+
+        self.joints_inside, _outside = bent_joints(doc, bodies)
+        seatable = [j for j in self.joints_inside if _engagement_frames(j)]
+        self.grounded_box = QtWidgets.QComboBox(self)
+        default = pick_grounded(bodies, seatable)
+        for body in bodies:
+            self.grounded_box.addItem(body.Label, body.Name)
+        self.grounded_box.setCurrentIndex(bodies.index(default))
+        self.grounded_box.setToolTip(
+            "The Principal timber — the one that stays fixed; every "
+            "other timber seats against it through the timber joints. "
+            "Framers measure everything from the Principal Post. "
+            "Default: a timber that only receives joints (the "
+            "load-bearing primary).")
+        form.addRow("Principal timber:", self.grounded_box)
+        layout.addLayout(form)
+
+        note = QtWidgets.QLabel(
+            "Timber joints to assemble: "
+            + (", ".join(j.Label for j in seatable) or "none — the "
+               "timbers will only be grounded/collected"), self)
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        legacy = [j.Label for j in self.joints_inside if j not in seatable]
+        if legacy:
+            warn = QtWidgets.QLabel(
+                "No engagement frames (re-apply to enable): "
+                + ", ".join(legacy), self)
+            warn.setWordWrap(True)
+            layout.addWidget(warn)
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
+            parent=self)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def request(self):
+        """(assembly or None, new label, grounded_body)."""
+        name = self.assembly_box.currentData()
+        assembly = self.doc.getObject(name) if name else None
+        grounded = self.doc.getObject(self.grounded_box.currentData())
+        return assembly, self.new_name.text(), grounded
+
+
+class AssembleTimbersCommand:
+    def GetResources(self):
+        return {
+            "MenuText": "Assemble Timbers",
+            "ToolTip": "Assemble the selected timbers (bulk/repair): seat "
+                       "every timber joint among them as Fixed assembly "
+                       "joints in a new or existing assembly, grounded at "
+                       "the Principal timber. Apply Timber Joint already "
+                       "does this per joint as you work.",
+        }
+
+    def IsActive(self):
+        return App.ActiveDocument is not None
+
+    def Activated(self):
+        from .assemble import assemble_timbers
+        doc = App.ActiveDocument
+        bodies = [o for o in Gui.Selection.getSelection()
+                  if o in _timber_bodies(doc)]
+        if not bodies:
+            QtWidgets.QMessageBox.information(
+                Gui.getMainWindow(), "Assemble Timbers",
+                "Select the timbers to assemble first (their timber "
+                "joints define how they seat together).")
+            return
+        dialog = AssembleTimbersDialog(doc, bodies, Gui.getMainWindow())
+        while dialog.exec() == QtWidgets.QDialog.Accepted:
+            try:
+                assembly, label, grounded = dialog.request()
+                doc.openTransaction("Assemble timbers")
+                try:
+                    asm, skipped, misfits = assemble_timbers(
+                        doc, bodies, assembly=assembly, label=label,
+                        grounded=grounded)
+                except Exception:
+                    doc.abortTransaction()
+                    raise
+                doc.commitTransaction()
+            except JointError as err:
+                QtWidgets.QMessageBox.warning(dialog, "Assemble Timbers",
+                                              str(err))
+                continue
+            msg = f"Assembled {len(bodies)} timber(s) into {asm.Label}."
+            if skipped:
+                msg += (f" No engagement frames (re-apply to enable): "
+                        f"{', '.join(skipped)}.")
+            if misfits:
+                msg += (f" WARNING — these timber joints disagree about "
+                        f"where their timber sits (check stations/faces): "
+                        f"{', '.join(misfits)}.")
+            QtWidgets.QMessageBox.information(
+                Gui.getMainWindow(), "Assemble Timbers", msg)
+            Gui.Selection.clearSelection()
+            Gui.Selection.addSelection(asm)
             return
 
 
@@ -611,8 +806,9 @@ def register():
     Gui.addCommand("BentWizard_RemoveJoint", RemoveJointCommand())
     Gui.addCommand("BentWizard_PreviewJoint", PreviewJointCommand())
     Gui.addCommand("BentWizard_DuplicateBent", DuplicateBentCommand())
+    Gui.addCommand("BentWizard_AssembleTimbers", AssembleTimbersCommand())
 
 
 ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_ApplyJoint",
                 "BentWizard_RemoveJoint", "BentWizard_PreviewJoint",
-                "BentWizard_DuplicateBent"]
+                "BentWizard_DuplicateBent", "BentWizard_AssembleTimbers"]
