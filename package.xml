@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
   <name>BentWizard</name>
-  <description>Timber framing workbench for FreeCAD — square-rule joinery built entirely from native geometry.</description>
+  <description>Timber framing workbench for FreeCAD — Mill Rule joinery built entirely from native geometry.</description>
   <version>0.1.0</version>
   <date>2026-07-12</date>
   <maintainer email="adam@mirimantis.com">Adam</maintainer>

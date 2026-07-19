@@ -38,6 +38,18 @@ class SplitSerialTest(unittest.TestCase):
     def test_legacy_member_id_splits_on_its_position(self):
         self.assertEqual(naming.split_serial("P2-1"), ("P2", "1"))
 
+    def test_permissive_separators(self):
+        # July 2026: dots, underscores, and spaces separate a serial too
+        self.assertEqual(naming.split_serial("T-Post.Balcony.001"),
+                         ("T-Post.Balcony", "001"))
+        self.assertEqual(naming.split_serial("T_Post_004"),
+                         ("T_Post", "004"))
+        self.assertEqual(naming.split_serial("T Post 002"),
+                         ("T Post", "002"))
+        # a glued digit is still descriptive, whatever the separators
+        self.assertEqual(naming.split_serial("T-Post.Level1"),
+                         ("T-Post.Level1", None))
+
 
 class NextSerialTest(unittest.TestCase):
     def test_starts_at_one(self):
@@ -86,6 +98,59 @@ class SuccessorLabelTest(unittest.TestCase):
         first = naming.successor_label(labels, "T-Post-001")
         second = naming.successor_label(labels, "T-Post-002", taken=[first])
         self.assertEqual((first, second), ("T-Post-003", "T-Post-004"))
+
+    def test_keeps_the_users_separator(self):
+        # dotted family bumps with dots
+        labels = ["T-Post.Balcony.001"]
+        self.assertEqual(naming.successor_label(labels, "T-Post.Balcony.001"),
+                         "T-Post.Balcony.002")
+        # spaced family bumps with spaces
+        self.assertEqual(naming.successor_label(["T Post 002"], "T Post 002"),
+                         "T Post 003")
+
+    def test_mixed_separator_families_share_serials(self):
+        # 'T-Post.001' and 'T-Post-001' are one family: the scan counts
+        # across separators so serials never collide, and an unspecified
+        # separator adopts the family's own
+        self.assertEqual(naming.next_serial(["T-Post.001"], "T-Post"),
+                         "T-Post.002")
+
+    def test_trailing_separator_names_the_separator(self):
+        # 'T.Post.solarium.' means "append my serial with a dot" — the
+        # separator is used, never doubled, and the existing family
+        # counts (the shakedown bug: 'T.Post.solarium.-001')
+        labels = ["T.Post.solarium.100"]
+        self.assertEqual(naming.successor_label(labels, "T.Post.solarium."),
+                         "T.Post.solarium.101")
+        self.assertEqual(naming.next_serial([], "T.Post.solarium."),
+                         "T.Post.solarium.001")
+
+    def test_dot_is_the_default_separator(self):
+        # no trailing separator, no family, no separator in the base:
+        # the appended serial uses a dot
+        self.assertEqual(naming.next_serial([], "Solarium"), "Solarium.001")
+        # a separator already in the base wins over the default
+        self.assertEqual(naming.next_serial([], "T-Post"), "T-Post-001")
+        self.assertEqual(naming.next_serial([], "T.Post"), "T.Post.001")
+
+    def test_bare_base_adopts_the_family_separator(self):
+        # typing the base without serial or trailing separator still
+        # lands in the family's style
+        self.assertEqual(
+            naming.successor_label(["T.Post.solarium.100"], "T.Post.solarium"),
+            "T.Post.solarium.101")
+
+
+class ReservedLabelCharsTest(unittest.TestCase):
+    def test_clean_labels_pass(self):
+        for label in ("T-Post-003", "T-Post.Balcony.001", "T Post (north)",
+                      "T-Pfosten-Größe-004", "T-Post-#7-005", "T-Post-<x-006"):
+            self.assertEqual(naming.reserved_in_label(label), "", label)
+
+    def test_reserved_characters_reported(self):
+        self.assertEqual(naming.reserved_in_label("T>Post"), ">")
+        self.assertEqual(naming.reserved_in_label("T;Post\\x"), ";\\")
+        self.assertEqual(naming.reserved_in_label("T-Post\na"), "\n")
 
 
 class JointLabelTest(unittest.TestCase):

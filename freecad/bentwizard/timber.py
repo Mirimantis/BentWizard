@@ -1,14 +1,14 @@
 """New Timber from template — core logic (no GUI imports).
 
 Constructs a pristine parametric timber per workflow doc §4.1: one Body
-labeled with the timber's permanent name (T-<Role>[-<Qualifier>]-<serial>,
-e.g. T-Post-Level1-003 — see naming.py), a TimberDims VarSet nested
-inside the Body so the tree keeps them together, a section sketch on the
-XY origin plane (rectangle in the first quadrant, corner pinned to the
-origin), and a Pad to Dims.Length. The origin planes become the square-
-rule reference faces (Face 1 = XZ, Face 2 = YZ). Position in the
-structure is NOT part of the name: it lives in the Dims VarSet's
-Position_Tag, display-only data for drawings.
+labeled with the timber's permanent name (free-form; T-Post-Level1-003
+style recommended — see naming.py), a TimberDims VarSet nested inside
+the Body so the tree keeps them together, a section sketch on the XY
+origin plane (rectangle in the first quadrant, corner pinned to the
+origin), and a Pad to Dims.Length. The origin planes become the
+reference faces (Face 1 = XZ, Face 2 = YZ). Position in the structure
+is NOT part of the name: it lives in the Dims VarSet's Position_Tag,
+display-only data for drawings.
 
 Built fresh instead of copied-and-remapped: duplication of existing
 bodies is the phantom-feature / stale-expression trap (findings #2,
@@ -21,6 +21,8 @@ from __future__ import annotations
 import FreeCAD as App
 import Part
 import Sketcher
+
+from . import naming
 
 TOOLTIPS = {
     "Width": "Section extent along local X, measured from reference "
@@ -47,46 +49,96 @@ def _origin_plane(body, role):
     raise TimberError(f"body has no origin plane {role!r}")
 
 
+def _dim_input(raw):
+    """(quantity, expression) — exactly one is None. A string starting
+    with '=' is an expression (spreadsheet convention); anything else
+    must parse as a quantity."""
+    if isinstance(raw, str) and raw.lstrip().startswith("="):
+        expr = raw.lstrip()[1:].strip()
+        if not expr:
+            raise TimberError("empty expression (nothing after '=')")
+        return None, expr
+    try:
+        return App.Units.Quantity(raw), None
+    except Exception:
+        raise TimberError(f"cannot parse quantity {raw!r} (prefix with "
+                          f"'=' for an expression)")
+
+
 def new_timber(doc, member_id, width, depth, length, position_tag=""):
     """Create one pristine timber; returns (body, dims_varset).
 
     `member_id` is the permanent label (T-Post-001 style recommended);
     `position_tag` optionally pre-fills the display-only Position_Tag.
     `width`/`depth`/`length` are App.Units.Quantity (or anything its
-    constructor accepts, e.g. "8 in"). Raises TimberError on a bad
-    label, duplicate labels, or failed verification. The caller owns
-    the transaction.
+    constructor accepts, e.g. "8 in"), or a string starting with '='
+    to bind the Dims property by expression instead (the front door to
+    group VarSets, e.g. "=<<PostDims.Balcony>>.PostHeight"). Raises
+    TimberError on a bad label, duplicate labels, a bad expression, or
+    failed verification. The caller owns the transaction.
     """
     # Any unique label is accepted (custom names are legitimate; the
     # naming-convention linter rule is advisory). Only reject what
-    # breaks expression references.
+    # breaks expression references or the placement records.
     member_id = (member_id or "").strip()
     if not member_id:
         raise TimberError("the timber needs a label (T-Post-001 style "
                           "recommended)")
-    if "<" in member_id or ">" in member_id:
-        raise TimberError(f"{member_id!r}: '<' and '>' would break "
-                          f"expression references")
+    bad = naming.reserved_in_label(member_id)
+    if bad:
+        raise TimberError(f"{member_id!r}: reserved character(s) {bad!r} — "
+                          f"'>', '\\', ';' and line breaks break <<Label>> "
+                          f"expression references or placement records; "
+                          f"any other characters are fine")
     dims_label = f"TimberDims_{member_id}"
     for label in (member_id, dims_label):
         if doc.getObjectsByLabel(label):
             raise TimberError(f"label {label!r} already exists in this document")
 
-    qty = App.Units.Quantity
-    width, depth, length = qty(width), qty(depth), qty(length)
-    for name, q in (("Width", width), ("Depth", depth), ("Length", length)):
-        if q.Value <= 0:
+    dims_in = {name: _dim_input(raw) for name, raw in
+               (("Width", width), ("Depth", depth), ("Length", length))}
+    for name, (q, _expr) in dims_in.items():
+        if q is not None and q.Value <= 0:
             raise TimberError(f"{name} must be positive, got {q.UserString}")
 
-    # Dims VarSet
+    # Dims VarSet — literals set directly, expression inputs bound and
+    # resolved (recompute) before any geometry exists, so a bad binding
+    # leaves nothing behind but the VarSet, which is removed.
     dims = doc.addObject("App::VarSet", "TimberDims")
     dims.Label = dims_label
-    for prop, value in (("Width", width), ("Depth", depth), ("Length", length)):
-        dims.addProperty("App::PropertyLength", prop, "Dims", TOOLTIPS[prop])
-        setattr(dims, prop, value)
+    try:
+        for prop, (q, expr) in dims_in.items():
+            dims.addProperty("App::PropertyLength", prop, "Dims",
+                             TOOLTIPS[prop])
+            if expr is None:
+                setattr(dims, prop, q)
+            else:
+                try:
+                    dims.setExpression(prop, expr)
+                except Exception as err:
+                    raise TimberError(f"{prop}: bad expression {expr!r} "
+                                      f"({err})")
+        if any(expr for _q, expr in dims_in.values()):
+            doc.recompute([dims])
+            for prop, (_q, expr) in dims_in.items():
+                if expr is None:
+                    continue
+                if "Invalid" in dims.State or "Error" in dims.State:
+                    raise TimberError(f"{prop}: expression {expr!r} did "
+                                      f"not evaluate — check the "
+                                      f"referenced VarSet and property")
+                if getattr(dims, prop).Value <= 0:
+                    raise TimberError(
+                        f"{prop}: expression {expr!r} resolves to "
+                        f"{getattr(dims, prop).UserString}; must be "
+                        f"positive")
+    except TimberError:
+        doc.removeObject(dims.Name)
+        raise
     dims.addProperty("App::PropertyString", "Position_Tag", "Tag",
                      TOOLTIPS["Position_Tag"])
     dims.Position_Tag = (position_tag or "").strip()
+    width, depth, length = dims.Width, dims.Depth, dims.Length
 
     # Body — with the Dims VarSet nested inside it, so the tree keeps a
     # timber and its data together (pure organization; the binding is by

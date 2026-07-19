@@ -5,11 +5,12 @@ in GUI-free modules (timber.py); commands here are thin wrappers:
 dialog -> transaction -> core call -> report.
 """
 
+import re
 from pathlib import Path
 
 import FreeCAD as App
 import FreeCADGui as Gui
-from PySide import QtWidgets
+from PySide import QtCore, QtWidgets
 
 from . import naming
 from .apply_joint import (JointError, TemplateSpec, apply_joint,
@@ -35,29 +36,330 @@ def _quantity_field(default_mm):
     return field
 
 
+# Property types worth offering in expression autocomplete (dimension
+# and parameter bindings); strings like Position_Tag stay out.
+_NUMERIC_PROPERTY_TYPES = (
+    "App::PropertyLength", "App::PropertyDistance", "App::PropertyAngle",
+    "App::PropertyFloat", "App::PropertyInteger", "App::PropertyQuantity",
+    "App::PropertyArea", "App::PropertyVolume", "App::PropertyPercent",
+)
+
+
+def _expression_candidates(doc, include_dims=True):
+    """Sorted '<<VarSet Label>>.Property' completion candidates: every
+    numeric user property on every VarSet in the document — the values
+    an expression can bind to under the project conventions.
+    `include_dims=False` drops TimberDims_ VarSets: a timber's own Dims
+    should couple to group VarSets, never directly to another timber's
+    Dims (§4.3 — cross-timber coupling goes through the joint VarSet),
+    while joint parameters legitimately bind to timber Dims (junction
+    bindings)."""
+    out = []
+    for obj in doc.Objects:
+        if obj.TypeId != "App::VarSet":
+            continue
+        if not include_dims and obj.Label.startswith("TimberDims_"):
+            continue
+        for prop in obj.PropertiesList:
+            if obj.getGroupOfProperty(prop) in ("", "Base"):
+                continue                       # framework, not user data
+            if obj.getTypeIdOfProperty(prop) in _NUMERIC_PROPERTY_TYPES:
+                out.append(f"<<{obj.Label}>>.{prop}")
+    return sorted(out)
+
+
+class _ExpressionEdit(QtWidgets.QLineEdit):
+    """Expression entry with autocomplete over the document's VarSet
+    properties — the native Expression Editor can't be reused here (it
+    binds to an already-existing property, and its widgets aren't
+    reachable from Python), so this recreates its completion for our
+    pre-creation dialogs. Completion is token-aware: it tracks the
+    reference under the cursor, so '<<Group>>.Height * 2' completes the
+    reference without eating the arithmetic."""
+
+    def __init__(self, doc, parent=None, include_dims=True):
+        super().__init__(parent)
+        self._doc = doc
+        self._include_dims = include_dims
+        self._completer = QtWidgets.QCompleter(
+            _expression_candidates(doc, include_dims=include_dims), self)
+        self._completer.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
+        self._completer.setFilterMode(QtCore.Qt.MatchContains)
+        self._completer.setWidget(self)
+        self._completer.activated.connect(self._insert_completion)
+        self.textEdited.connect(self._update_popup)
+
+    def refresh(self):
+        """Re-scan the document — picks up variables stored while the
+        dialog is open."""
+        self._completer.model().setStringList(
+            _expression_candidates(self._doc,
+                                   include_dims=self._include_dims))
+
+    def _token_start(self):
+        """Where the reference under the cursor begins: an unclosed
+        '<<', else just after the last operator/space."""
+        text = self.text()[:self.cursorPosition()]
+        open_ref = text.rfind("<<")
+        if open_ref > text.rfind(">>"):
+            return open_ref
+        for i in range(len(text) - 1, -1, -1):
+            if text[i] in " +-*/(),%^":
+                return i + 1
+        return 0
+
+    def _update_popup(self, _text=""):
+        prefix = self.text()[self._token_start():self.cursorPosition()]
+        if not prefix.strip():
+            self._completer.popup().hide()
+            return
+        self._completer.setCompletionPrefix(prefix)
+        self._popup()
+
+    def show_all(self):
+        """Open the full candidate list (used when the fx toggle turns
+        the field on, so the available values are discoverable)."""
+        self._completer.setCompletionPrefix("")
+        self._popup()
+
+    def _popup(self):
+        popup = self._completer.popup()
+        rect = self.cursorRect()
+        rect.setWidth(popup.sizeHintForColumn(0)
+                      + popup.verticalScrollBar().sizeHint().width())
+        self._completer.complete(rect)
+
+    def _insert_completion(self, completion):
+        start = self._token_start()
+        tail = self.text()[self.cursorPosition():]
+        self.setText(self.text()[:start] + completion + tail)
+        self.setCursorPosition(start + len(completion))
+
+
+def _group_varsets(doc):
+    """VarSets that may receive stored variables: the group layer —
+    not a timber's Dims, not a joint instance's VarSet."""
+    return [o for o in doc.Objects
+            if o.TypeId == "App::VarSet"
+            and not o.Label.startswith("TimberDims_")
+            and not naming.is_joint_varset_label(o.Label)]
+
+
+_PROPERTY_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+class _StoreInVarSetDialog(QtWidgets.QDialog):
+    """Mirror of the native Expression Editor's 'Store in Variable
+    Set': enter a value, add it as a new property on a group VarSet —
+    picked or created right here — and bind to it without leaving the
+    dialog. On success `reference` holds '<<Label>>.Property'."""
+
+    TYPES = (("Length", "App::PropertyLength", "mm"),
+             ("Angle", "App::PropertyAngle", "deg"),
+             ("Float", "App::PropertyFloat", ""),
+             ("Integer", "App::PropertyInteger", ""))
+
+    def __init__(self, doc, default_mm, parent=None):
+        super().__init__(parent)
+        self.doc = doc
+        self.reference = None
+        self.setWindowTitle("Store in Variable Set")
+        form = QtWidgets.QFormLayout(self)
+        self.varset = QtWidgets.QComboBox(self)
+        self.varset.setEditable(True)
+        for vs in _group_varsets(doc):
+            self.varset.addItem(vs.Label)
+        self.varset.lineEdit().setPlaceholderText("PostDims_Balcony")
+        self.varset.setToolTip(
+            "The group VarSet to store the variable on — pick one, or "
+            "type a new label to create it (Kind_Owner style, e.g. "
+            "PostDims_Balcony). Timber Dims and joint VarSets are not "
+            "offered: shared values belong on the group layer.")
+        form.addRow("Variable Set:", self.varset)
+        self.prop_name = QtWidgets.QLineEdit(self)
+        self.prop_name.setPlaceholderText("Post_Height")
+        self.prop_name.setToolTip(
+            "New property name, Part_Attribute[_Qualifier] style "
+            "(letters, digits, underscores; starts with a letter).")
+        form.addRow("Variable:", self.prop_name)
+        self.type_box = QtWidgets.QComboBox(self)
+        for label, _tid, _unit in self.TYPES:
+            self.type_box.addItem(label)
+        self.type_box.currentIndexChanged.connect(self._retype)
+        form.addRow("Type:", self.type_box)
+        self.value = _quantity_field(default_mm)
+        form.addRow("Value:", self.value)
+        self.tooltip_edit = QtWidgets.QLineEdit(self)
+        self.tooltip_edit.setPlaceholderText(
+            "brief description — which face/end it measures from")
+        self.tooltip_edit.setToolTip(
+            "Tooltip for the new variable; the advisory linter expects "
+            "every property to carry one.")
+        form.addRow("Tooltip:", self.tooltip_edit)
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
+            parent=self)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+    def _retype(self, index):
+        self.value.setProperty("unit", self.TYPES[index][2])
+
+    def _complain(self, message):
+        QtWidgets.QMessageBox.warning(self, "Store in Variable Set",
+                                      message)
+
+    def accept(self):
+        label = self.varset.currentText().strip()
+        name = self.prop_name.text().strip()
+        if not label:
+            return self._complain("choose or name a Variable Set")
+        bad = naming.reserved_in_label(label)
+        if bad:
+            return self._complain(
+                f"VarSet label contains forbidden character(s) {bad!r}")
+        if not _PROPERTY_IDENT.match(name):
+            return self._complain(
+                "the variable name must be letters, digits, and "
+                "underscores, starting with a letter (Part_Attribute "
+                "style, e.g. Post_Height)")
+        existing = self.doc.getObjectsByLabel(label)
+        vs = existing[0] if existing else None
+        if vs is not None and vs.TypeId != "App::VarSet":
+            return self._complain(
+                f"{label!r} exists but is not a Variable Set")
+        if vs is not None and name in vs.PropertiesList:
+            return self._complain(
+                f"{label!r} already has a property {name!r}")
+        type_label, type_id, _unit = self.TYPES[self.type_box.currentIndex()]
+        raw = float(self.value.property("rawValue"))
+        self.doc.openTransaction("Store in Variable Set")
+        try:
+            if vs is None:
+                vs = self.doc.addObject("App::VarSet", "VarSet")
+                vs.Label = label
+            vs.addProperty(type_id, name, "Parameters",
+                           self.tooltip_edit.text().strip())
+            setattr(vs, name,
+                    int(round(raw)) if type_label == "Integer" else raw)
+        except Exception as err:
+            self.doc.abortTransaction()
+            return self._complain(f"could not store the variable: {err}")
+        self.doc.commitTransaction()
+        self.reference = f"<<{vs.Label}>>.{name}"
+        super().accept()
+
+
+class _DimField(QtWidgets.QWidget):
+    """One dimension row: a QuantitySpinBox with an 'fx' toggle that
+    swaps in an autocompleting expression edit, plus a '+' button to
+    store a new variable — literal OR binding, the dialog face of the
+    parameter-groups design ("membership IS the binding")."""
+
+    def __init__(self, default_mm, doc, parent=None, include_dims=False):
+        super().__init__(parent)
+        self._doc = doc
+        lay = QtWidgets.QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.spin = _quantity_field(default_mm)
+        self.expr = _ExpressionEdit(doc, self, include_dims=include_dims)
+        self.expr.setPlaceholderText("<<PostDims.Balcony>>.PostHeight")
+        self.expr.setToolTip(
+            "Expression — binds this dimension to another VarSet's "
+            "property; editing that VarSet later moves every timber "
+            "bound to it. Autocompletes over the document's VarSets.")
+        self.expr.hide()
+        self.fx = QtWidgets.QToolButton(self)
+        self.fx.setText("ƒx")
+        self.fx.setCheckable(True)
+        self.fx.setToolTip(
+            "Toggle literal value / expression. An expression binds the "
+            "dimension to a group VarSet (e.g. one that drives every "
+            "balcony post).")
+        self.fx.toggled.connect(self._swap)
+        self.store = QtWidgets.QToolButton(self)
+        self.store.setText("+")
+        self.store.setToolTip(
+            "Store in Variable Set — save the value as a new variable "
+            "on a group VarSet (created here if needed) and bind this "
+            "field to it.")
+        self.store.hide()
+        self.store.clicked.connect(self._store)
+        lay.addWidget(self.spin)
+        lay.addWidget(self.expr)
+        lay.addWidget(self.fx)
+        lay.addWidget(self.store)
+
+    def _swap(self, on):
+        self.spin.setVisible(not on)
+        self.expr.setVisible(on)
+        self.store.setVisible(on)
+        if on and not self.expr.text().strip():
+            self.expr.setFocus()
+            self.expr.show_all()
+
+    def _store(self):
+        dialog = _StoreInVarSetDialog(
+            self._doc, float(self.spin.property("rawValue")), self)
+        if dialog.exec() == QtWidgets.QDialog.Accepted and dialog.reference:
+            self.expr.refresh()
+            self.expr.setText(dialog.reference)
+
+    def set_literal(self, mm):
+        self.fx.setChecked(False)
+        self.spin.setProperty("rawValue", mm)
+
+    def set_expression(self, expression):
+        self.fx.setChecked(True)
+        self.expr.setText(expression.lstrip("=").strip())
+
+    def value(self):
+        """A Quantity, or an '=expression' string for new_timber."""
+        if self.fx.isChecked() and self.expr.text().strip():
+            return "=" + self.expr.text().lstrip("= ").strip()
+        raw = self.spin.property("rawValue")
+        return App.Units.Quantity(f"{raw} mm")
+
+
 class NewTimberDialog(QtWidgets.QDialog):
-    """Permanent name + section + length + optional position tag. Values
-    persist across validation retries so the user fixes input instead of
-    retyping it."""
+    """Copy-from picker + permanent name + section + length + optional
+    position tag. Dimensions accept literals or expressions (fx toggle).
+    Values persist across validation retries so the user fixes input
+    instead of retyping it."""
 
     DEFAULTS = (203.2, 203.2, 2438.4)   # mm internally; displayed per schema
 
-    def __init__(self, parent=None):
+    def __init__(self, doc, parent=None):
         super().__init__(parent)
+        self.doc = doc
         self.setWindowTitle("New Timber")
         form = QtWidgets.QFormLayout(self)
+        self.copy_from = QtWidgets.QComboBox(self)
+        self.copy_from.addItem("(new timber)", None)
+        for body in _timber_bodies(doc):
+            self.copy_from.addItem(body.Label, body)
+        self.copy_from.setToolTip(
+            "Prefill from an existing timber: its name base with the "
+            "next serial, and its dimensions — expressions included, so "
+            "group bindings carry over (bindings that point back at the "
+            "source timber itself are copied as plain values instead).")
+        form.addRow("Copy from:", self.copy_from)
         self.member_id = QtWidgets.QLineEdit(self)
-        self.member_id.setPlaceholderText("T-Post-001")
+        self.member_id.setPlaceholderText("T.Post.001")
         self.member_id.setToolTip(
-            "Permanent name: T-<Role>[-<Qualifier>]-<serial>, e.g. "
-            "T-Post-Level1-003 — describes what the stick IS, never its "
-            "position (that goes in the position tag below). Leave the "
-            "serial off and the next free one is appended for you. Any "
-            "unique label is accepted; the linter nudges as advisory.")
+            "Permanent name — describes what the stick IS, never its "
+            "position (that goes in the position tag below). Free-form; "
+            "T-<Role>[-<Qualifier>]-<serial> style recommended (e.g. "
+            "T.Post.Balcony.001, T-Post-Level1-003). Ends in a separator "
+            "+ number: that serial is what copy tools bump. Leave it off "
+            "and the next free one is appended for you (end the name "
+            "with your separator to pick it). Forbidden: '>', "
+            "'\\' and ';'.")
         form.addRow("Name:", self.member_id)
         self.fields = {}
         for label, default in zip(("Width", "Depth", "Length"), self.DEFAULTS):
-            field = _quantity_field(default)
+            field = _DimField(default, doc, self)
             self.fields[label] = field
             form.addRow(f"{label}:", field)
         self.position_tag = QtWidgets.QLineEdit(self)
@@ -74,13 +376,48 @@ class NewTimberDialog(QtWidgets.QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
+        self.copy_from.currentIndexChanged.connect(self._prefill)
+        # a timber selected in the 3D view / tree preselects the source
+        selected = {o.Name for o in Gui.Selection.getSelection()}
+        for i in range(1, self.copy_from.count()):
+            if self.copy_from.itemData(i).Name in selected:
+                self.copy_from.setCurrentIndex(i)   # fires _prefill
+                break
+
+    def _prefill(self):
+        body = self.copy_from.currentData()
+        if body is None:
+            return
+        dims = dims_varset(body)
+        if dims is None:
+            return
+        labels = [o.Label for o in self.doc.Objects]
+        self.member_id.setText(naming.successor_label(labels, body.Label))
+        exprs = {path.lstrip("."): expr
+                 for path, expr in dims.ExpressionEngine}
+        for name in ("Width", "Depth", "Length"):
+            expr = exprs.get(name)
+            if expr and self._portable(expr, body, dims):
+                self.fields[name].set_expression(expr)
+            else:
+                self.fields[name].set_literal(getattr(dims, name).Value)
+
+    @staticmethod
+    def _portable(expr, body, dims):
+        """Finding #2: a copied expression must never keep pointing at
+        the source timber. Group-VarSet bindings copy; anything
+        mentioning the source body or its Dims falls back to the
+        literal value."""
+        return not any(token and token in expr
+                       for token in (body.Name, body.Label,
+                                     dims.Name, dims.Label))
 
     def values(self):
-        """(member_id, width, depth, length, position_tag)."""
+        """(member_id, width, depth, length, position_tag) — each
+        dimension a Quantity or an '=expression' string."""
         out = [self.member_id.text()]
         for name in ("Width", "Depth", "Length"):
-            raw = self.fields[name].property("rawValue")
-            out.append(App.Units.Quantity(f"{raw} mm"))
+            out.append(self.fields[name].value())
         out.append(self.position_tag.text())
         return tuple(out)
 
@@ -90,8 +427,10 @@ class NewTimberCommand:
         return {
             "MenuText": "New Timber",
             "ToolTip": "Create a pristine parametric timber — Body with "
-                       "MemberID label, TimberDims VarSet, section sketch "
-                       "on the reference planes, pad to the stick length",
+                       "permanent name label, TimberDims VarSet, section "
+                       "sketch on the reference planes, pad to the stick "
+                       "length. Dimensions take literals or expressions; "
+                       "select an existing timber first to copy from it",
         }
 
     def IsActive(self):
@@ -99,7 +438,7 @@ class NewTimberCommand:
 
     def Activated(self):
         doc = App.ActiveDocument
-        dialog = NewTimberDialog(Gui.getMainWindow())
+        dialog = NewTimberDialog(doc, Gui.getMainWindow())
         while dialog.exec() == QtWidgets.QDialog.Accepted:
             try:
                 member_id, width, depth, length, tag = dialog.values()
@@ -281,8 +620,8 @@ class ApplyJointDialog(QtWidgets.QDialog):
                     face_box.addItem(label, num)
                 face_box.setCurrentIndex(3)          # Face 4, template face
                 face_box.setToolTip(
-                    "Which long face receives this joint. Square-rule "
-                    "faces: 1 and 2 are the reference faces on the XZ/YZ "
+                    "Which long face receives this joint. Reference-face "
+                    "numbering: 1 and 2 are the reference faces on the XZ/YZ "
                     "origin planes; 3 and 4 are opposite them.")
                 self.face_boxes[role] = face_box
                 self.roles_form.addRow(f"{role} face:", face_box)
@@ -315,28 +654,15 @@ class ApplyJointDialog(QtWidgets.QDialog):
                 note.setToolTip(p["tooltip"])
                 self.params_form.addRow(f"{p['name']}:", note)
                 continue
-            field = _quantity_field(float(p["value"]))
-            field.setToolTip(p["tooltip"])
-            expr_edit = QtWidgets.QLineEdit(self)
-            expr_edit.setPlaceholderText("<<VarSet>>.Property")
-            expr_edit.setToolTip(p["tooltip"])
-            expr_edit.hide()
-            fx = QtWidgets.QToolButton(self)
-            fx.setText("ƒx")
-            fx.setCheckable(True)
-            fx.setToolTip("Bind this parameter to an expression instead "
-                          "of a value (e.g. <<Floor>>.Height)")
-            fx.toggled.connect(
-                lambda checked, f=field, e=expr_edit:
-                (f.setVisible(not checked), e.setVisible(checked)))
-            row = QtWidgets.QWidget(self)
-            hbox = QtWidgets.QHBoxLayout(row)
-            hbox.setContentsMargins(0, 0, 0, 0)
-            hbox.addWidget(field)
-            hbox.addWidget(expr_edit)
-            hbox.addWidget(fx)
-            self.param_fields[p["name"]] = (field, expr_edit, fx)
-            self.params_form.addRow(f"{p['name']}:", row)
+            # joint parameters legitimately bind to timber Dims
+            # (junction bindings), so completion includes them here
+            field = _DimField(float(p["value"]), self.doc, self,
+                              include_dims=True)
+            field.spin.setToolTip(p["tooltip"])
+            field.expr.setToolTip(p["tooltip"])
+            field.expr.setPlaceholderText("<<VarSet>>.Property")
+            self.param_fields[p["name"]] = field
+            self.params_form.addRow(f"{p['name']}:", field)
 
     def request(self):
         """(spec, joint_id, body_map, values); raises JointError."""
@@ -352,15 +678,15 @@ class ApplyJointDialog(QtWidgets.QDialog):
         if len({b.Name for b in body_map.values()}) != len(body_map):
             raise JointError("each role needs a different timber")
         values = {}
-        for name, (field, expr_edit, fx) in self.param_fields.items():
-            if fx.isChecked():
-                text = expr_edit.text().strip()
+        for name, field in self.param_fields.items():
+            if field.fx.isChecked():
+                text = field.expr.text().strip()
                 if not text:
                     raise JointError(
                         f"{name}: expression entry is on but empty")
                 values[name] = text        # applied as an expression
             else:
-                raw = field.property("rawValue")
+                raw = field.spin.property("rawValue")
                 values[name] = App.Units.Quantity(f"{raw} mm")
         placement = {}
         for role, box in self.end_boxes.items():

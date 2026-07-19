@@ -122,9 +122,17 @@ Keeping the main checkout on `main` is the hygiene that makes
   (pre-`Template_Source`) rely on the library kind-scan fallback.
 - **Handed tenons** (corner-anchored end frames mirrored about the
   section center) not supported — hand is side-landing-roles only.
-- **Layout rules**: Square Rule is a template convention on rule-neutral
-  machinery; Mill Rule ≈ free (new templates + label), Line Rule
-  contained (centered timber variant, 2nd `FACES` table). Assessed,
-  backlogged.
+- **Layout rules** (reframed July 2026): the workbench's native
+  convention is **Mill Rule** — what's built already is it. Square Rule
+  ≈ free (its reduce-to-ideal housing is field work, never a drawn
+  dimension), Line Rule contained (centered timber variant, 2nd `FACES`
+  table). See the roadmap's Layout rules section.
+- **Permissive naming** (July 2026): body labels are free-form except
+  the reserved characters `>`, `\`, `;`, and line breaks (new strict
+  lint; empirically verified against the 1.1.1 expression engine). The
+  serial is the trailing digit run after any of `-`/`.`/`_`/space, and
+  bump tools preserve the separator — `T-Post.Balcony.001` is
+  first-class. Workflow doc §3 has the full rule.
 - Joint browsing at scale, reference-face 3D indicator, primary/secondary
-  as explicit load-path metadata, expression fields in the dialog.
+  as explicit load-path metadata. (New Timber expression fields and
+  copy-from-selected landed July 2026.)

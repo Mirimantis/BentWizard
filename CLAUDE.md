@@ -1,8 +1,8 @@
 # BentWizard
 
-Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive joinery, all geometry native. A prior attempt (old GitHub repo) failed by generating custom-coded geometry; it is reference-only — this repo starts from scratch on the lessons learned.
+Timber framing workbench for FreeCAD 1.1.1. Mill Rule layout, subtractive joinery, all geometry native. A prior attempt (old GitHub repo) failed by generating custom-coded geometry; it is reference-only — this repo starts from scratch on the lessons learned.
 
-**Status:** Phase 0 complete. Phase 1 in progress: linter, `Joint_HousedMT` template (with mate frame), New Timber, Apply-Joint with full placement (end A/B, faces 1–4, hand) **plus auto-assembly** (each timber joint seats in the structure assembly the moment it's created), Remove Joint (also removes the joint's Fixed assembly joint), Preview Mated Joint, Duplicate Timbers (copies assemble into an offset bent sub-assembly), and Assemble Timbers (bulk/repair/reground) — done, all output lints clean. Architecture: **two-level structure assembly** — bent sub-assemblies inside a parent frame, grounded at the Principal Post, tie-beam `Length` drives bay width parametrically (see roadmap's adopted-design bullet, incl. the mate-parity rule for faces 1–3). Next: rebuild the test bent (second shakedown), per-joint 3D handle, Save-as-joint-template.
+**Status:** Phase 0 complete. Phase 1 in progress: linter, `Joint_HousedMT` template (with mate frame), New Timber, Apply-Joint with full placement (end A/B, faces 1–4, hand) **plus auto-assembly** (each timber joint seats in the structure assembly the moment it's created), Remove Joint (also removes the joint's Fixed assembly joint), Preview Mated Joint, Duplicate Timbers (copies assemble into an offset bent sub-assembly), and Assemble Timbers (bulk/repair/reground) — done, all output lints clean. Architecture: **two-level structure assembly** — bent sub-assemblies inside a parent frame, grounded at the Principal Post, tie-beam `Length` drives bay width parametrically (see roadmap's adopted-design bullet, incl. the mate-parity rule for faces 1–3). Second shakedown testing produced the July 2026 notes, folded into the roadmap (Mill Rule reframe; permissive naming with dot default separator; Handed flag; N-part templates; parametric angles; beam tool) — of which New Timber **expression fields** and **copy-from-selected** are implemented. Next: per-joint 3D handle, Save-as-joint-template, Handed template flag.
 
 ## Read first
 
@@ -14,8 +14,8 @@ Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive join
 
 1. **Tier 1 — geometry stays native.** All solid geometry is ordinary FreeCAD objects: Sketches, Part Design features, datums, Assembly joints. Test: uninstall the workbench — the model must open, edit, and recompute identically.
 2. **Tier 2 — data degrades gracefully.** Non-geometric data (species, grade, roles, joint metadata) lives in custom properties on native objects, visible and round-trip-safe without the workbench. Workbench-gated *functionality* is fine; gated geometry is not.
-3. **Subtractive joinery.** Pockets and holes, never pads, for joints. `Length` in a timber's Dims VarSet = the full stick as purchased, tenons included.
-4. **Square rule.** Reference faces on the XZ/YZ origin planes; all joint layout measures from reference faces and stick ends.
+3. **Subtractive joinery.** Pockets and holes, never pads, for cuts *into timbers*. `Length` in a timber's Dims VarSet = the full stick as purchased, tenons included. (Standalone created parts — a tusk-tenon wedge — are ordinary solids; pads fine.)
+4. **Mill Rule.** Drawings dimension an idealized straight, square timber. Reference faces on the XZ/YZ origin planes; all joint layout measures from reference faces and stick ends. Housings are optional bearing features with designed depths. Square Rule's reduce-to-ideal housing is field work on the rough stick — never a drawn dimension, outside the model (reframed July 2026; see roadmap Layout rules).
 
 ## Environment
 
@@ -40,7 +40,7 @@ Timber framing workbench for FreeCAD 1.1.1. Square-rule layout, subtractive join
 ## Conventions (from the workflow doc — apply to all generated objects)
 
 - **Two names, two jobs:** the Label is the **permanent identity** (what the piece IS, never its position); position is Tier-2 data in the `Position_Tag` property on Dims/joint VarSets, display-only for drawings. FreeCAD's immutable Internal Name (`Body003`) is never used semantically. Legacy MemberIDs (`P2-1`) are grandfathered advisory-clean.
-- **Timber Bodies:** `T-<Role>[-<Qualifier>]-<serial>` — `T-Post-Level1-003`, `T-TieBeam_decorative-007`. The serial is the trailing all-digit segment; tools bump only that segment (never digits inside descriptive parts).
+- **Timber Bodies:** free-form label ending in separator + serial (permissive since July 2026). Recommended style `T-<Role>[-<Qualifier>]-<serial>` (`T-Post-Level1-003`); dotted/spaced forms fine (`T-Post.Balcony.001`). The serial is the trailing digit run after a separator (`-`/`.`/`_`/space); tools bump only it, preserving the separator (never digits glued into descriptive parts, `Level1`); appending to a serial-less name uses its trailing separator, else the family's, else the base's last separator, defaulting to `.`. Reserved characters (strict lint): `>`, `\`, `;`, line breaks — they break `<<Label>>` expressions / Placement_Record.
 - **Joint instances:** `J-<Kind>-<serial>` — `J-HousedMT-001`; kind token from the template file stem.
 - **VarSet labels:** `Kind_Owner` — `TimberDims_T-Post-003`, `Group_LoftDovetail`, `Project_Main`, `Order_Main`; a joint VarSet carries its joint's `J-<Kind>-<serial>` label directly.
 - **Tree organization:** Dims VarSets nest inside their Bodies; joint VarSets live in a `TimberJointVars` Std Group (renamed from `Joints`, which collides with the `Joints` group every FreeCAD Assembly carries; `joints_group()` migrates legacy documents); bents/bays are user-arranged Std Groups (Duplicate Timbers can create one). Pure organization, no geometric effect.
