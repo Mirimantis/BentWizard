@@ -93,17 +93,27 @@ def dims_varset(body):
     return None
 
 
-JOINTS_GROUP_LABEL = "Joints"
+JOINTS_GROUP_LABEL = "TimberJointVars"
+LEGACY_JOINTS_GROUP_LABEL = "Joints"
 
 
 def joints_group(doc):
-    """The document's 'Joints' Std Group (created on first use): joint
-    VarSets live there instead of scattered through the tree. Pure
-    organization — an App::DocumentObjectGroup has no geometric effect."""
+    """The document's 'TimberJointVars' Std Group (created on first
+    use): timber-joint VarSets live there instead of scattered through
+    the tree. Named apart from "Joints" because every FreeCAD Assembly
+    carries its own Assembly::JointGroup labeled "Joints" — two
+    same-name tree nodes once a bent is assembled. A legacy 'Joints'
+    Std Group is renamed in place (the type check keeps assembly
+    JointGroups untouched). Pure organization — an
+    App::DocumentObjectGroup has no geometric effect."""
     for obj in doc.getObjectsByLabel(JOINTS_GROUP_LABEL):
         if obj.TypeId == "App::DocumentObjectGroup":
             return obj
-    group = doc.addObject("App::DocumentObjectGroup", "Joints")
+    for obj in doc.getObjectsByLabel(LEGACY_JOINTS_GROUP_LABEL):
+        if obj.TypeId == "App::DocumentObjectGroup":
+            obj.Label = JOINTS_GROUP_LABEL
+            return obj
+    group = doc.addObject("App::DocumentObjectGroup", "TimberJointVars")
     group.Label = JOINTS_GROUP_LABEL
     return group
 
@@ -320,7 +330,25 @@ def remove_joint(varset):
     preview = find_preview(varset)
     if preview is not None:
         remove_preview(preview)
-    member_names = {o.Name for o in joint_members(varset)}
+    members = joint_members(varset)
+    # the joint's Fixed assembly joint (if assembled) references the
+    # landing/mate frames — remove it with the frames it points at
+    frame_names = {o.Name for o in members
+                   if o.TypeId == "Part::LocalCoordinateSystem"}
+    for obj in list(doc.Objects):
+        if getattr(obj, "JointType", None) is None:
+            continue
+        refs = [getattr(obj, "Reference1", None),
+                getattr(obj, "Reference2", None)]
+        for ref in refs:
+            subs = ref[1] if ref and len(ref) == 2 else []
+            # dotted-path segment match: "LocalCoordinateSystem" must
+            # not swallow another joint's "LocalCoordinateSystem002"
+            if any(name in ("." + sub).replace(".", " ").split()
+                   for name in frame_names for sub in subs if sub):
+                doc.removeObject(obj.Name)
+                break
+    member_names = {o.Name for o in members}
     ordered = []
     for obj in doc.Objects:
         if obj.TypeId != "PartDesign::Body":
@@ -362,8 +390,65 @@ def remove_joint(varset):
 
 
 # --------------------------------------------------------------------------
-# Mated-joint engagement (Preview)
+# Mated-joint engagement (Preview, assembly)
 # --------------------------------------------------------------------------
+
+_SEGMENT = re.compile(
+    r"(?P<role>[^;]+?) -> (?P<body>.+?): "
+    r"(?:face (?P<face>\d), hand (?P<hand>\w+)|end (?P<end>[AB]))")
+
+
+def parse_placement_record(record):
+    """(role -> body label, placement dict) from a Placement_Record."""
+    role_bodies, placement = {}, {}
+    for seg in record.split(";"):
+        m = _SEGMENT.match(seg.strip())
+        if not m:
+            raise JointError(f"cannot parse placement record segment "
+                             f"{seg.strip()!r}")
+        role = m.group("role").strip()
+        role_bodies[role] = m.group("body").strip()
+        if m.group("end"):
+            placement[role] = {"end": m.group("end")}
+        else:
+            placement[role] = {"face": int(m.group("face")),
+                               "hand": m.group("hand")}
+    return role_bodies, placement
+
+
+def anchor_face(varset, anchor_body):
+    """The face the anchor role was applied on, from the joint's
+    Placement_Record; TEMPLATE_FACE when unrecorded (legacy joints and
+    end-landing anchors)."""
+    record = getattr(varset, "Placement_Record", "")
+    if not record:
+        return TEMPLATE_FACE
+    try:
+        role_bodies, placement = parse_placement_record(record)
+    except JointError:
+        return TEMPLATE_FACE
+    for role, label in role_bodies.items():
+        if label == anchor_body.Label and "face" in placement[role]:
+            return placement[role]["face"]
+    # body renamed after apply: if exactly one role carries a face
+    # choice, it is the anchor (side-landing) role
+    faces = [p["face"] for p in placement.values() if "face" in p]
+    return faces[0] if len(faces) == 1 else TEMPLATE_FACE
+
+
+def mate_parity(varset, anchor_body):
+    """The engaged-pose correction between a joint's landing and mate
+    frames: identity on faces whose frame Z points out of the wood
+    (template face 4, face 1), a 180° turn about the frame's local Y
+    (the depth axis — "end for end, keep it upright") on the flip_z
+    faces (2 and 3), where plain frame coincidence would seat the
+    mating timber mirrored through the bearing plane — the inverted
+    end-B bent of the first GUI shakedown."""
+    if FACES[anchor_face(varset, anchor_body)]["flip_z"]:
+        return App.Placement(App.Vector(),
+                             App.Rotation(App.Vector(0, 1, 0), 180))
+    return App.Placement()
+
 
 def joint_role_frames(varset):
     """{body: {'landing': LCS|None, 'mate': LCS|None}} for a joint's roles.
@@ -387,15 +472,33 @@ def joint_role_frames(varset):
     return frames
 
 
+def bent_joints(doc, bodies):
+    """(inside, outside): timber-joint VarSets whose role bodies are all
+    within `bodies`, and those that reach outside the set."""
+    body_set = set(bodies)
+    inside, outside = [], []
+    for obj in doc.Objects:
+        if obj.TypeId != "App::VarSet" \
+                or not naming.is_joint_varset_label(obj.Label):
+            continue
+        joint_bodies = set(joint_role_frames(obj))
+        if not joint_bodies:
+            continue
+        if joint_bodies & body_set:
+            (inside if joint_bodies <= body_set else outside).append(obj)
+    return inside, outside
+
+
 def engagement_placement(varset):
     """Seated pose for the mating half of a joint.
 
     The role carrying a mate frame (the tenon side) is the mover; the
     other role (the mortise side) is the anchor. Returns
     (mover_body, anchor_body, placement) where `placement` set on the
-    mover body makes its mate frame coincide with the anchor's landing
-    frame — independent of either body's current placement. Returns None
-    when the joint predates mate frames or is missing a frame.
+    mover body seats its mate frame on the anchor's landing frame
+    (frame coincidence composed with mate_parity for the anchor's
+    face) — independent of either body's current placement. Returns
+    None when the joint predates mate frames or is missing a frame.
     """
     frames = joint_role_frames(varset)
     mover = next(((b, f) for b, f in frames.items() if f["mate"]), None)
@@ -407,10 +510,16 @@ def engagement_placement(varset):
     anchor_body, anchor_f = anchor
     landing_g = anchor_f["landing"].getGlobalPlacement()
     mate_g = mover_f["mate"].getGlobalPlacement()
-    # the mate frame expressed in the mover body's own frame (constant)
-    mate_local = mover_body.Placement.inverse().multiply(mate_g)
-    seated = landing_g.multiply(mate_local.inverse())
-    return mover_body, anchor_body, seated
+    target = landing_g.multiply(mate_parity(varset, anchor_body))
+    # the mate frame expressed in the mover body's own frame (constant);
+    # global chains, not body.Placement, so bodies inside a placed
+    # container (a bent sub-assembly) resolve correctly
+    mate_local = mover_body.getGlobalPlacement().inverse().multiply(mate_g)
+    seated_global = target.multiply(mate_local.inverse())
+    # returned in the mover's container frame — what body.Placement takes
+    parent = mover_body.getGlobalPlacement().multiply(
+        mover_body.Placement.inverse())
+    return mover_body, anchor_body, parent.inverse().multiply(seated_global)
 
 
 def preview_group_label(varset):
@@ -665,7 +774,7 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
     varset.addProperty(
         "App::PropertyString", "Template_Source", "Placement",
         "Library template this joint was applied from — used by "
-        "Duplicate Bent to re-apply the joint on the copies.")
+        "Duplicate Timbers to re-apply the joint on the copies.")
     varset.Template_Source = template.source_name
     varset.addProperty(
         "App::PropertyString", "Position_Tag", "Tag",

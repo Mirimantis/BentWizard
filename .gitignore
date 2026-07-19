@@ -24,3 +24,6 @@ Desktop.ini
 
 # local scratch files directory
 scratch/
+
+# User scratchpad for in-testing thoughts - deliberately untracked
+docs/User Notes.txt

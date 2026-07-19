@@ -516,15 +516,28 @@ class ApplyJointTest(unittest.TestCase):
 
     def test_joint_label_and_tree_placement(self):
         # new scheme: J-<Kind>-<serial>, kind token from the template's
-        # file stem; the VarSet parks in the Joints group; Position_Tag
-        # exists as empty display-only data
+        # file stem; the VarSet parks in the TimberJointVars group
+        # (named apart from every Assembly's own "Joints" group);
+        # Position_Tag exists as empty display-only data
         vs = self.apply("001")
         self.assertEqual(vs.Label, "J-HousedMT-001")
         group = next(o for o in self.doc.Objects
                      if o.TypeId == "App::DocumentObjectGroup"
-                     and o.Label == "Joints")
+                     and o.Label == "TimberJointVars")
         self.assertIn(vs, list(group.Group))
         self.assertEqual(vs.Position_Tag, "")
+
+    def test_legacy_joints_group_migrates(self):
+        # a pre-rename document's "Joints" Std Group is renamed in
+        # place, not duplicated
+        legacy = self.doc.addObject("App::DocumentObjectGroup", "Joints")
+        legacy.Label = "Joints"
+        vs = self.apply("001")
+        self.assertEqual(legacy.Label, "TimberJointVars")
+        self.assertIn(vs, list(legacy.Group))
+        groups = [o for o in self.doc.Objects
+                  if o.TypeId == "App::DocumentObjectGroup"]
+        self.assertEqual(len(groups), 1)
 
     def test_output_lints_completely_clean(self):
         from freecad.bentwizard.linter import lint
@@ -533,6 +546,46 @@ class ApplyJointTest(unittest.TestCase):
             path = str(Path(td) / "applied.FCStd")
             self.doc.saveAs(path)
             self.assertEqual([str(f) for f in lint(path)], [])
+
+    def test_engagement_seats_correctly_on_every_face_and_end(self):
+        # The authority on mate parity (the inverted end-B/face-2 bent
+        # of the first GUI shakedown): for every post face x beam end,
+        # the engagement pose must ACTUALLY seat the joint — tenon
+        # inside the post, no interpenetration. Plain frame coincidence
+        # mirrors the fit through the bearing plane on the flip_z
+        # faces, which shows up here as cubic inches of overlap.
+        from freecad.bentwizard.apply_joint import (apply_joint,
+                                                    engagement_placement)
+        from freecad.bentwizard.timber import new_timber
+        for face in (1, 2, 3, 4):
+            for end in ("A", "B"):
+                with self.subTest(face=face, end=end):
+                    post, _ = new_timber(self.doc, f"P9-{face}{end}",
+                                         "10 in", "8 in", "10 ft")
+                    beam, _ = new_timber(self.doc, f"B9-{face}{end}",
+                                         "6 in", "8 in", "8 ft")
+                    vs = apply_joint(
+                        self.doc, self.spec, f"M{face}{end}",
+                        {"P0-1": post, "B0-1": beam},
+                        placement={"P0-1": {"face": face},
+                                   "B0-1": {"end": end}})
+                    mover, _anchor, seated = engagement_placement(vs)
+                    self.assertIs(mover, beam)
+                    beam.Placement = seated
+                    self.doc.recompute()
+                    # the only universally reliable seating invariants
+                    # (through-tenons poke out the far side; some
+                    # joints have no tenon at all): the halves TOUCH
+                    # but share no interior volume. A wrong-direction
+                    # seat interpenetrates; a correct one slots the
+                    # solid into the void exactly.
+                    overlap = post.Shape.common(beam.Shape).Volume
+                    self.assertLess(overlap / 25.4 ** 3, 1e-3,
+                                    "seated halves interpenetrate")
+                    distance = post.Shape.distToShape(beam.Shape)[0]
+                    self.assertLess(distance, 1e-6,
+                                    "seated halves do not touch — "
+                                    "joint not engaged")
 
 
 if __name__ == "__main__":

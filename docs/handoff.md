@@ -34,7 +34,9 @@ the naming overhaul decided at the shakedown. Permanent serial labels
 `naming.py` holds the pure helpers) split from position, which is now
 display-only Tier-2 data (`Position_Tag` on Dims and joint VarSets).
 Tree organization: Dims VarSets nest inside their Bodies, joint VarSets
-park in a `Joints` Std Group, Duplicate Bent can group its copies.
+park in a `TimberJointVars` Std Group (renamed from `Joints` to stay
+clear of the Assembly workbench's own `Joints` group), Duplicate
+Timbers (né Duplicate Bent) can group its copies.
 Suggestion tools bump only the trailing serial segment (the old
 first-number bent swap is gone — it mangled descriptive names). Legacy
 labels stay accepted (advisory-clean) so the library template and
@@ -114,9 +116,10 @@ Keeping the main checkout on `main` is the hygiene that makes
   secondary (its Width/Depth, or Tenon_Length) or a body moved while
   the preview is up — refresh (toggle) fixes it. Complete fix = a
   recompute-driven ghost placement (FeaturePython); deferred.
-- **Duplicate Bent** doesn't copy body Placements (copies land at the
-  origin — assembly-phase concern). Older joints (pre-`Template_Source`)
-  rely on the library kind-scan fallback.
+- **Duplicate Timbers** now reproduces the sources' relative
+  placements (the copies-land-at-origin debt is paid; they assemble
+  into an offset bent sub-assembly). Older joints
+  (pre-`Template_Source`) rely on the library kind-scan fallback.
 - **Handed tenons** (corner-anchored end frames mirrored about the
   section center) not supported — hand is side-landing-roles only.
 - **Layout rules**: Square Rule is a template convention on rule-neutral
