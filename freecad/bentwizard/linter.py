@@ -630,6 +630,107 @@ def rule_naming_conventions(model):
     return findings
 
 
+def rule_lcs_child_plane_reference(model):
+    """§6 strict: attach to a landing frame by its sub-element, never to
+    the frame's child plane object directly.
+
+    A `Part::LocalCoordinateSystem` carries its own planes and axes (in
+    OriginFeatures). The engaged form references the FRAME with the
+    plane as a sub-element — support `(frame, "YZ_Plane.")` — and the
+    sketch then follows the frame rigidly. Referencing the child plane
+    OBJECT instead — support `(YZ_Plane003, "")` — resolves to identity
+    placement, not the frame's (roadmap landing-frame caveat): the
+    sketch silently detaches from the frame, betrayed only when the
+    frame is not at the body origin, and Apply-Joint cannot rebuild it
+    (the child plane is neither a body origin plane nor part of the
+    cloned stack) — it fails with 'no origin plane matching ...'. The
+    GUI records this form when a moved sketch is re-attached by picking
+    the plane rather than the frame. Verified against 1.1.1.
+    """
+    child_of = {}                    # child object name -> owning LCS
+    for lcs in model.doc.of_type("Part::LocalCoordinateSystem"):
+        feats = lcs.prop("OriginFeatures")
+        for link in (feats.links if feats else []):
+            child_of[link.obj] = lcs
+    findings = []
+    for obj in model.doc.objects.values():
+        sup = obj.prop("AttachmentSupport") or obj.prop("Support")
+        if sup is None:
+            continue
+        for link in sup.links:
+            lcs = child_of.get(link.obj)
+            if lcs is None:
+                continue
+            target = model.doc.objects.get(link.obj)
+            findings.append(Finding(
+                "lcs-child-plane-reference", STRICT, obj.name, obj.label,
+                f"attaches to datum '{target.label if target else link.obj}' "
+                f"directly, but it is a child of landing frame "
+                f"'{lcs.label}' — reference the frame with the plane as a "
+                f"sub-element (support '{lcs.label}', sub '{link.obj}.') so "
+                f"the sketch follows the frame; a direct child reference "
+                f"resolves to identity placement and Apply-Joint cannot "
+                f"rebuild it"))
+    return findings
+
+
+def _joint_feature_members(model, vs):
+    """{name: (obj, body)} — a joint's features inside timber bodies.
+
+    Structural, mirroring Apply-Joint's own membership test: anything
+    whose expressions reference the joint VarSet, plus the solid
+    features consuming those sketches (a Through-All pocket carries no
+    expression of its own).
+    """
+    members = {}
+    for (obj, _e, target, _prop) in model.refs:
+        if target.name != vs.name:
+            continue
+        body = model.owner.get(obj.name)
+        if body is not None:
+            members[obj.name] = (obj, body)
+    for feature in model.doc.of_type("PartDesign::"):
+        sketch = model.profile_sketch(feature)
+        if sketch is None or sketch.name not in members:
+            continue
+        body = model.owner.get(feature.name)
+        if body is not None:
+            members.setdefault(feature.name, (feature, body))
+    return members
+
+
+def rule_joint_feature_labels(model):
+    """§3 advisory: joint features inside a body are body-qualified —
+    '<TimberLabel>_<Feature>_<JointLabel>'.
+
+    Not cosmetic: Apply-Joint rewrites the body token and the joint
+    suffix when it clones a template, so a template feature missing
+    either keeps its TEMPLATE name in every document it is applied to
+    (naming a timber that does not exist there), and two applications
+    collide on the label. Caught on the wedged half-dovetail template,
+    whose labels reached the applied model unrewritten.
+    """
+    findings = []
+    for vs in model.joint_varsets():
+        suffix = naming.member_suffix(vs.label)
+        if suffix is None:
+            continue
+        for obj, body in _joint_feature_members(model, vs).values():
+            wrong = []
+            if not obj.label.startswith(body.label + "_"):
+                wrong.append(f"start with '{body.label}_'")
+            if not obj.label.endswith(suffix):
+                wrong.append(f"end with '{suffix}'")
+            if wrong:
+                findings.append(Finding(
+                    "joint-feature-label", ADVISORY, obj.name, obj.label,
+                    f"joint feature label should {' and '.join(wrong)} "
+                    f"(convention '<TimberLabel>_<Feature>_<JointLabel>') "
+                    f"— Apply-Joint rewrites exactly those two tokens, so "
+                    f"this label would reach applied models unchanged"))
+    return findings
+
+
 def rule_symmetry_constraint(model):
     """§6 advisory: centerline + half-width in place of Symmetry.
 
@@ -803,6 +904,7 @@ STRICT_RULES = [
     rule_cross_timber_dims,
     rule_solid_face_references,
     rule_island_interior,
+    rule_lcs_child_plane_reference,
     rule_severing_limits,
     rule_joint_fits_footprint,
     rule_label_reserved_characters,
@@ -810,6 +912,7 @@ STRICT_RULES = [
 
 ADVISORY_RULES = [
     rule_naming_conventions,
+    rule_joint_feature_labels,
     rule_symmetry_constraint,
     rule_caution_threshold,
     rule_group_binding_deviation,

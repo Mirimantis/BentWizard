@@ -182,6 +182,26 @@ class JointLabelTest(unittest.TestCase):
         self.assertEqual(naming.kind_token_from_source("HousedMT"),
                          "HousedMT")
 
+    def test_member_suffix(self):
+        # what Apply-Joint rewrites in a template's feature labels
+        self.assertEqual(naming.member_suffix("J-HousedMT-001"),
+                         "_J-HousedMT-001")
+        self.assertEqual(naming.member_suffix("Joint_MT_0a"), "_MT_0a")
+        self.assertEqual(naming.member_suffix("Joint_Loft_DT_0a"),
+                         "_Loft_DT_0a")
+        self.assertIsNone(naming.member_suffix("TimberDims_T-Post-001"))
+
+    def test_is_template_metadata(self):
+        # name-keyed: the group is author-controlled and drifts
+        self.assertTrue(naming.is_template_metadata("Template_Handed",
+                                                    "Joint"))
+        self.assertTrue(naming.is_template_metadata("Template_Angle_Min",
+                                                    None))
+        self.assertTrue(naming.is_template_metadata("Handed", "Joint"))
+        self.assertTrue(naming.is_template_metadata("Anything", "Template"))
+        self.assertFalse(naming.is_template_metadata("Tenon_Length",
+                                                     "Joint"))
+
 
 if __name__ == "__main__":
     unittest.main()
