@@ -23,16 +23,17 @@ from .timber import TimberError, new_timber
 
 LIBRARY_DIR = Path(__file__).resolve().parents[2] / "library"
 
-def _quantity_field(default_mm):
+def _quantity_field(default, unit="mm"):
     """A native Gui::QuantitySpinBox — parses and displays in the user's
     unit schema, so unitless input means whatever their schema says
     (inches under Building US, cm under Building Euro), same as every
-    stock workbench field."""
+    stock workbench field. `unit` is the raw-value unit: mm for length
+    parameters, deg for angle parameters."""
     field = Gui.UiLoader().createWidget("Gui::QuantitySpinBox")
-    field.setProperty("unit", "mm")
+    field.setProperty("unit", unit)
     field.setProperty("minimum", 0.0)
     field.setProperty("maximum", 1e9)
-    field.setProperty("rawValue", default_mm)
+    field.setProperty("rawValue", default)
     return field
 
 
@@ -257,12 +258,14 @@ class _DimField(QtWidgets.QWidget):
     store a new variable — literal OR binding, the dialog face of the
     parameter-groups design ("membership IS the binding")."""
 
-    def __init__(self, default_mm, doc, parent=None, include_dims=False):
+    def __init__(self, default, doc, parent=None, include_dims=False,
+                 unit="mm"):
         super().__init__(parent)
         self._doc = doc
+        self.unit = unit
         lay = QtWidgets.QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        self.spin = _quantity_field(default_mm)
+        self.spin = _quantity_field(default, unit)
         self.expr = _ExpressionEdit(doc, self, include_dims=include_dims)
         self.expr.setPlaceholderText("<<PostDims.Balcony>>.PostHeight")
         self.expr.setToolTip(
@@ -294,7 +297,9 @@ class _DimField(QtWidgets.QWidget):
     def _swap(self, on):
         self.spin.setVisible(not on)
         self.expr.setVisible(on)
-        self.store.setVisible(on)
+        # the store dialog creates length variables; keep it off
+        # non-length fields (an angle stored as mm would bind garbage)
+        self.store.setVisible(on and self.unit == "mm")
         if on and not self.expr.text().strip():
             self.expr.setFocus()
             self.expr.show_all()
@@ -319,7 +324,7 @@ class _DimField(QtWidgets.QWidget):
         if self.fx.isChecked() and self.expr.text().strip():
             return "=" + self.expr.text().lstrip("= ").strip()
         raw = self.spin.property("rawValue")
-        return App.Units.Quantity(f"{raw} mm")
+        return App.Units.Quantity(f"{raw} {self.unit}")
 
 
 class NewTimberDialog(QtWidgets.QDialog):
@@ -625,6 +630,10 @@ class ApplyJointDialog(QtWidgets.QDialog):
                     "origin planes; 3 and 4 are opposite them.")
                 self.face_boxes[role] = face_box
                 self.roles_form.addRow(f"{role} face:", face_box)
+                if not self.spec.handed:
+                    # Template_Handed false: a symmetrical joint has no
+                    # mirrored variant — hide the choice entirely
+                    continue
                 hand_box = QtWidgets.QComboBox(self)
                 hand_box.addItem("As templated", "template")
                 hand_box.addItem("Mirrored (handed pair)", "mirrored")
@@ -639,25 +648,40 @@ class ApplyJointDialog(QtWidgets.QDialog):
         # Parameter form from the schema. Junction-bound parameters stay
         # expressions (override later by editing the VarSet, per §4.9).
         for p in self.spec.parameters:
+            if p["metadata"]:
+                # template metadata (Handed flag, angle bounds): read by
+                # the tools — the hand option and angle field limits —
+                # never a per-application input
+                continue
             if p["expression"]:
                 note = QtWidgets.QLabel(f"= {p['expression']}   (tracks "
                                         f"the mating timber)", self)
                 note.setToolTip(p["tooltip"])
                 self.params_form.addRow(f"{p['name']}:", note)
                 continue
-            if p["type_id"] == "App::PropertyInteger":
-                # counts (Peg_Count) are set by the template's geometry,
-                # not per application; editable later on the VarSet's
-                # Data tab if the applied joint is reworked
-                note = QtWidgets.QLabel(f"{int(p['value'])}   (set by the "
+            if p["type_id"] in ("App::PropertyInteger", "App::PropertyBool"):
+                # counts (Peg_Count) and flags are set by the template's
+                # geometry, not per application; editable later on the
+                # VarSet's Data tab if the applied joint is reworked
+                note = QtWidgets.QLabel(f"{p['value']}   (set by the "
                                         f"template)", self)
                 note.setToolTip(p["tooltip"])
                 self.params_form.addRow(f"{p['name']}:", note)
                 continue
             # joint parameters legitimately bind to timber Dims
             # (junction bindings), so completion includes them here
+            unit = "deg" if p["type_id"] == "App::PropertyAngle" else "mm"
             field = _DimField(float(p["value"]), self.doc, self,
-                              include_dims=True)
+                              include_dims=True, unit=unit)
+            if unit == "deg":
+                # the template's declared angle range clamps the field
+                # (apply re-checks the resolved value either way)
+                if self.spec.angle_min is not None:
+                    field.spin.setProperty("minimum",
+                                           float(self.spec.angle_min))
+                if self.spec.angle_max is not None:
+                    field.spin.setProperty("maximum",
+                                           float(self.spec.angle_max))
             field.spin.setToolTip(p["tooltip"])
             field.expr.setToolTip(p["tooltip"])
             field.expr.setPlaceholderText("<<VarSet>>.Property")
@@ -687,7 +711,7 @@ class ApplyJointDialog(QtWidgets.QDialog):
                 values[name] = text        # applied as an expression
             else:
                 raw = field.spin.property("rawValue")
-                values[name] = App.Units.Quantity(f"{raw} mm")
+                values[name] = App.Units.Quantity(f"{raw} {field.unit}")
         placement = {}
         for role, box in self.end_boxes.items():
             placement.setdefault(role, {})["end"] = box.currentData()

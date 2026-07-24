@@ -147,6 +147,39 @@ def joint_label(kind_token, joint_id):
     return f"{JOINT_PREFIX}{kind_token}-{joint_id}"
 
 
+def member_suffix(joint_label):
+    """The suffix a joint's feature labels carry inside timber bodies.
+
+    '_J-HousedMT-001' under the current scheme; '_MT_0a' for a legacy
+    'Joint_MT_0a' VarSet. Apply-Joint rewrites exactly this string when
+    it clones a template, so a template feature whose label lacks the
+    suffix keeps its template name in every document it is applied to.
+    None when the joint label carries no parsable kind/id.
+    """
+    if joint_label.startswith(JOINT_PREFIX):
+        return f"_{joint_label}"
+    parsed = parse_joint_label(joint_label)
+    if parsed is None:
+        return None
+    return f"_{parsed[0]}_{parsed[1]}"
+
+
+TEMPLATE_META_PREFIX = "Template_"
+TEMPLATE_META_GROUP = "Template"
+
+
+def is_template_metadata(name, group=None):
+    """True for a joint VarSet property that describes the TEMPLATE
+    rather than the joint instance (the Handed flag, the declared angle
+    range). Name-keyed on the 'Template_' prefix — property groups are
+    author-controlled and drift, so the name is the contract; the
+    'Template' group is honored too, and the roadmap's bare 'Handed'
+    stays recognized."""
+    return (name.startswith(TEMPLATE_META_PREFIX)
+            or name == "Handed"
+            or (group or "") == TEMPLATE_META_GROUP)
+
+
 def kind_token_from_source(source_name):
     """The descriptive kind token from a template's file stem:
     'Joint_HousedMT' -> 'HousedMT' (a 'J-' prefix is stripped too, for

@@ -16,8 +16,23 @@ One ordinary `.FCStd` file per joint template. A template contains:
 Templates must lint clean (strict **and** advisory):
 `python -m freecad.bentwizard.linter library/<template>.FCStd`
 
-First template: the housed mortise & tenon — build recipe in
-[docs/mt-template-build.md](../docs/mt-template-build.md).
+Build recipes (one doc per template; the MT doc also documents the
+baseline process the others build on):
+
+- Housed mortise & tenon —
+  [docs/mt-template-build.md](../docs/mt-template-build.md)
+  (built: `Joint_HousedMT.FCStd`)
+- Housed dovetail — joist dropped into a **horizontal** girt's top
+  face, tops flush —
+  [docs/housed-dovetail-template-build.md](../docs/housed-dovetail-template-build.md)
+- Wedged half-dovetail (anchor-beam through tenon) — beam into a
+  **vertical** post; the socket role must be a post or other vertical
+  member —
+  [docs/wedged-half-dovetail-template-build.md](../docs/wedged-half-dovetail-template-build.md)
+  (`Joint_WedgedHalfDovetail.FCStd` — modeled, finishing the lint
+  cleanup; the recipe is written from the built file)
+- Brace mortise & tenon (parametric angle, default 45°) —
+  [docs/brace-mt-template-build.md](../docs/brace-mt-template-build.md)
 
 A "Save as joint template" tool will validate and register user-authored
 joints here; a user-override directory is planned alongside the Phase 3

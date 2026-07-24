@@ -200,5 +200,74 @@ class JointFitsFootprint(unittest.TestCase):
         }), [])
 
 
+def _frame_doc(sketch_support):
+    """A body with one landing-frame LCS (its child YZ plane is
+    'FrameYZ') and one sketch whose AttachmentSupport LinkSub is
+    `sketch_support` — a (target, sub) pair. Exercises
+    rule_lcs_child_plane_reference: the good form targets the frame with
+    the plane as a sub; the trap targets the child plane object."""
+    target, sub = sketch_support
+    xml = f"""<?xml version="1.0"?>
+<Document SchemaVersion="4">
+ <Objects Count="5">
+  <Object type="PartDesign::Body" name="Body" />
+  <Object type="Part::LocalCoordinateSystem" name="Frame" />
+  <Object type="App::Plane" name="FrameYZ" />
+  <Object type="App::Plane" name="BodyYZ" />
+  <Object type="Sketcher::SketchObject" name="CutSketch" />
+ </Objects>
+ <ObjectData Count="5">
+  <Object name="Body"><Properties Count="1">
+   <Property name="Label" type="App::PropertyString"><String value="T-Post-001" /></Property>
+  </Properties></Object>
+  <Object name="Frame"><Properties Count="2">
+   <Property name="Label" type="App::PropertyString"><String value="T-Post-001_JointFrame_J-K-001" /></Property>
+   <Property name="OriginFeatures" type="App::PropertyLinkList">
+    <LinkList count="1"><Link value="FrameYZ" /></LinkList></Property>
+  </Properties></Object>
+  <Object name="FrameYZ"><Properties Count="2">
+   <Property name="Label" type="App::PropertyString"><String value="YZ-plane003" /></Property>
+   <Property name="Role" type="App::PropertyString"><String value="YZ_Plane" /></Property>
+  </Properties></Object>
+  <Object name="BodyYZ"><Properties Count="2">
+   <Property name="Label" type="App::PropertyString"><String value="YZ-plane" /></Property>
+   <Property name="Role" type="App::PropertyString"><String value="YZ_Plane" /></Property>
+  </Properties></Object>
+  <Object name="CutSketch"><Properties Count="2">
+   <Property name="Label" type="App::PropertyString"><String value="T-Post-001_Cut_J-K-001" /></Property>
+   <Property name="AttachmentSupport" type="App::PropertyLinkSubList">
+    <LinkSubList count="1">
+     <Link obj="{target}" sub="{sub}" />
+    </LinkSubList></Property>
+  </Properties></Object>
+ </ObjectData>
+</Document>"""
+    return FcstdDocument.from_xml(xml.encode("utf-8"))
+
+
+class LcsChildPlaneReference(unittest.TestCase):
+    """A landing-frame sketch must reference the frame with the plane as
+    a sub-element, never the child plane object directly (the moved-
+    sketch trap that crashed Apply-Joint with 'no origin plane
+    matching')."""
+
+    def rule_findings(self, support):
+        return [f for f in lint_document(_frame_doc(support))
+                if f.rule == "lcs-child-plane-reference"]
+
+    def test_child_plane_object_reference_is_flagged(self):
+        hits = self.rule_findings(("FrameYZ", ""))
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].severity, "strict")
+        self.assertIn("T-Post-001_JointFrame_J-K-001", hits[0].message)
+
+    def test_frame_with_sub_element_is_clean(self):
+        self.assertEqual(self.rule_findings(("Frame", "FrameYZ.")), [])
+
+    def test_body_origin_plane_reference_is_clean(self):
+        # a bare origin plane (not an LCS child) is a normal support
+        self.assertEqual(self.rule_findings(("BodyYZ", "")), [])
+
+
 if __name__ == "__main__":
     unittest.main()

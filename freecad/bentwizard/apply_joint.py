@@ -150,10 +150,7 @@ class TemplateSpec:
         # -> HousedMT), which beats a terse internal kind like "MT"
         self.kind_token = naming.kind_token_from_source(self.source_name)
         # the suffix template feature labels carry (MemberID_Feature_<suffix>)
-        if self.joint_label.startswith(naming.JOINT_PREFIX):
-            self.member_suffix = f"_{self.joint_label}"
-        else:
-            self.member_suffix = f"_{self.kind}_{self.template_jid}"
+        self.member_suffix = naming.member_suffix(self.joint_label)
 
         # Parameter schema: (name, type_id, value, tooltip, expression)
         exprs = {e.path.lstrip("."): e.expression
@@ -166,7 +163,24 @@ class TemplateSpec:
                 "name": p.name, "type_id": p.type_id, "value": p.value,
                 "tooltip": p.doc or "", "group": p.group,
                 "expression": exprs.get(p.name),
+                "metadata": naming.is_template_metadata(p.name, p.group),
             })
+
+        # Template metadata (Tier 2, 'Template_' name prefix — adopted
+        # July 2026): the Handed flag and the declared angle range. The
+        # dialog and apply read them (hand option hidden/refused when
+        # not handed; angle parameters clamped/checked against the
+        # range). Legacy templates carry neither: handed defaults True
+        # (hand offered, today's behavior), bounds default None
+        # (unchecked).
+        meta = {p.name: p.value for p in self.joint.properties.values()
+                if naming.is_template_metadata(p.name, p.group)}
+        handed = meta.get("Template_Handed")
+        if handed is None:
+            handed = meta.get("Handed")        # the roadmap's short name
+        self.handed = True if handed is None else bool(handed)
+        self.angle_min = meta.get("Template_Angle_Min")   # degrees or None
+        self.angle_max = meta.get("Template_Angle_Max")
 
         # Per-role stacks: body label -> ordered member specs, skipping
         # the pristine-timber base (section sketch + stick pad).
@@ -185,7 +199,32 @@ class TemplateSpec:
             for link in (group.links if group else []):
                 if link.obj in base:
                     continue
-                stack.append(self._member_spec(doc, doc.objects[link.obj]))
+                member = doc.objects[link.obj]
+                if member.is_type("App::VarSet"):
+                    # a body-nested VarSet is the timber's own Dims (New
+                    # Timber nests it inside the Body — §3 tree
+                    # organization), never joint geometry. Cloning it
+                    # would drop an empty near-duplicate Dims VarSet
+                    # into every target timber, which Remove Joint then
+                    # cannot clean up (nothing ties it to the joint).
+                    continue
+                stack.append(self._member_spec(doc, member))
+            # Datums (landing frame, mate frame, shoulder datums) must be
+            # rebuilt before the sketches/features that attach to them,
+            # whatever order they were authored in — a mate frame is
+            # commonly authored AFTER the cheek sketch that lands on it,
+            # and the rebuilder would then miss it in `local` and resolve
+            # the mate-frame sub to a body origin plane by name (silent:
+            # the cut lands at the body origin, uncut cheeks). Hoist all
+            # datums to the front, preserving their relative order (so a
+            # mate frame stays after the joint frame it attaches to); the
+            # solid-feature chain keeps its order after them, since
+            # pockets chain on one another and datums never do.
+            def _is_datum(s):
+                return s["type_id"].startswith(
+                    ("Part::LocalCoordinateSystem", "Part::Datum"))
+            stack = ([s for s in stack if _is_datum(s)]
+                     + [s for s in stack if not _is_datum(s)])
             self.roles[body.label] = stack
             # a role lands on a stick end when its frame attaches to the
             # XY origin plane (end A/B selection applies), and on a long
@@ -669,6 +708,10 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
             raise JointError(
                 f"placement hand for {role!r} must be 'template' or "
                 f"'mirrored'")
+        if hand == "mirrored" and not template.handed:
+            raise JointError(
+                f"role {role!r}: this template is symmetrical "
+                f"(Template_Handed false) — mirrored hand does not apply")
         if face != TEMPLATE_FACE or hand == "mirrored":
             if role not in template.side_landing_roles:
                 raise JointError(
@@ -755,6 +798,25 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
         "the joint does not fit these timbers:\n  "
         + "\n  ".join(problems)
         + "\nreduce the tenon/setback values or use larger timbers")
+
+    # Declared angle range (Template_Angle_Min/Max): every angle-typed
+    # joint parameter must resolve inside it — the template author's
+    # statement of where the cut profiles stay valid.
+    if template.angle_min is not None or template.angle_max is not None:
+        lo, hi = template.angle_min, template.angle_max
+        for p in template.parameters:
+            if p["type_id"] != "App::PropertyAngle" or p["metadata"]:
+                continue
+            v = lookup(p["name"])
+            if v is None:
+                continue
+            if (lo is not None and v < lo - 1e-9) \
+                    or (hi is not None and v > hi + 1e-9):
+                raise JointError(
+                    f"{p['name']} = {v:g}° is outside this template's "
+                    f"declared angle range [{lo:g}°, {hi:g}°] "
+                    f"(Template_Angle_Min/Max) — its cut profiles are "
+                    f"not valid there")
 
     # Placement provenance (Tier 2): which face/end/hand each role was
     # applied with — the input for Preview Mated Joint and future
@@ -956,13 +1018,33 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
         # REVERSE its orientation so its Z points back toward the beam
         # body, not off the tenon end — otherwise engagement seats the
         # joint backwards (tenon out, body through the timber). Rotate
-        # 180° about the frame's Depth axis (local Y): keeps Depth on the
-        # same reference face, flips Width — the "turn the
-        # stick end-for-end, keep it upright" motion.
+        # 180° about the SUPPORT frame's Y (the landing frame's depth
+        # axis): keeps Depth on the same reference face, flips Width —
+        # the "turn the stick end-for-end, keep it upright" motion.
+        if any(path.lstrip(".").startswith("AttachmentOffset.Rotation")
+               for path, _ in spec["expressions"]):
+            # an expression-driven mate-frame tilt (angled template)
+            # cannot be statically composed with the flip — refuse
+            # rather than mis-seat silently
+            raise JointError(
+                f"{spec['label']}: this placement needs the end-for-end "
+                f"seat flip, which cannot compose with the mate frame's "
+                f"expression-driven rotation — apply this template at "
+                f"its authored placement until angled placement lands")
         off = obj.AttachmentOffset
-        off.Rotation = App.Rotation(App.Vector(0, 1, 0), 180)
+        off.Rotation = mate_flip_rotation(off.Rotation)
         obj.AttachmentOffset = off
     return obj
+
+
+def mate_flip_rotation(authored):
+    """The end-for-end mate-frame seat flip: 180° about the landing
+    frame's Y (depth) axis, LEFT-composed so an authored mate-frame
+    rotation survives. The flip acts in the support frame's axes, after
+    the authored turn — right-composing (about the mate frame's own Y)
+    would tip a turned mate frame upside down, e.g. the housed
+    dovetail's 90°-about-Z frame, whose seated X must stay the up axis."""
+    return App.Rotation(App.Vector(0, 1, 0), 180).multiply(authored)
 
 
 def _face_transform(path, expression, ctx):

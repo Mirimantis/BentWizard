@@ -141,6 +141,175 @@ class ApplyJointTest(unittest.TestCase):
         with self.assertRaises(JointError):
             self.apply(placement={"P0-1": {"end": "B"}})
 
+    def test_datums_rebuilt_before_dependents(self):
+        # Regression (wedged half-dovetail cheeks not cut): a sketch may
+        # attach to a frame authored AFTER it (a mate frame added once
+        # the cheeks were cut). The rebuilder must create every datum
+        # before the sketches/features that hang off them, or the
+        # attachment resolves to a body origin plane by name and the cut
+        # lands at the origin. TemplateSpec hoists datums to the front of
+        # each role stack; the MT beam authors its mate frame and a
+        # shoulder datum after the tenon sketch, so it exercises this.
+        def is_datum(s):
+            return s["type_id"].startswith(
+                ("Part::LocalCoordinateSystem", "Part::Datum"))
+        for role, stack in self.spec.roles.items():
+            kinds = [is_datum(s) for s in stack]
+            last_datum = max((i for i, d in enumerate(kinds) if d),
+                             default=-1)
+            first_feature = next((i for i, d in enumerate(kinds) if not d),
+                                 len(kinds))
+            self.assertLess(last_datum, first_feature,
+                            f"{role}: a datum follows a feature in the "
+                            f"rebuild order — dependents would miss it")
+
+    def test_template_metadata_defaults(self):
+        # the shipped template predates the Template group: hand stays
+        # offered, no angle bounds
+        self.assertTrue(self.spec.handed)
+        self.assertIsNone(self.spec.angle_min)
+        self.assertIsNone(self.spec.angle_max)
+
+    def test_mate_flip_composes_authored_rotation(self):
+        from freecad.bentwizard.apply_joint import mate_flip_rotation
+        V = App.Vector
+
+        def axes(rot):
+            return [tuple(round(c, 9) for c in rot.multVec(V(*v)))
+                    for v in ((1, 0, 0), (0, 1, 0), (0, 0, 1))]
+
+        # identity mate frame (this template): the plain 180° about Y
+        self.assertEqual(axes(mate_flip_rotation(App.Rotation())),
+                         [(-1.0, 0.0, 0.0), (0.0, 1.0, 0.0),
+                          (0.0, 0.0, -1.0)])
+        # a mate frame authored turned 90° about Z (the housed
+        # dovetail): the seated up-axis (mate X -> body +Y) must
+        # survive the flip; right-composing would send it to -Y
+        turned = mate_flip_rotation(App.Rotation(V(0, 0, 1), 90))
+        self.assertEqual(axes(turned),
+                         [(0.0, 1.0, 0.0), (1.0, 0.0, 0.0),
+                          (0.0, 0.0, -1.0)])
+
+    def _modified_template(self, mutate):
+        """A TemplateSpec from a copy of the library template with
+        `mutate(joint_varset)` applied — template metadata the shipped
+        template does not carry."""
+        from freecad.bentwizard import naming
+        from freecad.bentwizard.apply_joint import TemplateSpec
+        doc = App.openDocument(str(TEMPLATE))
+        try:
+            vs = next(o for o in doc.Objects
+                      if o.TypeId == "App::VarSet"
+                      and naming.is_joint_varset_label(o.Label))
+            mutate(vs)
+            with tempfile.TemporaryDirectory() as td:
+                path = str(Path(td) / "modified.FCStd")
+                doc.saveAs(path)
+                return TemplateSpec(path)
+        finally:
+            App.closeDocument(doc.Name)
+
+    def _nested_dims_template(self):
+        """A TemplateSpec from a copy of the library template whose Dims
+        VarSets are nested INSIDE their Bodies — what New Timber
+        produces (§3 tree organization). The shipped template predates
+        that convention and keeps them at document root, so only this
+        arrangement exercises the body-member path."""
+        from freecad.bentwizard.apply_joint import TemplateSpec
+        doc = App.openDocument(str(TEMPLATE))
+        try:
+            for body in doc.Objects:
+                if body.TypeId != "PartDesign::Body":
+                    continue
+                for o in doc.Objects:
+                    if o.TypeId == "App::VarSet" \
+                            and o.Label == f"TimberDims_{body.Label}":
+                        body.addObject(o)
+            doc.recompute()
+            with tempfile.TemporaryDirectory() as td:
+                path = str(Path(td) / "nested.FCStd")
+                doc.saveAs(path)
+                return TemplateSpec(path)
+        finally:
+            App.closeDocument(doc.Name)
+
+    def test_body_nested_dims_varset_is_not_cloned(self):
+        # Regression (caught on the wedged half-dovetail template): the
+        # role stack must skip a body-nested Dims VarSet. Cloning it
+        # dropped an empty near-duplicate Dims VarSet into every target
+        # timber, which Remove Joint could not clean up.
+        from freecad.bentwizard.apply_joint import apply_joint
+        spec = self._nested_dims_template()
+        for role, stack in spec.roles.items():
+            self.assertNotIn("App::VarSet", [s["type_id"] for s in stack],
+                             f"{role} stack still clones a VarSet")
+        before = {o.Name for o in self.doc.Objects
+                  if o.TypeId == "App::VarSet"}
+        vs = apply_joint(self.doc, spec, "N1",
+                         {"P0-1": self.post, "B0-1": self.beam})
+        added = [o for o in self.doc.Objects
+                 if o.TypeId == "App::VarSet" and o.Name not in before]
+        self.assertEqual([o.Label for o in added], [vs.Label],
+                         "apply added a VarSet besides the joint's own")
+        # and the timbers' real Dims still drive them
+        self.assertIsNotNone(self.doc.getObjectsByLabel("TimberDims_P3-1"))
+
+    def test_template_metadata_is_name_keyed_not_group_keyed(self):
+        # Regression: metadata was read from the property GROUP, so a
+        # Template_Handed sitting in the 'Joint' group (where the first
+        # hand-authored template put it) was silently ignored.
+        def mutate(vs):
+            vs.addProperty("App::PropertyBool", "Template_Handed",
+                           "Joint", "test: symmetrical joint")
+            vs.Template_Handed = False
+
+        spec = self._modified_template(mutate)
+        self.assertFalse(spec.handed)
+        self.assertTrue(next(p["metadata"] for p in spec.parameters
+                             if p["name"] == "Template_Handed"))
+
+    def test_unhanded_template_rejects_mirrored_hand(self):
+        from freecad.bentwizard.apply_joint import apply_joint, JointError
+
+        def mutate(vs):
+            vs.addProperty("App::PropertyBool", "Template_Handed",
+                           "Template", "test: symmetrical joint")
+            vs.Template_Handed = False
+
+        spec = self._modified_template(mutate)
+        self.assertFalse(spec.handed)
+        with self.assertRaises(JointError):
+            apply_joint(self.doc, spec, "H1",
+                        {"P0-1": self.post, "B0-1": self.beam},
+                        placement={"P0-1": {"hand": "mirrored"}})
+        # the template hand still applies
+        apply_joint(self.doc, spec, "H2",
+                    {"P0-1": self.post, "B0-1": self.beam})
+
+    def test_angle_bounds_clamp_angle_parameters(self):
+        from freecad.bentwizard.apply_joint import apply_joint, JointError
+
+        def mutate(vs):
+            vs.addProperty("App::PropertyAngle", "Test_Angle", "Joint",
+                           "test: an angled-cut parameter")
+            vs.Test_Angle = 45
+            vs.addProperty("App::PropertyAngle", "Template_Angle_Min",
+                           "Template", "test: smallest valid angle")
+            vs.Template_Angle_Min = 30
+            vs.addProperty("App::PropertyAngle", "Template_Angle_Max",
+                           "Template", "test: largest valid angle")
+            vs.Template_Angle_Max = 60
+
+        spec = self._modified_template(mutate)
+        self.assertEqual((spec.angle_min, spec.angle_max), (30.0, 60.0))
+        # in range applies; out of range refused before cutting
+        apply_joint(self.doc, spec, "A1",
+                    {"P0-1": self.post, "B0-1": self.beam})
+        with self.assertRaises(JointError):
+            apply_joint(self.doc, spec, "A2",
+                        {"P0-1": self.post, "B0-1": self.beam},
+                        values={"Test_Angle": App.Units.Quantity("70 deg")})
+
     def _face_slabs(self):
         """Remaining post material (in^3) in a thin slab at each face."""
         import Part

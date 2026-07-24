@@ -113,9 +113,9 @@ In-model: top/side orthographic views (never trust wireframe when profiles align
 
 ## 6. Findings → Linter
 
-Strict (breaks the clone mechanism or the model): one VarSet per joint instance; no multi-instance sketches; no cross-timber Dims references; no solid-face references (sketch supports, assembly joints, dimensions); islands strictly interior or removal regions used; expression audit on duplicated objects; parameter values within severing limits (mortise ≤75%, housing ≤50%); Body/VarSet labels free of the reserved characters (`>`, `\`, `;`, line breaks) that break `<<Label>>` expressions and the `Placement_Record`.
+Strict (breaks the clone mechanism or the model): one VarSet per joint instance; no multi-instance sketches; no cross-timber Dims references; no solid-face references (sketch supports, assembly joints, dimensions); landing-frame attachments reference the frame with the plane as a sub-element, never the frame's child plane object directly (that resolves to identity placement and Apply-Joint cannot rebuild it — the moved-sketch trap); islands strictly interior or removal regions used; expression audit on duplicated objects; parameter values within severing limits (mortise ≤75%, housing ≤50%); Body/VarSet labels free of the reserved characters (`>`, `\`, `;`, line breaks) that break `<<Label>>` expressions and the `Placement_Record`.
 
-Advisory (style and drift): naming conventions (Kind_Owner VarSets, trailing serial on body labels — otherwise free-form per §3); centerline + half-width in place of Symmetry; parameter values past the 35% caution threshold; instances deviating from their group bindings; stale attachment-offset components; unrenamed auto-labeled features.
+Advisory (style and drift): naming conventions (Kind_Owner VarSets, trailing serial on body labels — otherwise free-form per §3); body-qualified joint feature labels (`<TimberLabel>_<Feature>_<JointLabel>` — Apply-Joint rewrites exactly those two tokens, so a template feature missing either keeps its template name in every applied model); centerline + half-width in place of Symmetry; parameter values past the 35% caution threshold; instances deviating from their group bindings; stale attachment-offset components; unrenamed auto-labeled features.
 
 ## 7. Known Prototype Debts (fix before reuse as templates)
 
