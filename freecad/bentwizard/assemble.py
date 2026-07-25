@@ -212,11 +212,59 @@ def _fixed_label(varset):
     return f"Fixed_{varset.Label}"
 
 
+def _referenced_frames(joint):
+    """Internal names of the LCS datums an assembly joint's references
+    point at — the last segment of each dotted reference path
+    ('T-Post-001.LocalCoordinateSystem002.' -> the LCS name)."""
+    names = set()
+    for attr in ("Reference1", "Reference2"):
+        ref = getattr(joint, attr, None)
+        subs = ref[1] if ref and len(ref) == 2 else []
+        for sub in subs:
+            if sub:
+                names.add(sub.rstrip(".").split(".")[-1])
+                break
+    return names
+
+
+def find_fixed_joints(doc, varset):
+    """EVERY assembly joint seating this timber joint, newest last.
+
+    Normally one. A document damaged by the label-matching era can hold
+    several on the same pair of frames — that is exactly what the old
+    lookup produced — so callers that rebuild must clear all of them,
+    not just the first: an unnoticed leftover silently over-constrains
+    the assembly. See find_fixed_joint for how the match is made.
+    """
+    pair = _engagement_frames(varset)
+    if pair is None:
+        return [obj for obj in doc.getObjectsByLabel(_fixed_label(varset))
+                if getattr(obj, "JointType", None) is not None]
+    (_mover, mate), (_anchor, landing) = pair
+    want = {landing.Name, mate.Name}
+    return [obj for obj in doc.Objects
+            if getattr(obj, "JointType", None) is not None
+            and _referenced_frames(obj) == want]
+
+
 def find_fixed_joint(doc, varset):
-    for obj in doc.getObjectsByLabel(_fixed_label(varset)):
-        if getattr(obj, "JointType", None) is not None:
-            return obj
-    return None
+    """The Fixed assembly joint seating this timber joint, or None.
+
+    Resolved STRUCTURALLY, from the landing/mate frames its references
+    point at. A Label is a user-editable string: a drifted one
+    (`Fixed_J-HousedMT-003` sitting on joint 002's frames, found in the
+    July 2026 grid-span testing) hid the joint completely, so
+    assimilate_joint stopped replacing it and started adding a SECOND
+    Fixed joint on the same two frames — a silently over-constrained
+    assembly. Same lesson as the JointFrame/MateFrame substring match
+    that Frame_Role replaced: bind to structure, not to a name.
+
+    Falls back to the label only for legacy joints that have no
+    engagement frames to match on. Use find_fixed_joints when you are
+    about to rebuild — a damaged document may hold more than one.
+    """
+    found = find_fixed_joints(doc, varset)
+    return found[0] if found else None
 
 
 def _placement_for(varset):
@@ -327,8 +375,10 @@ def assimilate_joint(doc, varset):
             f"part in {joint_asm.Label!r}")
     parity = mate_parity(varset, anchor)
 
-    old = find_fixed_joint(doc, varset)
-    if old is not None:
+    # clear ALL of them: a document damaged in the label-matching era
+    # can carry duplicates on this same pair of frames, and leaving one
+    # behind over-constrains the assembly with no visible cause
+    for old in find_fixed_joints(doc, varset):
         doc.removeObject(old.Name)
     JointObject = _joint_object()
     joint = assembly_joint_group(joint_asm).newObject(
