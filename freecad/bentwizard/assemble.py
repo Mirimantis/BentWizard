@@ -417,13 +417,27 @@ def assemble_timbers(doc, bodies, assembly=None, label="", grounded=None):
     if not bodies:
         raise JointError("select the timbers to assemble first")
     if assembly is None:
-        assembly = new_assembly(doc, label)
+        # Repair/reground: when every selected timber ALREADY shares one
+        # assembly, that assembly is the subject — creating a new one
+        # would leave it empty (addObject skips already-contained
+        # bodies), so member_bodies came back empty and pick_grounded
+        # blew up on bodies[0]. Only genuinely loose timbers make a bent.
+        homes = [container_assembly(b) for b in bodies]
+        if len(set(homes)) == 1 and homes[0] is not None:
+            assembly = homes[0]
+        else:
+            assembly = new_assembly(doc, label)
     for body in bodies:
         if container_assembly(body) is None:
             assembly.addObject(body)
     doc.recompute()
 
     members = member_bodies(root_assembly(assembly))
+    if not members:
+        raise JointError(
+            f"{assembly.Label} has no timber bodies to assemble — the "
+            f"selected timbers already belong to another assembly; "
+            f"choose that one instead of a new assembly")
     inside, _outside = bent_joints(doc, members)
     seatable = [v for v in inside if _engagement_frames(v)]
 

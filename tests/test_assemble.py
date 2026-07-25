@@ -249,6 +249,47 @@ class TwoLevelAssemblyTest(unittest.TestCase):
                                places=4,
                                msg="bay width did not follow tie Length")
 
+    def test_repair_of_an_already_assembled_bent(self):
+        """Regression (July 2026 grid-span testing): Assemble Timbers on
+        timbers that already share an assembly used to create a second,
+        empty assembly — addObject skips already-contained bodies, so
+        member_bodies came back empty and pick_grounded raised
+        IndexError on bodies[0]. The repair path must adopt the
+        assembly the timbers already live in."""
+        from freecad.bentwizard.assemble import (assemble_timbers,
+                                                 assimilate_joint,
+                                                 container_assembly,
+                                                 find_fixed_joint)
+        post = self.timber("T-Post-R1", length="10 ft")
+        beam = self.timber("T-Tie-R1", w="6 in", length="8 ft")
+        varset = self.joint("R01", post, beam)
+        assimilate_joint(self.doc, varset)
+        self.doc.recompute()
+        home = container_assembly(post)
+        self.assertIsNotNone(home)
+
+        # simulate the damage: drop the Fixed joint, leaving the timber
+        # joint unseated inside an existing, grounded assembly
+        fixed = find_fixed_joint(self.doc, varset)
+        self.assertIsNotNone(fixed)
+        self.doc.removeObject(fixed.Name)
+        self.doc.recompute()
+        self.assertIsNone(find_fixed_joint(self.doc, varset))
+
+        n_before = len([o for o in self.doc.Objects
+                        if o.TypeId == "Assembly::AssemblyObject"])
+        asm, skipped, misfits = assemble_timbers(self.doc, [post, beam])
+        self.assertIs(asm, home, "repair created a new assembly instead "
+                                 "of adopting the timbers' own")
+        self.assertEqual(
+            n_before,
+            len([o for o in self.doc.Objects
+                 if o.TypeId == "Assembly::AssemblyObject"]),
+            "repair left a stray empty assembly behind")
+        self.assertEqual((skipped, misfits), ([], []))
+        self.assertIsNotNone(find_fixed_joint(self.doc, varset),
+                             "repair did not re-seat the timber joint")
+
     def test_output_lints_completely_clean(self):
         from freecad.bentwizard.linter import lint
         self.pi_bent(tag="6")
