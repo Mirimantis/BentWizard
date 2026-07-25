@@ -45,6 +45,14 @@ _NUMERIC_PROPERTY_TYPES = (
     "App::PropertyArea", "App::PropertyVolume", "App::PropertyPercent",
 )
 
+# Framework properties every object carries — excluded by name, never by
+# property group. FreeCAD's "add property" dialog defaults the group to
+# 'Base', so a hand-authored project VarSet's variables land there; a
+# group-based filter silently hid every one of them from completion.
+_FRAMEWORK_PROPERTIES = frozenset((
+    "Label", "Label2", "Visibility", "ExpressionEngine", "Group", "Proxy",
+))
+
 
 def _expression_candidates(doc, include_dims=True):
     """Sorted '<<VarSet Label>>.Property' completion candidates: every
@@ -54,7 +62,12 @@ def _expression_candidates(doc, include_dims=True):
     should couple to group VarSets, never directly to another timber's
     Dims (§4.3 — cross-timber coupling goes through the joint VarSet),
     while joint parameters legitimately bind to timber Dims (junction
-    bindings)."""
+    bindings).
+
+    Every other VarSet in the document is offered, project/group
+    VarSets included — a user may keep several to drive different parts
+    of the structure, and binding to them is the whole point of the
+    layered-parameter-groups design."""
     out = []
     for obj in doc.Objects:
         if obj.TypeId != "App::VarSet":
@@ -62,8 +75,8 @@ def _expression_candidates(doc, include_dims=True):
         if not include_dims and naming.is_dims_label(obj.Label):
             continue
         for prop in obj.PropertiesList:
-            if obj.getGroupOfProperty(prop) in ("", "Base"):
-                continue                       # framework, not user data
+            if prop in _FRAMEWORK_PROPERTIES:
+                continue
             if obj.getTypeIdOfProperty(prop) in _NUMERIC_PROPERTY_TYPES:
                 out.append(f"<<{obj.Label}>>.{prop}")
     return sorted(out)
