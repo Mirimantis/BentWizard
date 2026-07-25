@@ -50,7 +50,7 @@ def _expression_candidates(doc, include_dims=True):
     """Sorted '<<VarSet Label>>.Property' completion candidates: every
     numeric user property on every VarSet in the document — the values
     an expression can bind to under the project conventions.
-    `include_dims=False` drops TimberDims_ VarSets: a timber's own Dims
+    `include_dims=False` drops Dims VarSets: a timber's own Dims
     should couple to group VarSets, never directly to another timber's
     Dims (§4.3 — cross-timber coupling goes through the joint VarSet),
     while joint parameters legitimately bind to timber Dims (junction
@@ -59,7 +59,7 @@ def _expression_candidates(doc, include_dims=True):
     for obj in doc.Objects:
         if obj.TypeId != "App::VarSet":
             continue
-        if not include_dims and obj.Label.startswith("TimberDims_"):
+        if not include_dims and naming.is_dims_label(obj.Label):
             continue
         for prop in obj.PropertiesList:
             if obj.getGroupOfProperty(prop) in ("", "Base"):
@@ -142,7 +142,7 @@ def _group_varsets(doc):
     not a timber's Dims, not a joint instance's VarSet."""
     return [o for o in doc.Objects
             if o.TypeId == "App::VarSet"
-            and not o.Label.startswith("TimberDims_")
+            and not naming.is_dims_label(o.Label)
             and not naming.is_joint_varset_label(o.Label)]
 
 
@@ -432,7 +432,7 @@ class NewTimberCommand:
         return {
             "MenuText": "New Timber",
             "ToolTip": "Create a pristine parametric timber — Body with "
-                       "permanent name label, TimberDims VarSet, section "
+                       "permanent name label, Dims VarSet, section "
                        "sketch on the reference planes, pad to the stick "
                        "length. Dimensions take literals or expressions; "
                        "select an existing timber first to copy from it",
@@ -478,7 +478,7 @@ def _timber_bodies(doc):
 def _pick_joint(doc, title):
     """Prompt for a timber-joint instance VarSet, preselected from the current
     selection (its VarSet, or any joint member — the landing frame is
-    3D-clickable, and member labels carry the joint's _Kind_ID suffix).
+    3D-clickable, and member labels carry the joint's suffix).
     Returns the VarSet, or None if cancelled / none present."""
     joints = [o for o in doc.Objects
               if o.TypeId == "App::VarSet"
@@ -491,13 +491,15 @@ def _pick_joint(doc, title):
     current = 0
     sel_labels = [o.Label for o in Gui.Selection.getSelection()]
     for i, joint in enumerate(joints):
-        # member labels carry the joint label as a suffix: "_J-HousedMT-001"
-        # (legacy members: "_MT_B2a", the label minus its "Joint" prefix)
-        if joint.Label.startswith(naming.JOINT_PREFIX):
-            suffix = "_" + joint.Label
-        else:
-            suffix = joint.Label.replace("Joint", "", 1)  # "_MT_B2a"
-        if any(s == joint.Label or s.endswith(suffix) for s in sel_labels):
+        # member labels carry the joint's suffix: '.WHD.001' under the
+        # current scheme, '_J-HousedMT-001' or legacy '_MT_B2a' for joints
+        # applied before Template_Abbrev — accept whichever this one uses
+        abbrev = getattr(joint, naming.TEMPLATE_ABBREV, None)
+        suffixes = tuple(s for s in
+                         {naming.joint_suffix_for(joint.Label, abbrev),
+                          naming.member_suffix(joint.Label)} if s)
+        if any(s == joint.Label or (suffixes and s.endswith(suffixes))
+               for s in sel_labels):
             current = i
             break
     label, ok = QtWidgets.QInputDialog.getItem(

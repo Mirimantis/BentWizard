@@ -2,7 +2,7 @@
 
 Constructs a pristine parametric timber per workflow doc §4.1: one Body
 labeled with the timber's permanent name (free-form; T-Post-Level1-003
-style recommended — see naming.py), a TimberDims VarSet nested inside
+style recommended — see naming.py), a 'TDim_'-prefixed Dims VarSet nested inside
 the Body so the tree keeps them together, a section sketch on the XY
 origin plane (rectangle in the first quadrant, corner pinned to the
 origin), and a Pad to Dims.Length. The origin planes become the
@@ -90,7 +90,7 @@ def new_timber(doc, member_id, width, depth, length, position_tag=""):
                           f"'>', '\\', ';' and line breaks break <<Label>> "
                           f"expression references or placement records; "
                           f"any other characters are fine")
-    dims_label = f"TimberDims_{member_id}"
+    dims_label = naming.dims_label(member_id)
     for label in (member_id, dims_label):
         if doc.getObjectsByLabel(label):
             raise TimberError(f"label {label!r} already exists in this document")
@@ -149,7 +149,9 @@ def new_timber(doc, member_id, width, depth, length, position_tag=""):
 
     # Section sketch: first-quadrant rectangle, corner pinned to origin.
     sketch = body.newObject("Sketcher::SketchObject", "SectionSketch")
-    sketch.Label = f"{member_id}_SectionSketch"
+    # Base features are descriptive-first, qualified by their timber
+    # (§3, July 2026) — 'Section.Skt.T-Post-001'.
+    sketch.Label = naming.section_sketch_label(member_id)
     sketch.AttachmentSupport = [(_origin_plane(body, "XY_Plane"), "")]
     sketch.MapMode = "FlatFace"
 
@@ -181,7 +183,7 @@ def new_timber(doc, member_id, width, depth, length, position_tag=""):
 
     # Pad to the full stick length.
     pad = body.newObject("PartDesign::Pad", "Stick")
-    pad.Label = f"{member_id}_Stick"
+    pad.Label = naming.stick_label(member_id)
     pad.Profile = sketch
     pad.setExpression("Length", f"<<{dims_label}>>.Length")
 

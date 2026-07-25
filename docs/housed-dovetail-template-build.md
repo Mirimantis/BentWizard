@@ -45,8 +45,18 @@ doc's bent-0 placeholders):
   `J-HousedDovetail-000`. Apply-Joint rewrites all of them on apply;
   the instance kind token comes from the file stem
   (`Joint_HousedDovetail` → `J-HousedDovetail-001`).
-- Joint features are body-qualified:
-  `<TimberLabel>_<Feature>_<JointLabel>`.
+- Joint features are descriptive-first:
+  `<Descriptive>[.<TypeTag>].HDT.000` — the cut bare (`Housing.HDT.000`),
+  its sketch and datums tagged (`Housing.Skt.HDT.000`,
+  `Mate.Lcs.HDT.000`). Declare `Template_Abbrev = "HDT"` on the joint
+  VarSet; Apply-Joint rewrites that suffix and nothing else, so a label
+  missing it reaches every applied model unchanged (strict lint).
+- Feature labels must be **unique across both halves** — the timber name
+  no longer separates them (`Socket.Lcs` on the girt, `Tail.Lcs` on the
+  joist).
+- Every frame carries a `Frame_Role` string property, `Landing` or
+  `Mate`. Preview, Assemble, Duplicate and end-B seating read it; strict
+  lint rule `frame-role`.
 - Pick every attachment reference **from the model tree, never the 3D
   view** (finding #8), and never a solid face.
 - **Double-click the target body to activate it before creating any
@@ -65,7 +75,7 @@ doc's bent-0 placeholders):
 
 Use **New Timber** twice in an empty document saved as
 `library/Joint_HousedDovetail.FCStd` (it creates the Body, the nested
-`TimberDims_<label>` VarSet with tooltips, section sketch, and stick
+`TDim_<label>` VarSet with tooltips, section sketch, and stick
 pad — all of the MT recipe's Part A):
 
 | Timber | Label | Width | Depth | Length |
@@ -91,8 +101,8 @@ all `App::PropertyLength` except `Template_Handed`.
 | Property | Value | Tooltip |
 |---|---|---|
 | `Joint_Station` | 48 in | Distance from the girt's end A (Z=0) to the near edge of the housing opening, along the girt. |
-| `Housing_Width` | *expr* `= <<TimberDims_T-Joist-001>>.Width` | Housing opening along the girt; tracks the joist's Width. Override with a literal to hold it off the joist size. |
-| `Housing_Height` | *expr* `= <<TimberDims_T-Joist-001>>.Depth` | Housing opening down the girt's face from its top face; tracks the joist's Depth. Override with a literal to hold it off the joist size. |
+| `Housing_Width` | *expr* `= <<TDim_T-Joist-001>>.Width` | Housing opening along the girt; tracks the joist's Width. Override with a literal to hold it off the joist size. |
+| `Housing_Height` | *expr* `= <<TDim_T-Joist-001>>.Depth` | Housing opening down the girt's face from its top face; tracks the joist's Depth. Override with a literal to hold it off the joist size. |
 | `Housing_Depth` | 1/2 in | Depth of the housing into the girt's landed face; its ledger carries the joist's underside. |
 | `Tail_Length` | 4 in | Tail length from the joist's end A to the shoulder plane; also the socket's reach beyond the housing floor. |
 | `Tail_Depth` | 3 in | Vertical depth of the tail, measured down from the flush top faces; the socket floor sits this far below the girt's top. |
@@ -117,13 +127,13 @@ timber's Dims are the sanctioned §4.3 pattern).
 One landing frame carries all placement; sketches are frame-local and
 reference only the joint VarSet (plus the girt's own Dims).
 
-1. **Landing frame** `T-Girt-001_JointFrame_J-HousedDovetail-000`
+1. **Landing frame** `Socket.Lcs.HDT.000`
    (datum coordinate system): attach FlatFace to the girt's `YZ_Plane`
    (the canonical Face-4 authoring plane), offset expressions:
-   - `Base.x = <<TimberDims_T-Girt-001>>.Depth - <<J-HousedDovetail-000>>.Housing_Height / 2`
+   - `Base.x = <<TDim_T-Girt-001>>.Depth - <<J-HousedDovetail-000>>.Housing_Height / 2`
      — footprint center sits half the opening below the girt's top face
    - `Base.y = <<J-HousedDovetail-000>>.Joint_Station + <<J-HousedDovetail-000>>.Housing_Width / 2`
-   - `Base.z = <<TimberDims_T-Girt-001>>.Width - <<J-HousedDovetail-000>>.Housing_Depth`
+   - `Base.z = <<TDim_T-Girt-001>>.Width - <<J-HousedDovetail-000>>.Housing_Depth`
      — the bearing (housing-floor) plane
    Expected axes (verify in the 3D view): frame X **up the girt's
    depth** (vertical), frame Y **along the girt** (the station axis),
@@ -131,7 +141,7 @@ reference only the joint VarSet (plus the girt's own Dims).
    face" axis is vertical here — the joist crosses the girt, so the
    footprint's vertical extent is `Housing_Height` (along frame X) and
    `Housing_Width` runs along frame Y.
-2. **Housing.** Sketch `T-Girt-001_HousingSketch_J-HousedDovetail-000`
+2. **Housing.** Sketch `Housing.Skt.HDT.000`
    on the frame's **XY plane**: rectangle centered on the origin using
    the sketch axes as centerlines — edges at
    `= <<J-HousedDovetail-000>>.Housing_Height / 2` from origin along
@@ -139,10 +149,10 @@ reference only the joint VarSet (plus the girt's own Dims).
    Y. The top edge must land exactly on the girt's top face (visual
    check; a profile edge on the section boundary is fine for a pocket —
    only kept islands must stay interior).
-   **Pocket** `T-Girt-001_Housing_J-HousedDovetail-000`, direction
+   **Pocket** `Housing.HDT.000`, direction
    outward, Length `= <<J-HousedDovetail-000>>.Housing_Depth`. Verify
    with a side orthographic view, never wireframe.
-3. **Socket.** Sketch `T-Girt-001_SocketSketch_J-HousedDovetail-000` on
+3. **Socket.** Sketch `Socket.Skt.HDT.000` on
    the frame's **YZ plane** (the horizontal plane: along-girt ×
    into-the-wood), then lift it to the girt's top face with an
    attachment-offset **expression** (a literal would trip the
@@ -161,7 +171,7 @@ reference only the joint VarSet (plus the girt's own Dims).
    #13.) The zone between the girt's face and the bearing plane is
    already removed by the housing, so the socket profile starts at the
    bearing trace.
-   **Pocket** `T-Girt-001_Socket_J-HousedDovetail-000`, direction
+   **Pocket** `Socket.HDT.000`, direction
    **down into the girt** (toggle Reversed if it grows upward), Length
    `= <<J-HousedDovetail-000>>.Tail_Depth`. The socket floor lands
    Tail_Depth below the girt's top — the tail's bottom bears there.
@@ -179,7 +189,7 @@ at the top face, exactly the §4.5 / finding #14 case.
 **Build both frames before any sketch** — every sketch below lands on
 one of them.
 
-1. **Landing frame** `T-Joist-001_JointFrame_J-HousedDovetail-000`:
+1. **Landing frame** `Tail.Lcs.HDT.000`:
    attach FlatFace to the joist's `XY_Plane` (end A), all offsets zero
    (frame axes = body axes).
 
@@ -188,11 +198,11 @@ one of them.
    engages; the mate frame (D.2) is. Leave it at zero offsets: end-B
    placement rewrites its `Base.z` to `Dims.Length`, discarding
    anything you put there.
-2. **Mate frame** `T-Joist-001_MateFrame_J-HousedDovetail-000`: attach
+2. **Mate frame** `Mate.Lcs.HDT.000`: attach
    "XY on plane" to the landing frame's **XY plane** child
    (tree-select). Offsets:
-   - `Base.x = <<TimberDims_T-Joist-001>>.Width / 2`
-   - `Base.y = <<TimberDims_T-Joist-001>>.Depth / 2`
+   - `Base.x = <<TDim_T-Joist-001>>.Width / 2`
+   - `Base.y = <<TDim_T-Joist-001>>.Depth / 2`
    - `Base.z = <<J-HousedDovetail-000>>.Tail_Length`
    - **Rotation: axis Z, angle 90°** (literal — rotations are exempt
      from the stale-offset advisory). The girt frame's X axis is
@@ -206,11 +216,11 @@ one of them.
    `engagement_placement` returns None and applying the template cuts
    the joinery but seats nothing.
 3. **Flank cuts (plan).** Sketch
-   `T-Joist-001_TailFlankSketch_J-HousedDovetail-000` on the frame's
+   `TailFlanks.Skt.HDT.000` on the frame's
    **XZ plane** (the Face-1 reference plane; the plan view of the
    joist). Draw:
    - centerline construction line along the stick at
-     `= <<TimberDims_T-Joist-001>>.Width / 2`
+     `= <<TDim_T-Joist-001>>.Width / 2`
    - two removal quadrilaterals flanking the tail: outer edges on the
      section boundary (x = 0 and x = Width), spanning the stick axis
      from the end (0) to `= <<J-HousedDovetail-000>>.Tail_Length`;
@@ -218,19 +228,19 @@ one of them.
      `= <<J-HousedDovetail-000>>.Tail_Width_Tip / 2` at the stick end
      to `= <<J-HousedDovetail-000>>.Tail_Width_Root / 2` at the
      shoulder, each dimensioned from the centerline
-   **Pocket** `T-Joist-001_TailFlanks_J-HousedDovetail-000`: Through
+   **Pocket** `TailFlanks.HDT.000`: Through
    all, direction into the timber (the sketch lies on the reference
    face, so one direction crosses the full depth; toggle Reversed if it
    cuts into air).
 4. **Underside cut.** Sketch
-   `T-Joist-001_TailUndersideSketch_J-HousedDovetail-000` on the
+   `TailUnderside.Skt.HDT.000` on the
    frame's **YZ plane** (the Face-2 reference plane; the elevation):
    one rectangle with a corner at the origin, spanning the stick axis
    from 0 to `= <<J-HousedDovetail-000>>.Tail_Length` and the depth
    from 0 (the underside) to
-   `= <<TimberDims_T-Joist-001>>.Depth - <<J-HousedDovetail-000>>.Tail_Depth`.
+   `= <<TDim_T-Joist-001>>.Depth - <<J-HousedDovetail-000>>.Tail_Depth`.
    What remains above it is the tail, hanging from the flush top face.
-   **Pocket** `T-Joist-001_TailUnderside_J-HousedDovetail-000`: Through
+   **Pocket** `TailUnderside.HDT.000`: Through
    all, direction across the full width.
 
 **Checkpoint D:** lint — zero strict findings.
@@ -246,7 +256,7 @@ one of them.
 2. Verify per §5: top and side orthographic views; clipping plane
    through the socket; Measure — flank faces touch (0 engaged), joist
    underside on the housing ledger, tail bottom on the socket floor.
-3. Parametric shakedown: change `TimberDims_T-Joist-001.Depth` to
+3. Parametric shakedown: change `TDim_T-Joist-001.Depth` to
    10 in — housing and footprint must deepen and the frame must stay on
    the girt's top face; change `Joint_Station` — everything travels;
    change `Tail_Width_Tip` — socket and tail flanks move in lockstep;

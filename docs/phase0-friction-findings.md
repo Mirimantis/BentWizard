@@ -49,8 +49,11 @@ domain terms ("Apply Tenon", "New Timber"), not CAD-primitive terms.
 
 ### 6. Renaming labels in the tree — HUNT / tedious
 Manually renaming Body→Post, VarSet→PostDims, Pad→Tenon_MT1, etc. after each creation step.
-**Automation response:** tool names every object it creates using the established convention
-(`FeatureType_JointID`, timber names from a numbering scheme) at creation time.
+**Automation response:** tool names every object it creates using the established convention at
+creation time — descriptive-first joint features `<Descriptive>[.<TypeTag>].<Abbrev>.<serial>`
+(`Mortise.Skt.HMT.001`), base features `Section.Skt`/`Stick`, timber labels from the user's own
+naming. Workflow doc §3 is the current rule; the `FeatureType_JointID` form named here was the
+Phase 0 sketch of it.
 
 ### 7. Mated parts not aligned intuitively in 3D view — VERIFY  ⚠ key finding
 Both timbers padded +Z from their own XY plane, so both stand vertical, with the beam's tenon

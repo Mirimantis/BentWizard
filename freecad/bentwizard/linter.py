@@ -81,7 +81,7 @@ class Model:
     # -- VarSet classification --------------------------------------------
     #
     # Production files are classified by the Kind_Owner label convention
-    # (TimberDims_/Joint_/Group_/Project_/Order_). Prototype files predate
+    # (TDim_/Joint_/Group_/Project_/Order_). Prototype files predate
     # the convention, so fall back to structure: a Dims VarSet drives its
     # body's base Pad length; a group VarSet is referenced only from other
     # VarSets; everything else referenced from body features is a joint
@@ -93,7 +93,7 @@ class Model:
 
         for vs in self.varsets:
             label = vs.label
-            if label.startswith("TimberDims_"):
+            if naming.is_dims_label(label):
                 self.kind[vs.name] = "dims"
             elif label.startswith(("Joint_", "J-")):
                 self.kind[vs.name] = "joint"
@@ -573,11 +573,12 @@ def rule_label_reserved_characters(model):
 # Advisory rules
 # --------------------------------------------------------------------------
 
-# VarSet labels: Kind_Owner (TimberDims_/Group_/Project_/Order_), joint
-# instances J-<Kind>-<serial> (legacy Joint_<Kind>_<ID> grandfathered).
-# The owner part is free-form (permissive naming, July 2026).
+# VarSet labels: Kind_Owner (TDim_/Group_/Project_/Order_), joint
+# instances J-<Kind>-<serial> (legacy Joint_<Kind>_<ID> and the longer
+# TimberDims_ prefix grandfathered). The owner part is free-form
+# (permissive naming, July 2026).
 _VARSET_LABEL = re.compile(
-    r"^(TimberDims|Joint|Group|Project|Order)_.+$|^J-.+-.+$")
+    r"^(TDim|TimberDims|Joint|Group|Project|Order)_.+$|^J-.+-.+$")
 _PROPERTY_NAME = re.compile(r"^[A-Z][A-Za-z0-9]*(_[A-Z0-9][A-Za-z0-9]*)+$")
 _DIMS_BASE_PROPS = {"Width", "Depth", "Length"}
 
@@ -597,7 +598,7 @@ def rule_naming_conventions(model):
             findings.append(Finding(
                 "naming-convention", ADVISORY, vs.name, vs.label,
                 f"VarSet label does not follow Kind_Owner "
-                f"(TimberDims_/Group_/Project_/Order_) or J-<Kind>-<serial>"))
+                f"(TDim_/Group_/Project_/Order_) or J-<Kind>-<serial>"))
         is_dims = model.kind.get(vs.name) == "dims"
         bad_props = []
         for p in vs.properties.values():
@@ -621,12 +622,16 @@ def rule_naming_conventions(model):
                 f"otherwise free-form, but copy tools bump the serial and "
                 f"will append '-001' to this label"))
         dims = model.body_dims(body)
-        if dims is not None and dims.label != f"TimberDims_{body.label}":
+        # the legacy 'TimberDims_' prefix is grandfathered: the rename to
+        # 'TDim_' is cosmetic and the binding is structural, so existing
+        # documents are not nagged into a rewrite
+        if dims is not None and naming.dims_owner(dims.label) != body.label:
             findings.append(Finding(
                 "naming-convention", ADVISORY, dims.name, dims.label,
-                f"Dims VarSet label should be 'TimberDims_{body.label}' to "
-                f"match its timber — tools resolve the binding "
-                f"structurally, but drifted labels invite mistakes"))
+                f"Dims VarSet label should be "
+                f"'{naming.dims_label(body.label)}' to match its timber — "
+                f"tools resolve the binding structurally, but drifted "
+                f"labels invite mistakes"))
     return findings
 
 
@@ -699,35 +704,178 @@ def _joint_feature_members(model, vs):
     return members
 
 
-def rule_joint_feature_labels(model):
-    """§3 advisory: joint features inside a body are body-qualified —
-    '<TimberLabel>_<Feature>_<JointLabel>'.
+def _joint_abbrev(vs):
+    """A joint VarSet's Template_Abbrev, or None."""
+    p = vs.prop(naming.TEMPLATE_ABBREV)
+    return p.value if p and p.value else None
 
-    Not cosmetic: Apply-Joint rewrites the body token and the joint
-    suffix when it clones a template, so a template feature missing
-    either keeps its TEMPLATE name in every document it is applied to
-    (naming a timber that does not exist there), and two applications
-    collide on the label. Caught on the wedged half-dovetail template,
-    whose labels reached the applied model unrewritten.
+
+def rule_joint_feature_labels(model):
+    """§3 strict: joint features are descriptive-first and carry the
+    joint's suffix — '<Descriptive>[.<TypeTag>].<Abbrev>.<serial>'.
+
+    Not cosmetic: Apply-Joint rewrites the joint suffix when it clones a
+    template, so a template feature missing it keeps its TEMPLATE name in
+    every document it is applied to, and two applications collide on the
+    label. Caught on the wedged half-dovetail template, whose labels
+    reached the applied model unrewritten — which is why this is strict
+    rather than advisory (reworked July 2026).
+
+    A label must also not embed its timber's name: that token is the
+    template's own timber, which does not exist in the target document.
+
+    Joints on the legacy 'Joint_<Kind>_<ID>' scheme stay advisory — those
+    documents predate the convention and are not being rewritten.
     """
     findings = []
     for vs in model.joint_varsets():
-        suffix = naming.member_suffix(vs.label)
+        legacy = not vs.label.startswith(naming.JOINT_PREFIX)
+        severity = ADVISORY if legacy else STRICT
+        suffix = naming.joint_suffix_for(vs.label, _joint_abbrev(vs))
         if suffix is None:
             continue
         for obj, body in _joint_feature_members(model, vs).values():
             wrong = []
-            if not obj.label.startswith(body.label + "_"):
-                wrong.append(f"start with '{body.label}_'")
             if not obj.label.endswith(suffix):
                 wrong.append(f"end with '{suffix}'")
+            if not legacy and body.label in obj.label:
+                wrong.append(f"not embed its timber's name "
+                             f"('{body.label}' — the tree already nests "
+                             f"this feature under its Body)")
             if wrong:
                 findings.append(Finding(
-                    "joint-feature-label", ADVISORY, obj.name, obj.label,
+                    "joint-feature-label", severity, obj.name, obj.label,
                     f"joint feature label should {' and '.join(wrong)} "
-                    f"(convention '<TimberLabel>_<Feature>_<JointLabel>') "
-                    f"— Apply-Joint rewrites exactly those two tokens, so "
-                    f"this label would reach applied models unchanged"))
+                    f"(convention "
+                    f"'<Descriptive>[.<TypeTag>]{suffix}') — Apply-Joint "
+                    f"rewrites exactly that suffix, so this label would "
+                    f"reach applied models unchanged"))
+    return findings
+
+
+def rule_frame_role(model):
+    """§3 strict: every joint frame declares its Tier-2 `Frame_Role`.
+
+    Preview Mated Joint, Assemble Timbers, Duplicate Timbers and the
+    end-B seat flip all locate a joint's landing and mate frames by this
+    property. It replaced a 'JointFrame'/'MateFrame' label-substring
+    match that failed SILENTLY — a renamed frame lint-cleaned and left
+    those four tools quietly inert. Each role needs exactly one Landing
+    frame; a joint carries at most one Mate frame (the half that enters
+    its mate declares the seated pose).
+
+    Legacy documents, whose frames predate the property, are advisory:
+    the label fallback still resolves them.
+    """
+    findings = []
+    for vs in model.joint_varsets():
+        legacy = not vs.label.startswith(naming.JOINT_PREFIX)
+        severity = ADVISORY if legacy else STRICT
+        per_body, mates = {}, []
+        for obj, body in _joint_feature_members(model, vs).values():
+            if not obj.is_type("Part::LocalCoordinateSystem"):
+                continue
+            p = obj.prop(naming.FRAME_ROLE_PROP)
+            role = (p.value if p and p.value
+                    else naming.legacy_frame_role(obj.label))
+            if role not in naming.FRAME_ROLES:
+                findings.append(Finding(
+                    "frame-role", severity, obj.name, obj.label,
+                    f"joint frame declares no {naming.FRAME_ROLE_PROP} "
+                    f"— add a string property naming its role "
+                    f"('{naming.FRAME_ROLE_LANDING}' or "
+                    f"'{naming.FRAME_ROLE_MATE}'); Preview, Assemble and "
+                    f"Duplicate cannot find this frame without it"))
+                continue
+            if role == naming.FRAME_ROLE_MATE:
+                mates.append(obj)
+            else:
+                per_body.setdefault(body.name, []).append(obj)
+        for body_name, frames in per_body.items():
+            if len(frames) > 1:
+                body = model.doc.objects.get(body_name)
+                findings.append(Finding(
+                    "frame-role", severity, frames[1].name, frames[1].label,
+                    f"{len(frames)} frames in "
+                    f"'{body.label if body else body_name}' claim "
+                    f"{naming.FRAME_ROLE_PROP} "
+                    f"'{naming.FRAME_ROLE_LANDING}' — a role lands once"))
+        if len(mates) > 1:
+            findings.append(Finding(
+                "frame-role", severity, mates[1].name, mates[1].label,
+                f"{len(mates)} frames claim {naming.FRAME_ROLE_PROP} "
+                f"'{naming.FRAME_ROLE_MATE}' — only the half that enters "
+                f"its mate declares the seated pose"))
+    return findings
+
+
+def rule_template_abbrev(model):
+    """§3 advisory: a joint VarSet declares Template_Abbrev, the short
+    kind token its feature labels carry ('WHD'). Without one the labels
+    fall back to the long '_J-<Kind>-<serial>' suffix — correct, but the
+    verbose form this scheme exists to retire. Two joints sharing an
+    abbrev across different kinds are flagged: their feature labels
+    would collide in a document holding both."""
+    findings = []
+    by_abbrev = {}
+    for vs in model.joint_varsets():
+        abbrev = _joint_abbrev(vs)
+        if abbrev is None:
+            findings.append(Finding(
+                "template-abbrev", ADVISORY, vs.name, vs.label,
+                f"no {naming.TEMPLATE_ABBREV} property — feature labels "
+                f"fall back to the long "
+                f"'{naming.member_suffix(vs.label) or vs.label}' suffix; "
+                f"declare a short kind token to shorten them"))
+            continue
+        kind = naming.parse_joint_label(vs.label)
+        by_abbrev.setdefault(abbrev, []).append(
+            (vs, kind[0] if kind else vs.label))
+    for abbrev, entries in by_abbrev.items():
+        kinds = {k for _vs, k in entries}
+        if len(kinds) > 1:
+            vs = entries[-1][0]
+            findings.append(Finding(
+                "template-abbrev", ADVISORY, vs.name, vs.label,
+                f"{naming.TEMPLATE_ABBREV} '{abbrev}' is used by more "
+                f"than one joint kind ({', '.join(sorted(kinds))}) — "
+                f"their feature labels collide; give each kind its own "
+                f"token"))
+    return findings
+
+
+def rule_duplicate_labels(model):
+    """§3 advisory: two VarSets or two joint features share a Label.
+
+    FreeCAD tolerates duplicates, but '<<Label>>' expression references
+    resolve to only one of them, and the tree becomes ambiguous. This
+    reaches the one collision the descriptive-first scheme introduces:
+    with the timber name gone from feature labels, a template whose two
+    halves both name a feature 'Housing' collides the moment it is
+    applied — hence the authoring rule that a template's feature labels
+    are unique ACROSS both halves.
+
+    Base features are excluded: they are not joint members, and they
+    carry their own timber's name ('Stick.T.Joist.003') precisely so
+    they never collide.
+    """
+    findings = []
+    seen = {}
+    for vs in model.varsets:
+        seen.setdefault(vs.label, []).append(vs)
+    for vs in model.joint_varsets():
+        for obj, _body in _joint_feature_members(model, vs).values():
+            seen.setdefault(obj.label, []).append(obj)
+    for label, objs in seen.items():
+        names = sorted({o.name for o in objs})
+        if len(names) > 1:
+            findings.append(Finding(
+                "duplicate-label", ADVISORY, names[1], label,
+                f"{len(names)} objects share this label "
+                f"({', '.join(names)}) — '<<{label}>>' expression "
+                f"references resolve to only one of them; within a joint "
+                f"template, feature labels must be unique across both "
+                f"halves"))
     return findings
 
 
@@ -848,7 +996,8 @@ def rule_auto_labels(model):
             findings.append(Finding(
                 "auto-generated-label", ADVISORY, obj.name, obj.label,
                 f"label is FreeCAD's auto-generated name — rename per "
-                f"convention (Timber_Feature_JointLabel)"))
+                f"convention ('<Descriptive>[.<TypeTag>].<Abbrev>."
+                f"<serial>' for joint features)"))
     return findings
 
 
@@ -908,11 +1057,14 @@ STRICT_RULES = [
     rule_severing_limits,
     rule_joint_fits_footprint,
     rule_label_reserved_characters,
+    rule_joint_feature_labels,
+    rule_frame_role,
 ]
 
 ADVISORY_RULES = [
     rule_naming_conventions,
-    rule_joint_feature_labels,
+    rule_template_abbrev,
+    rule_duplicate_labels,
     rule_symmetry_constraint,
     rule_caution_threshold,
     rule_group_binding_deviation,

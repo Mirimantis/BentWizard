@@ -42,7 +42,7 @@ class NewTimberTest(unittest.TestCase):
     def test_creates_verified_stick(self):
         body, dims = self.new("T-Post-001", "10 in", "8 in", "16 ft")
         self.assertEqual(body.Label, "T-Post-001")
-        self.assertEqual(dims.Label, "TimberDims_T-Post-001")
+        self.assertEqual(dims.Label, "TDim_T-Post-001")
         self.assertAlmostEqual(body.Shape.Volume / 25.4 ** 3,
                                10 * 8 * 192, places=6)
         for prop in ("Width", "Depth", "Length", "Position_Tag"):
@@ -83,7 +83,7 @@ class NewTimberTest(unittest.TestCase):
         # Off-convention labels are allowed (advisory lint nudges later);
         # expressions must survive a label with spaces.
         body, dims = self.new("Ridge Post (custom)", "8 in", "8 in", "8 ft")
-        self.assertEqual(dims.Label, "TimberDims_Ridge Post (custom)")
+        self.assertEqual(dims.Label, "TDim_Ridge Post (custom)")
         dims.Width = "10 in"
         self.doc.recompute()
         self.assertAlmostEqual(body.Shape.Volume / 25.4 ** 3,
@@ -92,7 +92,7 @@ class NewTimberTest(unittest.TestCase):
     def test_dotted_label_binds_expressions(self):
         # July 2026: dotted serial style is first-class
         body, dims = self.new("T-Post.Balcony.001", "8 in", "8 in", "8 ft")
-        self.assertEqual(dims.Label, "TimberDims_T-Post.Balcony.001")
+        self.assertEqual(dims.Label, "TDim_T-Post.Balcony.001")
         dims.Length = "10 ft"
         self.doc.recompute()
         self.assertAlmostEqual(body.Shape.Volume / 25.4 ** 3,

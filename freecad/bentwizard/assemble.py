@@ -3,8 +3,9 @@
 Bents are native Assembly::AssemblyObjects; the building is a parent
 assembly of bent sub-assemblies (created automatically on the first
 cross-bent timber joint). Every timber joint becomes one Fixed assembly
-joint referencing the JointFrame / MateFrame LCS datums by object
-reference (never solid faces), with the face-parity correction carried
+joint referencing the landing / mate LCS datums by object reference
+(the frames a joint's Frame_Role property names, never solid faces),
+with the face-parity correction carried
 in the joint's Offset1 so its NOMINAL pose is the correct seat.
 
 Container rules (deterministic, applied by assimilate_joint every time

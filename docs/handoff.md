@@ -133,6 +133,15 @@ Keeping the main checkout on `main` is the hygiene that makes
   serial is the trailing digit run after any of `-`/`.`/`_`/space, and
   bump tools preserve the separator — `T-Post.Balcony.001` is
   first-class. Workflow doc §3 has the full rule.
+- **Descriptive-first feature labels** (July 2026): features inside
+  bodies read `<Descriptive>[.<TypeTag>].<Abbrev>.<serial>`
+  (`TailSlope.Skt.WHD.001`) instead of the body-qualified form, which
+  buried the descriptive part between two long tokens. The Dims prefix
+  shortened to `TDim_`, frame role moved to the Tier-2 `Frame_Role`
+  property, and both library templates were migrated by
+  `scripts/migrate-naming.py` — including `Joint_HousedMT`, which came
+  off the legacy `Joint_MT_0a` / `P0-1` / `B0-1` internals named above.
+  Existing documents are grandfathered, never rewritten.
 - Joint browsing at scale, reference-face 3D indicator, primary/secondary
   as explicit load-path metadata. (New Timber expression fields and
   copy-from-selected landed July 2026.)

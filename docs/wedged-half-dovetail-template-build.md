@@ -95,13 +95,21 @@ lowered — again, along the post's length.
 - Placeholder names use the production scheme: bodies `T.Post.001` /
   `T.AnchorBeam.001`, joint VarSet `J-WedgedHalfDovetail-000`. Labels
   are permissive — dotted, hyphenated, or spaced all lint clean.
-- **Joint feature labels must read
-  `<TimberLabel>_<Feature>_<JointLabel>`, with the joint label spelled
-  exactly as the VarSet** (`_J-WedgedHalfDovetail-000` — hyphens, not
-  dots, and no abbreviations). Apply-Joint substitutes precisely those
-  two tokens; anything else survives into every applied model naming a
-  timber that does not exist there. Advisory lint rule
-  `joint-feature-label` catches this.
+- **Joint feature labels read `<Descriptive>[.<TypeTag>].WHD.000`** — the
+  cut bare (`Housing.WHD.000`), its sketch and datums tagged
+  (`Housing.Skt.WHD.000`, `Mate.Lcs.WHD.000`). `WHD` is this template's
+  `Template_Abbrev`; `000` is the placeholder serial. Apply-Joint
+  substitutes precisely that suffix, so a label missing it survives into
+  every applied model under its template name. **Strict** lint rule
+  `joint-feature-label` catches it.
+- **Feature labels must be unique across BOTH halves** — the timber name
+  no longer separates them. Name shared features for their role
+  (`Socket.Lcs` on the post, `Tail.Lcs` on the beam). Advisory rule
+  `duplicate-label` catches collisions.
+- **Every frame needs a `Frame_Role` string property** — `Landing` on
+  each half's landing frame, `Mate` on the frame declaring the seated
+  pose. Preview, Assemble, Duplicate and end-B seating all read it, and
+  nothing works without it. Strict rule `frame-role`.
 - Tree-picked references only, never a 3D pick and never a solid face.
 - Activate the body before creating any datum or sketch.
 - The rebuilder clones lines and circles only.
@@ -128,7 +136,7 @@ lowered — again, along the post's length.
 | Post (mortise role) | `T.Post.001` | 10 in | 8 in | 96 in | **plumb** — its length is the joint's "up" |
 | Anchor beam (tenon role) | `T.AnchorBeam.001` | 6 in | 8 in | 96 in | level, entering the post's face |
 
-New Timber nests each `TimberDims_…` VarSet inside its Body — the
+New Timber nests each `TDim_…` VarSet inside its Body — the
 current §3 tree convention, and what Apply-Joint now expects.
 
 ---
@@ -142,11 +150,11 @@ A `TimberJointVars` Std Group holding one **VarSet**
 | Property | Value | Tooltip |
 |---|---|---|
 | `Joint_Station` | 48 in | Distance from the post's end A (Z=0) to the underside of the housing, along the post's length. |
-| `Housing_Width` | *expr* `= <<TimberDims_T.AnchorBeam.001>>.Width` | Horizontal opening of the housing across the post face; tracks the beam's Width. Override with a literal to hold it off the beam size. |
-| `Housing_Height` | *expr* `= <<TimberDims_T.AnchorBeam.001>>.Depth` | Vertical opening of the housing along the post; tracks the beam's Depth. Override with a literal to hold it off the beam size. |
+| `Housing_Width` | *expr* `= <<TDim_T.AnchorBeam.001>>.Width` | Horizontal opening of the housing across the post face; tracks the beam's Width. Override with a literal to hold it off the beam size. |
+| `Housing_Height` | *expr* `= <<TDim_T.AnchorBeam.001>>.Depth` | Vertical opening of the housing along the post; tracks the beam's Depth. Override with a literal to hold it off the beam size. |
 | `Housing_Depth` | 1 in | Depth of the housing into the post, measured from post Face 4 (opposite reference Face 2). A deep housing spreads bearing across the full beam width. |
 | `Tenon_Thickness` | 2 in | Tenon thickness — horizontal across the landed beam, centered on the beam's width. |
-| `Tenon_Height` | *expr* `= <<TimberDims_T.AnchorBeam.001>>.Depth` | Tenon height at the mouth — the full beam depth, since the tenon's top is the beam's top face and only the underside is cut. |
+| `Tenon_Height` | *expr* `= <<TDim_T.AnchorBeam.001>>.Depth` | Tenon height at the mouth — the full beam depth, since the tenon's top is the beam's top face and only the underside is cut. |
 | `Dovetail_Angle` | 5° (`App::PropertyAngle`) | Rise of the tenon's underside from the tip toward the shoulder, off the beam's axis. The mortise floor matches it. |
 | `Tenon_Length` | 11 in | Tenon length from the beam's end A to the shoulder plane; must exceed the post's through-dimension so the tip emerges. |
 | `Wedge_Depth` | 1 1/4 in | Height of the mortise above the seated tenon — the wedge seat, left open above the beam so the wedge can be driven. Must be at least Tenon_Length × tan Dovetail_Angle or the tenon cannot enter. |
@@ -174,11 +182,11 @@ standalone Body — pads are fine on created parts.
 
 ## Part C — mortise side, on `T.Post.001`
 
-1. **Landing frame** `T.Post.001_JointFrame_J-WedgedHalfDovetail-000`:
+1. **Landing frame** `Socket.Lcs.WHD.000`:
    FlatFace on the post's `YZ_Plane` (canonical Face 4), offsets
-   - `Base.x = <<TimberDims_T.Post.001>>.Depth / 2`
+   - `Base.x = <<TDim_T.Post.001>>.Depth / 2`
    - `Base.y = <<J-WedgedHalfDovetail-000>>.Joint_Station + <<J-WedgedHalfDovetail-000>>.Housing_Height / 2`
-   - `Base.z = <<TimberDims_T.Post.001>>.Width - <<J-WedgedHalfDovetail-000>>.Housing_Depth`
+   - `Base.z = <<TDim_T.Post.001>>.Width - <<J-WedgedHalfDovetail-000>>.Housing_Depth`
 
    Origin at the centre of the beam's landing footprint, on the bearing
    plane. Axes: X across the post face, **Y up the post**, Z out of the
@@ -186,7 +194,7 @@ standalone Body — pads are fine on created parts.
    reads as above or below resolves along it, which is the whole reason
    the socket member must be plumb.
 2. **Housing.** Sketch
-   `T.Post.001_HousingSketch_J-WedgedHalfDovetail-000` on the frame's
+   `Housing.Skt.WHD.000` on the frame's
    **XY plane**: rectangle centred on the origin, half-extents
    `= <<J-WedgedHalfDovetail-000>>.Housing_Height / 2` and
    `= <<J-WedgedHalfDovetail-000>>.Housing_Width / 2` from the sketch
@@ -194,16 +202,16 @@ standalone Body — pads are fine on created parts.
 
    **Bind these to the joint VarSet, not to the beam's Dims.** Both
    properties already track the beam; reaching into
-   `TimberDims_T.AnchorBeam.001` from inside the post's body is the
+   `TDim_T.AnchorBeam.001` from inside the post's body is the
    §4.3 violation the strict `cross-timber-dims-reference` rule exists
    for — it survives apply but breaks silently on duplication, where
    the copy keeps driving off the *original* beam.
 
-   **Pocket** `T.Post.001_Housing_J-WedgedHalfDovetail-000`, outward
+   **Pocket** `Housing.WHD.000`, outward
    (Reversed as needed), Length
    `= <<J-WedgedHalfDovetail-000>>.Housing_Depth`.
 3. **Through mortise.** Sketch
-   `T.Post.001_MortiseSketch_J-WedgedHalfDovetail-000` on the frame's
+   `Mortise.Skt.WHD.000` on the frame's
    **YZ plane** — the elevation through the footprint centre:
    up-the-post × into-the-post. Driven dimensions:
    - opening height `= <<J-WedgedHalfDovetail-000>>.Tenon_Height + <<J-WedgedHalfDovetail-000>>.Wedge_Depth`
@@ -220,7 +228,7 @@ standalone Body — pads are fine on created parts.
      centre, which puts the mortise floor at the footprint's bottom
      edge and lets the surplus rise above the beam
 
-   **Pocket** `T.Post.001_Mortise_J-WedgedHalfDovetail-000`: Mode
+   **Pocket** `Mortise.WHD.000`: Mode
    **Symmetric** (`SideType`, enum index 2 — the `Midplane` boolean is
    deprecated and ignored in 1.1), Length
    `= <<J-WedgedHalfDovetail-000>>.Tenon_Thickness`. The sketch plane
@@ -237,7 +245,7 @@ at the top face (finding #14).
 one of them.
 
 1. **Landing frame**
-   `T.AnchorBeam.001_JointFrame_J-WedgedHalfDovetail-000`: FlatFace on
+   `Tail.Lcs.WHD.000`: FlatFace on
    the beam's `XY_Plane` (end A), **all offsets zero**.
 
    This frame sits at the section *corner*, which looks wrong next to
@@ -246,10 +254,10 @@ one of them.
    any offset you put here is discarded when the joint is applied to
    the far end. The frame that meets the post is the mate frame, D.2.
 2. **Mate frame**
-   `T.AnchorBeam.001_MateFrame_J-WedgedHalfDovetail-000`: "XY on plane"
+   `Mate.Lcs.WHD.000`: "XY on plane"
    on the landing frame's **XY plane** child, offsets
-   - `Base.x = <<TimberDims_T.AnchorBeam.001>>.Width / 2`
-   - `Base.y = <<TimberDims_T.AnchorBeam.001>>.Depth / 2`
+   - `Base.x = <<TDim_T.AnchorBeam.001>>.Width / 2`
+   - `Base.y = <<TDim_T.AnchorBeam.001>>.Depth / 2`
    - `Base.z = <<J-WedgedHalfDovetail-000>>.Tenon_Length`
 
    No rotation. Origin at the beam's section centre on the shoulder
@@ -259,19 +267,19 @@ one of them.
    `engagement_placement` returns None and applying the template cuts
    the joinery but seats nothing.
 3. **Cheek cuts (plan).** Sketch
-   `T.AnchorBeam.001_CheekSketch_J-WedgedHalfDovetail-000` on the
+   `Cheeks.Skt.WHD.000` on the
    frame's **XZ plane**: centreline construction line at
-   `= <<TimberDims_T.AnchorBeam.001>>.Width / 2`, two removal
+   `= <<TDim_T.AnchorBeam.001>>.Width / 2`, two removal
    rectangles flanking the tenon — outer edges on the section boundary
-   (`= <<TimberDims_T.AnchorBeam.001>>.Width / 2` from the centreline),
+   (`= <<TDim_T.AnchorBeam.001>>.Width / 2` from the centreline),
    inner edges at
    `= <<J-WedgedHalfDovetail-000>>.Tenon_Thickness / 2`, both spanning
    the stick axis from the end to
    `= <<J-WedgedHalfDovetail-000>>.Tenon_Length`.
-   **Pocket** `T.AnchorBeam.001_Cheeks_J-WedgedHalfDovetail-000`:
+   **Pocket** `Cheeks.WHD.000`:
    Through all, Symmetric.
 4. **Dovetail underside.** Sketch
-   `T.AnchorBeam.001_TailSlopeSketch_J-WedgedHalfDovetail-000` on the
+   `TailSlope.Skt.WHD.000` on the
    **landing frame's YZ plane** (not the body's origin plane — a sketch
    on the body plane will not follow the frame when the joint is
    re-placed). One removal region under the tenon, bounded by the
@@ -280,7 +288,7 @@ one of them.
    Angle constraint `= <<J-WedgedHalfDovetail-000>>.Dovetail_Angle`
    sloping so the cut **deepens toward the shoulder** — leaving the
    tenon full-depth at the tip.
-   **Pocket** `T.AnchorBeam.001_TailSlope_J-WedgedHalfDovetail-000`:
+   **Pocket** `TailSlope.WHD.000`:
    Through all across the full width.
 
 ---

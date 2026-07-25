@@ -47,15 +47,15 @@ class DuplicateBentTest(unittest.TestCase):
                                 "6 in", "8 in", "120 in")
         st = App.Units.Quantity("96 in")
         self.j1 = apply_joint(
-            self.doc, self.spec, "001", {"P0-1": self.p1, "B0-1": self.tb},
+            self.doc, self.spec, "001", {"T.Post.001": self.p1, "T.AnchorBeam.001": self.tb},
             values={"Joint_Station": st},
-            placement={"P0-1": {"face": 4, "hand": "template"},
-                       "B0-1": {"end": "A"}})
+            placement={"T.Post.001": {"face": 4, "hand": "template"},
+                       "T.AnchorBeam.001": {"end": "A"}})
         self.j2 = apply_joint(
-            self.doc, self.spec, "002", {"P0-1": self.p2, "B0-1": self.tb},
+            self.doc, self.spec, "002", {"T.Post.001": self.p2, "T.AnchorBeam.001": self.tb},
             values={"Joint_Station": st},
-            placement={"P0-1": {"face": 4, "hand": "mirrored"},
-                       "B0-1": {"end": "B"}})
+            placement={"T.Post.001": {"face": 4, "hand": "mirrored"},
+                       "T.AnchorBeam.001": {"end": "B"}})
 
     def tearDown(self):
         App.closeDocument(self.doc.Name)
@@ -89,7 +89,7 @@ class DuplicateBentTest(unittest.TestCase):
         new_bodies, _, _ = self.duplicate()
         copy_volumes = {b.Label: b.Shape.Volume for b in new_bodies.values()}
         self.doc.getObjectsByLabel(
-            "TimberDims_T-TieBeam-001")[0].Width = "7 in"
+            "TDim_T-TieBeam-001")[0].Width = "7 in"
         self.doc.recompute()
         for b in new_bodies.values():
             self.assertAlmostEqual(b.Shape.Volume, copy_volumes[b.Label],
@@ -97,7 +97,7 @@ class DuplicateBentTest(unittest.TestCase):
                                    msg=f"{b.Label} moved with the source")
         src_volumes = {b.Label: b.Shape.Volume for b in (self.p1, self.p2)}
         self.doc.getObjectsByLabel(
-            "TimberDims_T-TieBeam-002")[0].Width = "8 in"
+            "TDim_T-TieBeam-002")[0].Width = "8 in"
         self.doc.recompute()
         for b in (self.p1, self.p2):
             self.assertAlmostEqual(b.Shape.Volume, src_volumes[b.Label],

@@ -269,5 +269,174 @@ class LcsChildPlaneReference(unittest.TestCase):
         self.assertEqual(self.rule_findings(("BodyYZ", "")), [])
 
 
+def _naming_doc(frame_label="Socket.Lcs.K.001", frame_role="Landing",
+                cut_label="Housing.K.001", abbrev="K",
+                joint_label="J-K-001", body_label="T-Post-001",
+                second_frame=None):
+    """A minimal one-role joint: a landing frame and a cut, both bound to
+    the joint VarSet (which is what makes them joint members). Every
+    token the descriptive-first scheme cares about is a parameter."""
+    role = ("" if frame_role is None else
+            '<Property name="Frame_Role" type="App::PropertyString" '
+            f'group="TimberJoint" doc="d"><String value="{frame_role}" />'
+            '</Property>')
+    ab = ("" if abbrev is None else
+          '<Property name="Template_Abbrev" type="App::PropertyString" '
+          f'group="Template" doc="d"><String value="{abbrev}" /></Property>')
+    ref = _esc(f"<<{joint_label}>>") + ".Housing_Depth"
+    extra_decl = extra_data = extra_link = ""
+    if second_frame is not None:
+        label2, role2 = second_frame
+        extra_decl = ('<Object type="Part::LocalCoordinateSystem" '
+                      'name="Frame2" />')
+        extra_link = '<Link value="Frame2" />'
+        extra_data = f"""
+  <Object name="Frame2"><Properties Count="3">
+   <Property name="Label" type="App::PropertyString"><String value="{label2}" /></Property>
+   <Property name="Frame_Role" type="App::PropertyString" group="TimberJoint" doc="d"><String value="{role2}" /></Property>
+   <Property name="ExpressionEngine" type="App::PropertyExpressionEngine">
+    <ExpressionEngine count="1">
+     <Expression path=".AttachmentOffset.Base.z" expression="{ref}" />
+    </ExpressionEngine></Property>
+  </Properties></Object>"""
+    xml = f"""<?xml version="1.0"?>
+<Document SchemaVersion="4">
+ <Objects Count="4">
+  <Object type="App::VarSet" name="Joint" />
+  <Object type="PartDesign::Body" name="Body" />
+  <Object type="Part::LocalCoordinateSystem" name="Frame" />
+  <Object type="PartDesign::Pocket" name="Cut" />
+  {extra_decl}
+ </Objects>
+ <ObjectData Count="4">
+  <Object name="Joint"><Properties Count="3">
+   <Property name="Label" type="App::PropertyString"><String value="{joint_label}" /></Property>
+   <Property name="Housing_Depth" type="App::PropertyLength" group="Joint" doc="d"><Float value="12.7" /></Property>
+   {ab}
+  </Properties></Object>
+  <Object name="Body"><Properties Count="2">
+   <Property name="Label" type="App::PropertyString"><String value="{body_label}" /></Property>
+   <Property name="Group" type="App::PropertyLinkList"><LinkList count="2">
+    <Link value="Frame" /><Link value="Cut" />{extra_link}
+   </LinkList></Property>
+  </Properties></Object>
+  <Object name="Frame"><Properties Count="3">
+   <Property name="Label" type="App::PropertyString"><String value="{frame_label}" /></Property>
+   {role}
+   <Property name="ExpressionEngine" type="App::PropertyExpressionEngine">
+    <ExpressionEngine count="1">
+     <Expression path=".AttachmentOffset.Base.z" expression="{ref}" />
+    </ExpressionEngine></Property>
+  </Properties></Object>
+  <Object name="Cut"><Properties Count="2">
+   <Property name="Label" type="App::PropertyString"><String value="{cut_label}" /></Property>
+   <Property name="ExpressionEngine" type="App::PropertyExpressionEngine">
+    <ExpressionEngine count="1">
+     <Expression path="Length" expression="{ref}" />
+    </ExpressionEngine></Property>
+  </Properties></Object>{extra_data}
+ </ObjectData>
+</Document>"""
+    return FcstdDocument.from_xml(xml.encode("utf-8"))
+
+
+def _hits(rule, **kw):
+    return [f for f in lint_document(_naming_doc(**kw)) if f.rule == rule]
+
+
+class LegacyDimsPrefixGrandfathered(unittest.TestCase):
+    """The `TimberDims_` -> `TDim_` rename must not nag every existing
+    document: the prefix is a hint, the binding is resolved structurally
+    from the base pad's Length expression. The junction fixture above is
+    a full legacy-scheme document, so it pins this."""
+
+    def test_legacy_dims_label_is_not_flagged(self):
+        # the fixture labels its Dims 'TimberDims_P0-1' on body 'P0-1'
+        doc = synthetic_doc({"Housing_Depth": 12.7}, [], "1")
+        drift = [f for f in lint_document(doc)
+                 if f.rule == "naming-convention" and "Dims" in f.message]
+        self.assertEqual(drift, [])
+
+
+class FrameRoleRule(unittest.TestCase):
+    """Frame role is Tier-2 data, never a label substring: the retired
+    'JointFrame'/'MateFrame' match failed silently and left Preview,
+    Assemble and Duplicate inert."""
+
+    def test_declared_role_is_clean(self):
+        self.assertEqual(_hits("frame-role"), [])
+
+    def test_missing_role_is_strict(self):
+        hits = _hits("frame-role", frame_role=None)
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].severity, "strict")
+        self.assertIn("Frame_Role", hits[0].message)
+
+    def test_legacy_label_still_resolves(self):
+        # a pre-Frame_Role document keeps working through the fallback
+        self.assertEqual(
+            _hits("frame-role", frame_role=None,
+                  frame_label="T-Post-001_JointFrame_J-K-001"), [])
+
+    def test_two_landing_frames_in_one_role_is_strict(self):
+        hits = _hits("frame-role",
+                     second_frame=("Spare.Lcs.K.001", "Landing"))
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].severity, "strict")
+        self.assertIn("a role lands once", hits[0].message)
+
+    def test_a_mate_frame_alongside_a_landing_frame_is_clean(self):
+        self.assertEqual(
+            _hits("frame-role", second_frame=("Mate.Lcs.K.001", "Mate")), [])
+
+
+class JointFeatureLabelRule(unittest.TestCase):
+    def test_descriptive_first_label_is_clean(self):
+        self.assertEqual(_hits("joint-feature-label"), [])
+
+    def test_missing_joint_suffix_is_strict(self):
+        hits = _hits("joint-feature-label", cut_label="Housing")
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].severity, "strict")
+        self.assertIn(".K.001", hits[0].message)
+
+    def test_embedded_timber_name_is_strict(self):
+        # the template's OWN timber, which does not exist in the target
+        hits = _hits("joint-feature-label",
+                     cut_label="T-Post-001_Housing.K.001")
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].severity, "strict")
+        self.assertIn("T-Post-001", hits[0].message)
+
+    def test_legacy_joint_stays_advisory(self):
+        # 'Joint_<Kind>_<ID>' documents predate the convention
+        hits = _hits("joint-feature-label", joint_label="Joint_K_0a",
+                     abbrev=None, cut_label="Housing",
+                     frame_label="T-Post-001_JointFrame_K_0a")
+        self.assertTrue(hits)
+        self.assertTrue(all(f.severity == "advisory" for f in hits))
+
+
+class TemplateAbbrevRule(unittest.TestCase):
+    def test_declared_abbrev_is_clean(self):
+        self.assertEqual(_hits("template-abbrev"), [])
+
+    def test_missing_abbrev_is_advisory(self):
+        hits = _hits("template-abbrev", abbrev=None,
+                     cut_label="Housing_J-K-001",
+                     frame_label="Socket_J-K-001")
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].severity, "advisory")
+
+
+class DuplicateLabelRule(unittest.TestCase):
+    def test_two_features_sharing_a_label_are_flagged(self):
+        # the collision the timber-name drop introduces: a template whose
+        # two halves both name a feature 'Housing'
+        hits = _hits("duplicate-label", frame_label="Housing.K.001")
+        self.assertEqual(len(hits), 1)
+        self.assertIn("Housing.K.001", hits[0].label)
+
+
 if __name__ == "__main__":
     unittest.main()

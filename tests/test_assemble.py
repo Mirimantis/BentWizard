@@ -48,9 +48,9 @@ class TwoLevelAssemblyTest(unittest.TestCase):
     def joint(self, jid, post, beam, face=4, end="A"):
         from freecad.bentwizard.apply_joint import apply_joint
         return apply_joint(self.doc, self.spec, jid,
-                           {"P0-1": post, "B0-1": beam},
-                           placement={"P0-1": {"face": face},
-                                      "B0-1": {"end": end}})
+                           {"T.Post.001": post, "T.AnchorBeam.001": beam},
+                           placement={"T.Post.001": {"face": face},
+                                      "T.AnchorBeam.001": {"end": end}})
 
     def pi_bent(self, tag="1"):
         """post1 --endA--> beam <--endB-- post2 (the benttest shape:
@@ -242,7 +242,7 @@ class TwoLevelAssemblyTest(unittest.TestCase):
 
         # parametric bay width: the tie's Length drives Bent 2
         y_before = bent2.Placement.Base.y
-        dims = self.doc.getObjectsByLabel("TimberDims_T5-1")[0]
+        dims = self.doc.getObjectsByLabel("TDim_T5-1")[0]
         dims.Length = dims.Length.Value + 200
         self.doc.recompute()
         self.assertAlmostEqual(bent2.Placement.Base.y - y_before, 200,
