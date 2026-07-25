@@ -46,7 +46,7 @@ class ApplyJointTest(unittest.TestCase):
     def apply(self, joint_id="B3a", **kw):
         from freecad.bentwizard.apply_joint import apply_joint
         return apply_joint(self.doc, self.spec,
-                           joint_id, {"P0-1": self.post, "B0-1": self.beam},
+                           joint_id, {"T.Post.001": self.post, "T.AnchorBeam.001": self.beam},
                            **kw)
 
     def cuts(self):
@@ -71,9 +71,9 @@ class ApplyJointTest(unittest.TestCase):
         self.beam.Label = "Beam Renamed"
         vs = self.apply()
         engine = {p.lstrip("."): e for p, e in vs.ExpressionEngine}
-        self.assertIn("<<TimberDims_B3-1>>", engine["Housing_Width"])
+        self.assertIn("<<TDim_B3-1>>", engine["Housing_Width"])
         cut0, _ = self.cuts()
-        self.doc.getObjectsByLabel("TimberDims_B3-1")[0].Width = "8 in"
+        self.doc.getObjectsByLabel("TDim_B3-1")[0].Width = "8 in"
         self.doc.recompute()
         cut1, _ = self.cuts()
         self.assertGreater(cut1, cut0)
@@ -81,7 +81,7 @@ class ApplyJointTest(unittest.TestCase):
     def test_junction_binding_tracks_mating_timber(self):
         self.apply()
         cut0, _ = self.cuts()
-        dims = self.doc.getObjectsByLabel("TimberDims_B3-1")[0]
+        dims = self.doc.getObjectsByLabel("TDim_B3-1")[0]
         dims.Width = "8 in"                     # widen the beam
         self.doc.recompute()
         cut1, _ = self.cuts()
@@ -111,7 +111,7 @@ class ApplyJointTest(unittest.TestCase):
 
     def test_end_b_tenon(self):
         import math
-        self.apply(placement={"B0-1": {"end": "B"}})
+        self.apply(placement={"T.AnchorBeam.001": {"end": "B"}})
         _, beam_cut = self.cuts()
         self.assertAlmostEqual(beam_cut, 144 + math.pi * 0.25 * 2, places=3)
         # end A untouched; end B slab = tenon minus its drawbore passage
@@ -123,14 +123,14 @@ class ApplyJointTest(unittest.TestCase):
         import math
         self.apply("B3a", values={"Joint_Station": App.Units.Quantity("60 in")})
         self.apply("B3b", values={"Joint_Station": App.Units.Quantity("20 in")},
-                   placement={"B0-1": {"end": "B"}})
+                   placement={"T.AnchorBeam.001": {"end": "B"}})
         _, beam_cut = self.cuts()
         self.assertAlmostEqual(beam_cut, 2 * (144 + math.pi * 0.25 * 2),
                                places=3)
 
     def test_end_b_output_lints_clean(self):
         from freecad.bentwizard.linter import lint
-        self.apply(placement={"B0-1": {"end": "B"}})
+        self.apply(placement={"T.AnchorBeam.001": {"end": "B"}})
         with tempfile.TemporaryDirectory() as td:
             path = str(Path(td) / "endb.FCStd")
             self.doc.saveAs(path)
@@ -139,7 +139,7 @@ class ApplyJointTest(unittest.TestCase):
     def test_end_b_only_for_end_landing_roles(self):
         from freecad.bentwizard.apply_joint import JointError
         with self.assertRaises(JointError):
-            self.apply(placement={"P0-1": {"end": "B"}})
+            self.apply(placement={"T.Post.001": {"end": "B"}})
 
     def test_datums_rebuilt_before_dependents(self):
         # Regression (wedged half-dovetail cheeks not cut): a sketch may
@@ -164,8 +164,8 @@ class ApplyJointTest(unittest.TestCase):
                             f"rebuild order — dependents would miss it")
 
     def test_template_metadata_defaults(self):
-        # the shipped template predates the Template group: hand stays
-        # offered, no angle bounds
+        # the shipped template declares Template_Handed True (hand stays
+        # offered, as it was when the flag was absent) and no angle bounds
         self.assertTrue(self.spec.handed)
         self.assertIsNone(self.spec.angle_min)
         self.assertIsNone(self.spec.angle_max)
@@ -223,7 +223,7 @@ class ApplyJointTest(unittest.TestCase):
                     continue
                 for o in doc.Objects:
                     if o.TypeId == "App::VarSet" \
-                            and o.Label == f"TimberDims_{body.Label}":
+                            and o.Label == f"TDim_{body.Label}":
                         body.addObject(o)
             doc.recompute()
             with tempfile.TemporaryDirectory() as td:
@@ -246,19 +246,23 @@ class ApplyJointTest(unittest.TestCase):
         before = {o.Name for o in self.doc.Objects
                   if o.TypeId == "App::VarSet"}
         vs = apply_joint(self.doc, spec, "N1",
-                         {"P0-1": self.post, "B0-1": self.beam})
+                         {"T.Post.001": self.post, "T.AnchorBeam.001": self.beam})
         added = [o for o in self.doc.Objects
                  if o.TypeId == "App::VarSet" and o.Name not in before]
         self.assertEqual([o.Label for o in added], [vs.Label],
                          "apply added a VarSet besides the joint's own")
         # and the timbers' real Dims still drive them
-        self.assertIsNotNone(self.doc.getObjectsByLabel("TimberDims_P3-1"))
+        self.assertIsNotNone(self.doc.getObjectsByLabel("TDim_P3-1"))
 
     def test_template_metadata_is_name_keyed_not_group_keyed(self):
         # Regression: metadata was read from the property GROUP, so a
         # Template_Handed sitting in the 'Joint' group (where the first
         # hand-authored template put it) was silently ignored.
         def mutate(vs):
+            # the template now ships Template_Handed in the 'Template'
+            # group — drop it so the flag really is read from the 'Joint'
+            # group this test is about
+            vs.removeProperty("Template_Handed")
             vs.addProperty("App::PropertyBool", "Template_Handed",
                            "Joint", "test: symmetrical joint")
             vs.Template_Handed = False
@@ -272,19 +276,19 @@ class ApplyJointTest(unittest.TestCase):
         from freecad.bentwizard.apply_joint import apply_joint, JointError
 
         def mutate(vs):
-            vs.addProperty("App::PropertyBool", "Template_Handed",
-                           "Template", "test: symmetrical joint")
+            # shipped as True by the template; this test needs the
+            # symmetrical case
             vs.Template_Handed = False
 
         spec = self._modified_template(mutate)
         self.assertFalse(spec.handed)
         with self.assertRaises(JointError):
             apply_joint(self.doc, spec, "H1",
-                        {"P0-1": self.post, "B0-1": self.beam},
-                        placement={"P0-1": {"hand": "mirrored"}})
+                        {"T.Post.001": self.post, "T.AnchorBeam.001": self.beam},
+                        placement={"T.Post.001": {"hand": "mirrored"}})
         # the template hand still applies
         apply_joint(self.doc, spec, "H2",
-                    {"P0-1": self.post, "B0-1": self.beam})
+                    {"T.Post.001": self.post, "T.AnchorBeam.001": self.beam})
 
     def test_angle_bounds_clamp_angle_parameters(self):
         from freecad.bentwizard.apply_joint import apply_joint, JointError
@@ -304,10 +308,10 @@ class ApplyJointTest(unittest.TestCase):
         self.assertEqual((spec.angle_min, spec.angle_max), (30.0, 60.0))
         # in range applies; out of range refused before cutting
         apply_joint(self.doc, spec, "A1",
-                    {"P0-1": self.post, "B0-1": self.beam})
+                    {"T.Post.001": self.post, "T.AnchorBeam.001": self.beam})
         with self.assertRaises(JointError):
             apply_joint(self.doc, spec, "A2",
-                        {"P0-1": self.post, "B0-1": self.beam},
+                        {"T.Post.001": self.post, "T.AnchorBeam.001": self.beam},
                         values={"Test_Angle": App.Units.Quantity("70 deg")})
 
     def _face_slabs(self):
@@ -331,10 +335,10 @@ class ApplyJointTest(unittest.TestCase):
         for face in (1, 2, 3, 4):
             with self.subTest(face=face):
                 vs = self.apply(f"F{face}",
-                                placement={"P0-1": {"face": face}})
+                                placement={"T.Post.001": {"face": face}})
                 post_cut, _ = self.cuts()
                 slabs = self._face_slabs()
-                self._remove_joint(vs, f"J-HousedMT-F{face}")  # before asserts
+                self._remove_joint(vs)  # before asserts
                 # the peg bore crosses the across-face extent: the 10 in
                 # Width on faces 1/3, the 8 in Depth on faces 2/4
                 bore_len = 10 if face in (1, 3) else 8
@@ -344,12 +348,23 @@ class ApplyJointTest(unittest.TestCase):
                 self.assertEqual(max(slabs, key=slabs.get), face,
                                  f"housing did not land on face {face}: {slabs}")
 
-    def _remove_joint(self, varset, tag):
+    def _remove_joint(self, varset):
+        # members carry the joint's suffix ('.HMT.F2') — ask naming for it
+        # rather than spelling a label form here, so this helper cannot
+        # silently strip nothing when the scheme changes (it did exactly
+        # that during the descriptive-first rework, and the leftover cuts
+        # surfaced as an invalid shape two subTests later)
+        from freecad.bentwizard import naming
+        suffix = naming.joint_suffix_for(
+            varset.Label, getattr(varset, naming.TEMPLATE_ABBREV, None))
         self.doc.removeObject(varset.Name)
+        removed = 0
         for body in (self.post, self.beam):
             for o in reversed(list(body.Group)):   # dependents first
-                if tag in o.Label:
+                if o.Label.endswith(suffix):
                     self.doc.removeObject(o.Name)
+                    removed += 1
+        self.assertTrue(removed, f"no joint members matched {suffix!r}")
         self.doc.recompute()
 
     def _mortise_probe(self, face):
@@ -394,13 +409,13 @@ class ApplyJointTest(unittest.TestCase):
                     f"S{face}",
                     values={"Joint_Station": App.Units.Quantity("60 in"),
                             "Tenon_Setback_Face2": App.Units.Quantity("1 in")},
-                    placement={"P0-1": {"face": face}})
+                    placement={"T.Post.001": {"face": face}})
                 expected, mirror = self._mortise_probe(face)
                 self.assertAlmostEqual(expected, 0.0, places=3,
                                        msg=f"face {face}: mortise void missing")
                 self.assertGreater(mirror, 25,
                                    msg=f"face {face}: mortise mirrored")
-                self._remove_joint(vs, f"J-HousedMT-S{face}")
+                self._remove_joint(vs)
 
     def test_mirrored_hand_swaps_the_mortise_side(self):
         # §4.6 handed mate: same asymmetric setback, hand mirrored — the
@@ -412,9 +427,9 @@ class ApplyJointTest(unittest.TestCase):
                     f"H{face}",
                     values={"Joint_Station": App.Units.Quantity("60 in"),
                             "Tenon_Setback_Face2": App.Units.Quantity("1 in")},
-                    placement={"P0-1": {"face": face, "hand": "mirrored"}})
+                    placement={"T.Post.001": {"face": face, "hand": "mirrored"}})
                 expected, mirror = self._mortise_probe(face)
-                self._remove_joint(vs, f"J-HousedMT-H{face}")
+                self._remove_joint(vs)
                 self.assertGreater(expected, 25,
                                    msg=f"face {face}: mirrored hand cut the "
                                        f"template side")
@@ -425,7 +440,7 @@ class ApplyJointTest(unittest.TestCase):
     def test_mirrored_hand_volume_and_lint(self):
         import math
         from freecad.bentwizard.linter import lint
-        self.apply(placement={"P0-1": {"hand": "mirrored"}})
+        self.apply(placement={"T.Post.001": {"hand": "mirrored"}})
         post_cut, _ = self.cuts()
         self.assertAlmostEqual(
             post_cut, 24 + 51 + math.pi * 0.25 * 8 - math.pi * 0.25 * 2,
@@ -438,16 +453,16 @@ class ApplyJointTest(unittest.TestCase):
     def test_hand_only_for_side_landing_roles(self):
         from freecad.bentwizard.apply_joint import JointError
         with self.assertRaises(JointError):
-            self.apply(placement={"B0-1": {"hand": "mirrored"}})
+            self.apply(placement={"T.AnchorBeam.001": {"hand": "mirrored"}})
 
     def test_face_only_for_side_landing_roles(self):
         from freecad.bentwizard.apply_joint import JointError
         with self.assertRaises(JointError):
-            self.apply(placement={"B0-1": {"face": 2}})
+            self.apply(placement={"T.AnchorBeam.001": {"face": 2}})
 
     def test_face_output_lints_clean(self):
         from freecad.bentwizard.linter import lint
-        self.apply(placement={"P0-1": {"face": 1}})
+        self.apply(placement={"T.Post.001": {"face": 1}})
         with tempfile.TemporaryDirectory() as td:
             path = str(Path(td) / "face1.FCStd")
             self.doc.saveAs(path)
@@ -463,7 +478,7 @@ class ApplyJointTest(unittest.TestCase):
         v_post = self.post.Shape.Volume
         with self.assertRaises(JointError) as ctx:
             apply_joint(self.doc, self.spec, "B9x",
-                        {"P0-1": self.post, "B0-1": small})
+                        {"T.Post.001": self.post, "T.AnchorBeam.001": small})
         self.assertIn("does not fit", str(ctx.exception))
         self.doc.recompute()
         self.assertAlmostEqual(self.post.Shape.Volume, v_post, places=6)
@@ -495,7 +510,7 @@ class ApplyJointTest(unittest.TestCase):
                                          App.Units.Quantity("60 in")})
         self.apply("B3b", values={"Joint_Station":
                                   App.Units.Quantity("20 in")},
-                   placement={"B0-1": {"end": "B"}})
+                   placement={"T.AnchorBeam.001": {"end": "B"}})
         remove_joint(vs_a)
         post_cut, beam_cut = self.cuts()
         self.assertAlmostEqual(post_cut,
@@ -535,9 +550,9 @@ class ApplyJointTest(unittest.TestCase):
         mover.Placement = seated
         self.doc.recompute()
         landing = self.doc.getObjectsByLabel(
-            "P3-1_JointFrame_J-HousedMT-B3a")[0].getGlobalPlacement()
+            "Mortise.Lcs.HMT.B3a")[0].getGlobalPlacement()
         mate = self.doc.getObjectsByLabel(
-            "B3-1_MateFrame_J-HousedMT-B3a")[0].getGlobalPlacement()
+            "Mate.Lcs.HMT.B3a")[0].getGlobalPlacement()
         self.assertLess(mate.Base.sub(landing.Base).Length, 1e-6)
         # axes coincide too (not just origins)
         for v in (App.Vector(1, 0, 0), App.Vector(0, 1, 0)):
@@ -570,19 +585,19 @@ class ApplyJointTest(unittest.TestCase):
         # orientation or the beam seats backwards (live bent bug).
         for jid, end in (("A", "A"), ("B", "B")):
             with self.subTest(end=end):
-                vs = self.apply(f"E{jid}", placement={"B0-1": {"end": end}})
+                vs = self.apply(f"E{jid}", placement={"T.AnchorBeam.001": {"end": end}})
                 inter, out = self._seated_interference(vs)
                 self.assertLess(inter, 1.0,
                                 f"end {end}: {inter:.1f} in^3 interference — "
                                 f"beam driving through the post")
                 self.assertTrue(out, f"end {end}: beam does not reach out")
-                self._remove_joint(vs, f"J-HousedMT-E{jid}")
+                self._remove_joint(vs)
 
     def test_engagement_none_without_mate_frame(self):
         # a joint whose mate frame was removed (older joints) → no pose
         from freecad.bentwizard.apply_joint import engagement_placement
         vs = self.apply()
-        mate = self.doc.getObjectsByLabel("B3-1_MateFrame_J-HousedMT-B3a")[0]
+        mate = self.doc.getObjectsByLabel("Mate.Lcs.HMT.B3a")[0]
         self.doc.removeObject(mate.Name)
         self.doc.recompute()
         self.assertIsNone(engagement_placement(vs))
@@ -671,17 +686,17 @@ class ApplyJointTest(unittest.TestCase):
     def test_preview_none_without_mate_frame(self):
         from freecad.bentwizard.apply_joint import create_preview
         vs = self.apply()
-        mate = self.doc.getObjectsByLabel("B3-1_MateFrame_J-HousedMT-B3a")[0]
+        mate = self.doc.getObjectsByLabel("Mate.Lcs.HMT.B3a")[0]
         self.doc.removeObject(mate.Name)
         self.doc.recompute()
         self.assertIsNone(create_preview(vs))
 
     def test_placement_record_written(self):
-        vs = self.apply(placement={"P0-1": {"face": 2, "hand": "mirrored"},
-                                   "B0-1": {"end": "B"}})
+        vs = self.apply(placement={"T.Post.001": {"face": 2, "hand": "mirrored"},
+                                   "T.AnchorBeam.001": {"end": "B"}})
         self.assertEqual(
             vs.Placement_Record,
-            "P0-1 -> P3-1: face 2, hand mirrored; B0-1 -> B3-1: end B")
+            "T.Post.001 -> P3-1: face 2, hand mirrored; T.AnchorBeam.001 -> B3-1: end B")
 
     def test_joint_label_and_tree_placement(self):
         # new scheme: J-<Kind>-<serial>, kind token from the template's
@@ -735,9 +750,9 @@ class ApplyJointTest(unittest.TestCase):
                                          "6 in", "8 in", "8 ft")
                     vs = apply_joint(
                         self.doc, self.spec, f"M{face}{end}",
-                        {"P0-1": post, "B0-1": beam},
-                        placement={"P0-1": {"face": face},
-                                   "B0-1": {"end": end}})
+                        {"T.Post.001": post, "T.AnchorBeam.001": beam},
+                        placement={"T.Post.001": {"face": face},
+                                   "T.AnchorBeam.001": {"end": end}})
                     mover, _anchor, seated = engagement_placement(vs)
                     self.assertIs(mover, beam)
                     beam.Placement = seated

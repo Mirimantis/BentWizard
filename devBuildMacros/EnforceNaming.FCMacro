@@ -28,27 +28,34 @@ import FreeCAD as App
 # ---------------------------------------------------------------------------
 NAMING_RULES = (
     ("PartDesign::Body", "timber Body",
-     "MemberID: [RolePrefix][Bent]-[Position] — e.g. P2-1; bay ref for longitudinal members, e.g. PU-B2-3"),
+     "permanent identity, never position — free-form ending in separator "
+     "+ serial, e.g. T-Post-Level1-003 or T.Post.Balcony.001"),
     ("App::VarSet", "VarSet",
-     "Kind_Owner — e.g. TimberDims_P2-1, Joint_MT_B2a, Project_Main"),
+     "Kind_Owner — e.g. TDim_T.Post.001, Project_Main; a joint VarSet "
+     "carries its own J-<Kind>-<serial> label"),
     ("Sketcher::SketchObject", "Sketch",
-     "body-qualified — MemberID_Feature_JointID, e.g. P2-1_MortiseProfile_MT_B2a"),
+     "descriptive-first — <Descriptive>.Skt.<Abbrev>.<serial>, "
+     "e.g. Mortise.Skt.HMT.001 (a timber's own section sketch: Section.Skt.T-Post-001)"),
     # FreeCAD 1.x unified datums live in the Part namespace (the body
     # origin's planes/lines are App::Plane/App::Line, so no collision).
     ("Part::DatumPlane", "datum plane",
-     "body-qualified, says what it references — e.g. P2-1_BearingPlane_MT_B2a"),
+     "descriptive-first — <Descriptive>.Dtm.<Abbrev>.<serial>, "
+     "e.g. ShoulderA.Dtm.HMT.001"),
     ("Part::DatumLine", "datum line",
-     "body-qualified, says what it references"),
+     "descriptive-first — <Descriptive>.Dln.<Abbrev>.<serial>"),
     ("Part::DatumPoint", "datum point",
-     "body-qualified, says what it references"),
+     "descriptive-first — <Descriptive>.Dpt.<Abbrev>.<serial>"),
     ("Part::LocalCoordinateSystem", "datum LCS",
-     "body-qualified, says what it references"),
+     "descriptive-first — <Descriptive>.Lcs.<Abbrev>.<serial>, "
+     "e.g. Mate.Lcs.HMT.001; also needs a Frame_Role property "
+     "('Landing' or 'Mate')"),
     ("Spreadsheet::Sheet", "spreadsheet",
      "Kind_Owner — e.g. Order_Main"),
     # Catch-all for PartDesign features (Pocket, Pad, Hole, ...). Origin
     # objects are App::* types, so they never reach this table.
     ("PartDesign::", "PartDesign feature",
-     "body-qualified — MemberID_Feature_JointID, e.g. P2-1_Mortise_MT_B2a"),
+     "descriptive-first, the cut bare — <Descriptive>.<Abbrev>.<serial>, "
+     "e.g. Mortise.HMT.001 (a timber's own pad: Stick.T-Post-001)"),
 )
 
 _ATTR = "_bentwizard_enforce_naming"  # singleton slot on the FreeCAD module

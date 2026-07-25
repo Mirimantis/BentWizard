@@ -33,8 +33,8 @@ Dims, lint clean, no label collisions.
 Select `P1-1` then `TB1-1` (order preseeds the roles), Apply Joint:
 - Template: `Joint_HousedMT`
 - Joint ID: `1a`
-- `P0-1` timber `P1-1`, **face Face 4**, **hand As templated**
-- `B0-1` timber `TB1-1`, **end End A**
+- `T.Post.001` timber `P1-1`, **face Face 4**, **hand As templated**
+- `T.AnchorBeam.001` timber `TB1-1`, **end End A**
 - Joint_Station: **96 in** (leaves 4 in of post above the footprint)
 - everything else default
 
@@ -44,8 +44,8 @@ Expect: post cut ≈ 79.7 in³, beam End A cut ≈ 145.6 in³.
 
 Select `P1-2` then `TB1-1`, Apply Joint:
 - Joint ID: `1b`
-- `P0-1` timber `P1-2`, **face Face 4**, **hand Mirrored (handed pair)**
-- `B0-1` timber `TB1-1`, **end End B**
+- `T.Post.001` timber `P1-2`, **face Face 4**, **hand Mirrored (handed pair)**
+- `T.AnchorBeam.001` timber `TB1-1`, **end End B**
 - Joint_Station: **96 in**
 
 Expect: the beam now cut at *both* ends (total ≈ 291 in³), `P1-2` mirror

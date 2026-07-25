@@ -55,7 +55,7 @@ def find_template(kind, library_dir, source_name=None):
 def _role_body_map(varset, template):
     """{role label -> body} for a joint, from its placement record,
     with a structural fallback (mate-frame carrier -> the template role
-    whose stack carries the MateFrame)."""
+    whose stack carries the Frame_Role='Mate' frame)."""
     doc = varset.Document
     frames = joint_role_frames(varset)
     record = getattr(varset, "Placement_Record", "")
@@ -68,7 +68,8 @@ def _role_body_map(varset, template):
     # structural fallback (e.g. a body renamed after apply)
     mate_role = next(
         (role for role, stack in template.roles.items()
-         if any("MateFrame" in s["label"] for s in stack)), None)
+         if any(s.get("frame_role") == naming.FRAME_ROLE_MATE
+                for s in stack)), None)
     roles = list(template.roles)
     if mate_role is None or len(roles) != 2 or len(frames) != 2:
         raise JointError(
@@ -190,6 +191,12 @@ def duplicate_bent(doc, member_map, joint_id_map, library_dir,
         exprs = {p.lstrip("."): e for p, e in varset.ExpressionEngine}
         values = {}
         for p in template.parameters:
+            if p["metadata"]:
+                # Template_* metadata describes the TEMPLATE, not this
+                # joint — apply_joint takes it from the template itself.
+                # (It is not a dimension either: Template_Abbrev is a
+                # string, which the Quantity branch below cannot carry.)
+                continue
             if p["name"] in exprs:
                 expr = exprs[p["name"]]
                 for old, new in label_renames.items():

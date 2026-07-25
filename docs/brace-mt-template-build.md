@@ -40,7 +40,8 @@ first; exit code 1 means strict findings remain. Lint after each part
 — it is much easier to place a finding when only one part is new.
 
 Conventions as in the housed-dovetail recipe: production-scheme
-placeholder names, body-qualified feature labels, tree-picked
+placeholder names, descriptive-first feature labels (abbrev `BMT`),
+tree-picked
 references only, activate the body first, lines/circles only, no
 shoulder datums.
 
@@ -104,17 +105,17 @@ metadata exists):
 
 ## Part C — mortise side, on `T-Post-001`
 
-1. **Landing frame** `T-Post-001_JointFrame_J-BraceMT-000`: FlatFace on
+1. **Landing frame** `Mortise.Lcs.BMT.000`: FlatFace on
    the post's `YZ_Plane` (canonical Face 4), offsets:
-   - `Base.x = <<TimberDims_T-Post-001>>.Depth / 2`
+   - `Base.x = <<TDim_T-Post-001>>.Depth / 2`
    - `Base.y = <<J-BraceMT-000>>.Joint_Station`
-   - `Base.z = <<TimberDims_T-Post-001>>.Width`
+   - `Base.z = <<TDim_T-Post-001>>.Width`
    No housing, so the frame origin sits **on the post's face**, at the
    brace-centerline crossing. Axes: X across the face, Y up the post,
    Z out of the wood. (Face selection still works: the z-mode
    complement turns `Width` into `Width − Width = 0` on face 2, i.e.
    the near face — correct for an unhoused joint.)
-2. **Mortise.** Sketch `T-Post-001_MortiseSketch_J-BraceMT-000` on the
+2. **Mortise.** Sketch `Mortise.Skt.BMT.000` on the
    frame's **YZ plane** — the elevation containing the post's axis and
    the entry direction; the joint plane. Draw:
    - **entry centerline** (construction): from the origin, running
@@ -135,7 +136,7 @@ metadata exists):
      from the origin, closing the slot
    The profile is a trapezoid: two angled flanks, the mouth in the
    face, the floor square to the entry axis.
-   **Pocket** `T-Post-001_Mortise_J-BraceMT-000`: Mode **Symmetric**
+   **Pocket** `Mortise.BMT.000`: Mode **Symmetric**
    (file property `SideType`, enum index 2; the `Midplane` boolean is
    deprecated in 1.1), Length `= <<J-BraceMT-000>>.Tenon_Thickness`.
    The sketch plane runs mid-face, so the slot centers on the brace's
@@ -158,15 +159,15 @@ frames in all: landing, mate, and shoulder.
 **Build both frames before any sketch.** Every sketch below lands on
 one of them, and a sketch created first has nothing to attach to.
 
-1. **Landing frame** `T-Brace-001_JointFrame_J-BraceMT-000`: FlatFace
+1. **Landing frame** `Tenon.Lcs.BMT.000`: FlatFace
    on the brace's `XY_Plane` (end A), zero offsets. This one sits at
    the section corner and is *not* the frame that aligns with the post
    — leave the offsets at zero, since end-B placement rewrites
    `Base.z` to `Dims.Length`.
-2. **Mate frame** `T-Brace-001_MateFrame_J-BraceMT-000`: attach "XY on
+2. **Mate frame** `Mate.Lcs.BMT.000`: attach "XY on
    plane" to the landing frame's **XY plane** child. Offsets:
-   - `Base.x = <<TimberDims_T-Brace-001>>.Width / 2`
-   - `Base.y = <<TimberDims_T-Brace-001>>.Depth / 2`
+   - `Base.x = <<TDim_T-Brace-001>>.Width / 2`
+   - `Base.y = <<TDim_T-Brace-001>>.Depth / 2`
    - `Base.z = <<J-BraceMT-000>>.Tenon_Length`
    - **Rotation**: Axis (1, 0, 0); on `AttachmentOffset.Rotation.Angle`
      set the expression `= 90 ° - <<J-BraceMT-000>>.Brace_Angle`
@@ -178,7 +179,7 @@ one of them, and a sketch created first has nothing to attach to.
    engaged it coincides axis-for-axis with the post's landing frame
    (X out of the joint plane, Y up the post, Z out of the post face),
    and it is what makes Preview and auto-assembly work.
-3. **Shoulder frame** `T-Brace-001_ShoulderFrame_J-BraceMT-000`:
+3. **Shoulder frame** `Shoulder.Lcs.BMT.000`:
    attached and placed **identically to the mate frame** — same
    support, same three Base expressions, same Rotation axis and Angle
    expression. A separate LCS on purpose: the mate frame is an
@@ -186,11 +187,11 @@ one of them, and a sketch created first has nothing to attach to.
    flip rewrites its rotation), and cut geometry must never ride on
    it. The cheek sketch in step 5 lands here.
 4. **Shoulder + tenon-band cut (elevation).** Sketch
-   `T-Brace-001_ShoulderSketch_J-BraceMT-000` on the **landing**
+   `Shoulder.Skt.BMT.000` on the **landing**
    frame's **YZ plane** (the Face-2 reference plane — the joint
    plane):
    - construction **centerline** along the stick at
-     `= <<TimberDims_T-Brace-001>>.Depth / 2`
+     `= <<TDim_T-Brace-001>>.Depth / 2`
    - construction **shoulder line** through the centerline at Distance
      `= <<J-BraceMT-000>>.Tenon_Length` from the stick end (measured
      along the centerline), with an Angle constraint
@@ -203,24 +204,24 @@ one of them, and a sketch created first has nothing to attach to.
    - **lower removal quadrilateral**: mirror of the upper — band
      bottom at `Tenon_Height / 2` below the centerline, down to the
      underside, stick end back to the shoulder line
-   **Pocket** `T-Brace-001_Shoulder_J-BraceMT-000`: Through all, one
+   **Pocket** `Shoulder.BMT.000`: Through all, one
    direction across the full width (the sketch lies on the reference
    face). This leaves a full-width band, its end faces on the oblique
    shoulder plane.
 5. **Cheek cuts (on the shoulder plane).** Sketch
-   `T-Brace-001_CheekSketch_J-BraceMT-000` on the **shoulder frame's
+   `Cheeks.Skt.BMT.000` on the **shoulder frame's
    XY plane** (tree-select its plane child):
    - centerline construction line through the origin along the
      frame's in-plane (Y) axis
    - two removal rectangles flanking the tenon: inner edges at
      `= <<J-BraceMT-000>>.Tenon_Thickness / 2` each side of the
      centerline, outer edges at
-     `= <<TimberDims_T-Brace-001>>.Width / 2` (the section flanks);
+     `= <<TDim_T-Brace-001>>.Width / 2` (the section flanks);
      in the other direction span generously —
-     `= <<TimberDims_T-Brace-001>>.Depth` past the origin both ways
+     `= <<TDim_T-Brace-001>>.Depth` past the origin both ways
      covers the oblique section at any angle in the template's range
      (removal regions may hang into air)
-   **Pocket** `T-Brace-001_Cheeks_J-BraceMT-000`: Through all,
+   **Pocket** `Cheeks.BMT.000`: Through all,
    direction **toward the stick end** (away from the brace's body).
    Everything forward of the shoulder plane beside the tenon goes; the
    shoulder plane itself and the body behind it must remain — verify

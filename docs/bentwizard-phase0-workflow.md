@@ -55,9 +55,14 @@ existing files):
 - **Joint instances**: `J-<Kind>-<serial>` — `J-HousedMT-001`. The kind
   token comes from the library template's file stem.
 - **VarSet labels**: `Kind_Owner` with a descriptive kind prefix —
-  `TimberDims_T-Post-003`, `Group_LoftDovetail`, `Project_Main`,
+  `TDim_T-Post-003`, `Group_LoftDovetail`, `Project_Main`,
   `Order_Main`; joint VarSets carry the joint's own `J-<Kind>-<serial>`
-  label (one VarSet per joint instance, the VarSet IS the joint).
+  label (one VarSet per joint instance, the VarSet IS the joint). The
+  Dims prefix was shortened from `TimberDims_` (July 2026) — it is the
+  longest thing in a body's tree row. Existing `TimberDims_` VarSets are
+  **grandfathered, not migrated**: the prefix is only a hint, and both
+  Apply-Joint and the linter resolve a body's Dims structurally from the
+  base pad's `Length` expression.
 - **Tree organization** (pure organization, zero geometric effect): each
   Dims VarSet nests inside its timber's Body; joint VarSets live in a
   `TimberJointVars` Std Group (renamed from `Joints`, which collides
@@ -66,7 +71,13 @@ existing files):
   Std Groups of Bodies — Duplicate Timbers can create one for the copies.
 - **Property names**: `Part_Attribute[_Qualifier]`, most-significant first: `Tenon_Thickness`, `Tenon_Setback_Face2`, `Housing_Depth`, `Peg_Drawbore_Offset`, `Peg_Count`. Reference-face qualifiers use `_Face1`/`_Face2` (stable regardless of timber orientation; Face 1 = XZ-plane face, Face 2 = YZ-plane face). Alphabetical property sorting then clusters each part's parameters automatically.
 - **Tooltips**: mandatory on every template-defined property, written by the template author, cloned on apply. As brief as possible while still informative; always states which face/end it measures from; timber framing terminology. Missing tooltip = advisory linter failure.
-- **Joint features within bodies**: body-qualified to avoid document-unique label collisions — convention `<TimberLabel>_<Feature>_<JointLabel>` (e.g. `T-Post-003_Mortise_J-HousedMT-001`; legacy `P2-1_Mortise_MT_B2a`).
+- **Joint features within bodies**: **descriptive-first** (reworked July 2026) — `<Descriptive>[.<TypeTag>].<Abbrev>.<serial>`, e.g. `Mortise.HMT.001`, `TailSlope.Skt.WHD.001`, `Mate.Lcs.WHD.001`. The name you scan for comes first; the retired `<TimberLabel>_<Feature>_<JointLabel>` form buried it between two long tokens (`T.AnchorBeam.001_TailSlopeSketch_J-WedgedHalfDovetail-000`, 57 characters).
+  - **The cut is bare**, everything that produces it is tagged: `.Skt` sketch, `.Lcs` local coordinate system, `.Dtm`/`.Dln`/`.Dpt` datums. Pockets, pads, holes and grooves carry no tag.
+  - `<Abbrev>` is the template's `Template_Abbrev` (`WHD`, `HMT`); `<serial>` matches the joint instance's own serial. **Apply-Joint rewrites exactly this suffix**, so a template feature missing it keeps its template name in every applied model — hence the strict lint rule. A template without `Template_Abbrev` falls back to the long `_J-<Kind>-<serial>` suffix: correct, just verbose.
+  - The timber name is gone because nothing needed it: joint membership is structural (the expression graph — see `apply_joint.joint_members`), no expression ever targets a feature label, and the tree already nests the feature under its Body.
+  - **Within a template, feature labels must be unique across BOTH halves** — that is what the timber name used to guarantee. Name frames and shared features for their role in the joint: `Socket.Lcs`/`Tail.Lcs`, `MortisePegBore`/`TenonPegBore`.
+- **Timber base features**: same shape, with the owning timber standing in for the joint token — `Section.Skt.T-Post-001`, `Stick.T-Post-001`. The timber IS needed here: FreeCAD forces unique labels (`DuplicateLabels` defaults false), so an unqualified `Stick` on every timber collects an auto-counter (`Stick001`, `Stick002`) whose digits read like a serial but are FreeCAD's own.
+- **Joint frame role is Tier-2 data, never a label substring**: each landing/mate frame carries a `Frame_Role` string property (`Landing` or `Mate`). Preview Mated Joint, Assemble Timbers, Duplicate Timbers and the end-B seat flip all read it. It replaced a `JointFrame`/`MateFrame` label match that failed **silently** — a renamed frame lint-cleaned and left those four tools inert.
 
 ## 4. Proven Recipes
 
@@ -113,9 +124,9 @@ In-model: top/side orthographic views (never trust wireframe when profiles align
 
 ## 6. Findings → Linter
 
-Strict (breaks the clone mechanism or the model): one VarSet per joint instance; no multi-instance sketches; no cross-timber Dims references; no solid-face references (sketch supports, assembly joints, dimensions); landing-frame attachments reference the frame with the plane as a sub-element, never the frame's child plane object directly (that resolves to identity placement and Apply-Joint cannot rebuild it — the moved-sketch trap); islands strictly interior or removal regions used; expression audit on duplicated objects; parameter values within severing limits (mortise ≤75%, housing ≤50%); Body/VarSet labels free of the reserved characters (`>`, `\`, `;`, line breaks) that break `<<Label>>` expressions and the `Placement_Record`.
+Strict (breaks the clone mechanism or the model): one VarSet per joint instance; no multi-instance sketches; no cross-timber Dims references; no solid-face references (sketch supports, assembly joints, dimensions); landing-frame attachments reference the frame with the plane as a sub-element, never the frame's child plane object directly (that resolves to identity placement and Apply-Joint cannot rebuild it — the moved-sketch trap); islands strictly interior or removal regions used; expression audit on duplicated objects; parameter values within severing limits (mortise ≤75%, housing ≤50%); Body/VarSet labels free of the reserved characters (`>`, `\`, `;`, line breaks) that break `<<Label>>` expressions and the `Placement_Record`; descriptive-first joint feature labels carrying the joint's suffix and not embedding a timber name (Apply-Joint rewrites exactly that suffix); every joint frame declaring `Frame_Role`, one `Landing` per role and at most one `Mate` per joint.
 
-Advisory (style and drift): naming conventions (Kind_Owner VarSets, trailing serial on body labels — otherwise free-form per §3); body-qualified joint feature labels (`<TimberLabel>_<Feature>_<JointLabel>` — Apply-Joint rewrites exactly those two tokens, so a template feature missing either keeps its template name in every applied model); centerline + half-width in place of Symmetry; parameter values past the 35% caution threshold; instances deviating from their group bindings; stale attachment-offset components; unrenamed auto-labeled features.
+Advisory (style and drift): naming conventions (Kind_Owner VarSets, trailing serial on body labels — otherwise free-form per §3); a joint VarSet declaring `Template_Abbrev`, unique per joint kind; duplicate labels among VarSets and joint features (a template whose two halves name a feature alike collides on apply); centerline + half-width in place of Symmetry; parameter values past the 35% caution threshold; instances deviating from their group bindings; stale attachment-offset components; unrenamed auto-labeled features.
 
 ## 7. Known Prototype Debts (fix before reuse as templates)
 
@@ -128,4 +139,4 @@ Advisory (style and drift): naming conventions (Kind_Owner VarSets, trailing ser
 
 ## 8. Open Items
 
-Units/dimensioning display (fractional inches) for TechDraw; body-qualified feature label convention; joint library location and manifest format; single- vs multi-document frames; skeleton-sketch layout evaluation; provenance/group visualization UI.
+Units/dimensioning display (fractional inches) for TechDraw; joint library manifest format; single- vs multi-document frames; skeleton-sketch layout evaluation; provenance/group visualization UI.

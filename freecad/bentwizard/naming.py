@@ -18,6 +18,19 @@ The adopted scheme gives every object two kinds of name:
   and joint VarSets carries bent/bay/level info for layout drawings and
   lists. Nothing binds to it; reassign it freely as the layout evolves.
 
+**Feature labels are descriptive-first** (reworked July 2026). A feature
+inside a body reads ``<Descriptive>[.<TypeTag>].<Abbrev>.<serial>`` —
+``TailSlope.Skt.WHD.001`` — putting the part you scan for at the front.
+The earlier ``<TimberLabel>_<Feature>_<JointLabel>`` form buried it
+between two long tokens and was never load-bearing: joint membership is
+structural (the expression graph, see ``apply_joint.joint_members``) and
+no expression ever targets a feature label. Only two things are needed:
+the trailing joint token, so two applications of one template do not
+collide, and — within a template — labels unique across both halves,
+since the timber name no longer separates them. The ``<Abbrev>`` comes
+from the template's ``Template_Abbrev`` property; frame ROLE is Tier-2
+data in ``Frame_Role``, never a label substring.
+
 The serial is the label's trailing run of digits when preceded by a
 separator (``-``, ``.``, ``_``, or space). Suggestion helpers only ever
 touch that segment, preserving the separator — digits glued to letters
@@ -37,6 +50,15 @@ TIMBER_PREFIX = "T-"
 JOINT_PREFIX = "J-"
 LEGACY_JOINT_PREFIX = "Joint_"
 SERIAL_WIDTH = 3
+
+# A timber's Dims VarSet label: '<prefix><timber label>'. Shortened from
+# 'TimberDims_' (July 2026) — it is the longest thing in a body's tree
+# row and the prefix is only a hint: both apply_joint.dims_varset and the
+# linter resolve a body's Dims STRUCTURALLY, from the base pad's Length
+# expression, so legacy-prefixed VarSets keep working untouched.
+DIMS_PREFIX = "TDim_"
+LEGACY_DIMS_PREFIX = "TimberDims_"
+DIMS_PREFIXES = (DIMS_PREFIX, LEGACY_DIMS_PREFIX)
 
 # Serial separator characters; SEPARATORS and _SEP_CLASS must stay in
 # sync.
@@ -60,6 +82,26 @@ def reserved_in_label(label):
     """The reserved characters present in `label`, as a sorted string
     (empty when the label is clean)."""
     return "".join(sorted({c for c in label if c in RESERVED_LABEL_CHARS}))
+
+
+def dims_label(timber_label):
+    """The Dims VarSet label for a timber: 'TDim_T.Joist.001'."""
+    return f"{DIMS_PREFIX}{timber_label}"
+
+
+def is_dims_label(label):
+    """True for a Dims VarSet label under either prefix. A hint only —
+    callers with a live document resolve Dims from the base pad."""
+    return label.startswith(DIMS_PREFIXES)
+
+
+def dims_owner(label):
+    """The timber label a Dims VarSet label names, or None when the label
+    carries neither prefix."""
+    for prefix in DIMS_PREFIXES:
+        if label.startswith(prefix):
+            return label[len(prefix):]
+    return None
 
 
 def split_serial(label):
@@ -164,8 +206,111 @@ def member_suffix(joint_label):
     return f"_{parsed[0]}_{parsed[1]}"
 
 
+# --------------------------------------------------------------------------
+# Feature labels inside bodies
+# --------------------------------------------------------------------------
+
+# Type tag appended to a feature's descriptive name. The CUT is bare —
+# 'Housing', 'TailSlope' — because it is the thing the carpenter names;
+# the sketch and datums that produce it are tagged so they can share the
+# descriptive word without colliding. Longest TypeId prefix wins.
+TYPE_TAGS = {
+    "Sketcher::SketchObject": "Skt",
+    "Part::LocalCoordinateSystem": "Lcs",
+    "Part::DatumPlane": "Dtm",
+    "Part::DatumLine": "Dln",
+    "Part::DatumPoint": "Dpt",
+}
+
+# Tier-2 marker naming a joint frame's role. Read by Preview, Assemble,
+# Duplicate and the end-B seat flip — behavior NEVER keys off the label
+# (the retired 'JointFrame'/'MateFrame' substring match failed silently
+# when a template author renamed a frame).
+FRAME_ROLE_PROP = "Frame_Role"
+FRAME_ROLE_LANDING = "Landing"
+FRAME_ROLE_MATE = "Mate"
+FRAME_ROLES = (FRAME_ROLE_LANDING, FRAME_ROLE_MATE)
+
+# Legacy frame-role detection, for documents built before Frame_Role.
+LEGACY_FRAME_TOKENS = {"MateFrame": FRAME_ROLE_MATE,
+                       "JointFrame": FRAME_ROLE_LANDING}
+
+
+def base_feature_label(descriptive, type_id, timber_label):
+    """A timber's own base feature, qualified by its timber:
+    'Section.Skt.T.Joist.003', 'Stick.T.Joist.003'.
+
+    Same shape as a joint feature — descriptive name, type tag,
+    qualifier — with the owning timber standing in for the joint token.
+    The timber IS needed here, unlike on joint features: FreeCAD forces
+    unique labels (DuplicateLabels defaults false), so an unqualified
+    'Stick' on every timber collects an auto-counter ('Stick001',
+    'Stick002') whose digits read like a serial but are FreeCAD's own.
+    """
+    return feature_label(descriptive, type_id, f".{timber_label}")
+
+
+def section_sketch_label(timber_label):
+    """The label for a timber's section sketch."""
+    return base_feature_label("Section", "Sketcher::SketchObject",
+                              timber_label)
+
+
+def stick_label(timber_label):
+    """The label for a timber's full-length pad."""
+    return base_feature_label("Stick", "PartDesign::Pad", timber_label)
+
+
+def type_tag(type_id):
+    """The feature label's type tag for `type_id`, or None when the type
+    is a cut (pocket, pad, hole, groove) and carries no tag."""
+    for prefix, tag in TYPE_TAGS.items():
+        if type_id.startswith(prefix):
+            return tag
+    return None
+
+
+def legacy_frame_role(label):
+    """The frame role a pre-Frame_Role label implies, or None. 'MateFrame'
+    is tested first: it is the more specific token."""
+    for token, role in LEGACY_FRAME_TOKENS.items():
+        if token in label:
+            return role
+    return None
+
+
+def joint_suffix(abbrev, serial):
+    """The trailing joint token a feature label carries: '.WHD.001'."""
+    return f".{abbrev}.{serial}"
+
+
+def joint_suffix_for(label, abbrev):
+    """The feature-label suffix for the joint instance `label`, whose
+    template declared `abbrev` (its Template_Abbrev).
+
+    'J-WedgedHalfDovetail-001' + 'WHD' -> '.WHD.001'. Apply-Joint rewrites
+    exactly this string when it clones a template, so a template feature
+    whose label lacks the suffix keeps its TEMPLATE name in every document
+    it is applied to. Without an abbrev — a template predating
+    Template_Abbrev — falls back to the long `member_suffix` form, which
+    still round-trips correctly, just verbosely.
+    """
+    parsed = parse_joint_label(label)
+    if abbrev and parsed is not None:
+        return joint_suffix(abbrev, parsed[1])
+    return member_suffix(label)
+
+
+def feature_label(descriptive, type_id, suffix):
+    """A feature's full label: descriptive name, type tag, joint token.
+    'TailSlope' + a sketch + '.WHD.001' -> 'TailSlope.Skt.WHD.001'."""
+    tag = type_tag(type_id)
+    return f"{descriptive}{'.' + tag if tag else ''}{suffix}"
+
+
 TEMPLATE_META_PREFIX = "Template_"
 TEMPLATE_META_GROUP = "Template"
+TEMPLATE_ABBREV = "Template_Abbrev"
 
 
 def is_template_metadata(name, group=None):

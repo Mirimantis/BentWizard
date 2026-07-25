@@ -149,8 +149,6 @@ class TemplateSpec:
         # the library file stem carries the readable name (Joint_HousedMT
         # -> HousedMT), which beats a terse internal kind like "MT"
         self.kind_token = naming.kind_token_from_source(self.source_name)
-        # the suffix template feature labels carry (MemberID_Feature_<suffix>)
-        self.member_suffix = naming.member_suffix(self.joint_label)
 
         # Parameter schema: (name, type_id, value, tooltip, expression)
         exprs = {e.path.lstrip("."): e.expression
@@ -181,6 +179,13 @@ class TemplateSpec:
         self.handed = True if handed is None else bool(handed)
         self.angle_min = meta.get("Template_Angle_Min")   # degrees or None
         self.angle_max = meta.get("Template_Angle_Max")
+        # Short kind token for feature labels ('WHD'). Templates predating
+        # Template_Abbrev fall back to the long '_J-<Kind>-<serial>' suffix,
+        # so they still apply correctly — just verbosely.
+        self.abbrev = meta.get(naming.TEMPLATE_ABBREV) or None
+        # the suffix template feature labels carry
+        self.member_suffix = naming.joint_suffix_for(self.joint_label,
+                                                     self.abbrev)
 
         # Per-role stacks: body label -> ordered member specs, skipping
         # the pristine-timber base (section sketch + stick pad).
@@ -284,6 +289,14 @@ class TemplateSpec:
             spec["map_reversed"] = bool(mr.value) if mr else False
             ao = obj.prop("AttachmentOffset")
             spec["offset"] = ao.placement if ao else None
+        # Tier-2 frame role, carried through to the applied model — without
+        # it Preview, Assemble, Duplicate and the end-B seat flip cannot
+        # tell a landing frame from a mate frame. Legacy templates predate
+        # the property; fall back to the retired label substrings.
+        if obj.is_type("Part::LocalCoordinateSystem", "Part::Datum"):
+            role = obj.prop(naming.FRAME_ROLE_PROP)
+            spec["frame_role"] = (role.value if role and role.value
+                                  else naming.legacy_frame_role(obj.label))
         if obj.is_type("Sketcher::SketchObject"):
             g = obj.prop("Geometry")
             spec["geometry"] = g.geometry if g else []
@@ -492,9 +505,15 @@ def mate_parity(varset, anchor_body):
 def joint_role_frames(varset):
     """{body: {'landing': LCS|None, 'mate': LCS|None}} for a joint's roles.
 
-    The landing frame is each role's JointFrame; the mate frame is on
-    the role that enters its mate (the tenon side), declaring the pose
-    that seats the joint.
+    The landing frame is where the joint sits on its timber; the mate
+    frame is on the role that enters its mate (the tenon side), declaring
+    the pose that seats the joint.
+
+    Roles come from the Tier-2 `Frame_Role` property, never the label —
+    the retired 'JointFrame'/'MateFrame' substring match silently
+    disabled Preview, Assemble and Duplicate whenever a template author
+    renamed a frame. Documents built before the property fall back to
+    those substrings.
     """
     frames = {}
     for obj in joint_members(varset):
@@ -503,10 +522,14 @@ def joint_role_frames(varset):
         body = obj.getParentGeoFeatureGroup()
         if body is None:
             continue
+        # every joint LCS registers its body, role or not: bent_joints
+        # reads the body set to decide which joints a bent spans
         slot = frames.setdefault(body, {"landing": None, "mate": None})
-        if "MateFrame" in obj.Label:
+        role = (getattr(obj, naming.FRAME_ROLE_PROP, None)
+                or naming.legacy_frame_role(obj.Label))
+        if role == naming.FRAME_ROLE_MATE:
             slot["mate"] = obj
-        elif "JointFrame" in obj.Label:
+        elif role == naming.FRAME_ROLE_LANDING:
             slot["landing"] = obj
     return frames
 
@@ -738,8 +761,10 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
     # label is resolved structurally from the body's base pad, so a
     # renamed body binds its ACTUAL VarSet, whatever it is called.
     renames = {template.joint_label: new_joint_label,
-               # feature labels carry the joint label as a suffix
-               template.member_suffix: f"_{new_joint_label}"}
+               # feature labels carry the joint token as a suffix
+               # ('.WHD.000' -> '.WHD.007')
+               template.member_suffix:
+                   naming.joint_suffix_for(new_joint_label, template.abbrev)}
     role_dims = {}
     for tmpl_label, body in body_map.items():
         dims = dims_varset(body)
@@ -749,6 +774,10 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
                 f"is it a BentWizard timber?")
         role_dims[tmpl_label] = dims.Label
         renames[template.dims_labels[tmpl_label]] = dims.Label
+        # descriptive-first feature labels no longer embed the timber name,
+        # so this entry is a no-op for them; it stays for expressions that
+        # reference a body directly, and to scrub the timber token out of
+        # legacy templates whose features still carry it
         renames[tmpl_label] = body.Label
     expr_renames = {f"<<{k}>>": f"<<{v}>>" for k, v in renames.items()}
 
@@ -909,6 +938,14 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
     type_id = spec["type_id"]
     obj = body.newObject(type_id, type_id.split(":")[-1])
     obj.Label = _rewrite(spec["label"], renames)
+    if spec.get("frame_role"):
+        # Tier-2: re-declare the role on the clone (see naming.FRAME_ROLE_PROP)
+        obj.addProperty("App::PropertyString", naming.FRAME_ROLE_PROP,
+                        "TimberJoint",
+                        "This frame's role in the timber joint: 'Landing' "
+                        "(where the joint sits on this timber) or 'Mate' "
+                        "(the pose this timber takes when seated).")
+        setattr(obj, naming.FRAME_ROLE_PROP, spec["frame_role"])
     on_frame = ("support" in spec
                 and spec["support"]["target"] == ctx["frame_name"])
     is_frame = spec["name"] == ctx["frame_name"]
@@ -1012,7 +1049,7 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
         obj.setExpression("AttachmentOffset.Base.z",
                           f"<<{ctx['dims_label']}>>.Length")
 
-    if ctx["flip_z"] and "MateFrame" in spec["label"]:
+    if ctx["flip_z"] and spec.get("frame_role") == naming.FRAME_ROLE_MATE:
         # the mate frame declares the engaged pose; end B translates its
         # position (the shoulder moves to the far end) but must also
         # REVERSE its orientation so its Z points back toward the beam

@@ -1,5 +1,20 @@
 # Building `library/Joint_HousedMT.FCStd` — step-by-step
 
+> **Historical record — do not follow the labels.** This recipe records
+> how the template was first built, under the pre-July-2026 naming
+> scheme (`P0-1`/`B0-1` bodies, a `Joint_MT_0a` VarSet, body-qualified
+> feature labels). The shipped template has since been migrated to the
+> current scheme by `scripts/migrate-naming.py`: bodies `T.Post.001` /
+> `T.AnchorBeam.001`, joint VarSet `J-HousedMT-000`, and descriptive-
+> first feature labels (`Mortise.HMT.000`, `Housing.Skt.HMT.000`,
+> `Mate.Lcs.HMT.000`) with `Template_Abbrev = "HMT"` and a `Frame_Role`
+> on each frame. The **geometry, parameters and expressions below are
+> still accurate** — only the labels changed.
+>
+> For authoring a NEW template, follow
+> [housed-dovetail-template-build.md](housed-dovetail-template-build.md),
+> which is written against the current conventions.
+
 The first clean joint template: a housed, pegged, drawbored mortise &
 tenon between a post (mortise role) and a beam (tenon role). This is the
 Phase 0 recipes (§4.4, §4.6, §4.7) rebuilt from scratch with the decided

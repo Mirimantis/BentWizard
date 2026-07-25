@@ -183,13 +183,72 @@ class JointLabelTest(unittest.TestCase):
                          "HousedMT")
 
     def test_member_suffix(self):
-        # what Apply-Joint rewrites in a template's feature labels
+        # the pre-July-2026 long form, still the fallback for templates
+        # that declare no Template_Abbrev
         self.assertEqual(naming.member_suffix("J-HousedMT-001"),
                          "_J-HousedMT-001")
         self.assertEqual(naming.member_suffix("Joint_MT_0a"), "_MT_0a")
         self.assertEqual(naming.member_suffix("Joint_Loft_DT_0a"),
                          "_Loft_DT_0a")
-        self.assertIsNone(naming.member_suffix("TimberDims_T-Post-001"))
+        self.assertIsNone(naming.member_suffix("TDim_T-Post-001"))
+
+
+class FeatureLabelTest(unittest.TestCase):
+    """The descriptive-first feature scheme (July 2026)."""
+
+    def test_joint_suffix_uses_the_abbrev(self):
+        # what Apply-Joint rewrites in a template's feature labels
+        self.assertEqual(
+            naming.joint_suffix_for("J-WedgedHalfDovetail-001", "WHD"),
+            ".WHD.001")
+        self.assertEqual(naming.joint_suffix_for("J-HousedMT-B3a", "HMT"),
+                         ".HMT.B3a")
+
+    def test_no_abbrev_falls_back_to_the_long_form(self):
+        # a template predating Template_Abbrev still round-trips
+        self.assertEqual(naming.joint_suffix_for("J-HousedMT-001", None),
+                         "_J-HousedMT-001")
+        self.assertEqual(naming.joint_suffix_for("Joint_MT_0a", None),
+                         "_MT_0a")
+
+    def test_cut_is_bare_and_the_rest_are_tagged(self):
+        s = ".WHD.001"
+        self.assertEqual(
+            naming.feature_label("TailSlope", "PartDesign::Pocket", s),
+            "TailSlope.WHD.001")
+        self.assertEqual(
+            naming.feature_label("TailSlope", "Sketcher::SketchObject", s),
+            "TailSlope.Skt.WHD.001")
+        self.assertEqual(
+            naming.feature_label("Mate", "Part::LocalCoordinateSystem", s),
+            "Mate.Lcs.WHD.001")
+        self.assertEqual(
+            naming.feature_label("ShoulderA", "Part::DatumPlane", s),
+            "ShoulderA.Dtm.WHD.001")
+
+    def test_type_tag(self):
+        self.assertIsNone(naming.type_tag("PartDesign::Hole"))
+        self.assertEqual(naming.type_tag("Sketcher::SketchObject"), "Skt")
+
+    def test_legacy_frame_role_from_label(self):
+        # the retired substrings, kept so pre-Frame_Role files still seat
+        self.assertEqual(
+            naming.legacy_frame_role("B0-1_MateFrame_MT_0a"), "Mate")
+        self.assertEqual(
+            naming.legacy_frame_role("P0-1_JointFrame_MT_0a"), "Landing")
+        self.assertIsNone(naming.legacy_frame_role("Housing.HMT.001"))
+
+
+class DimsLabelTest(unittest.TestCase):
+    def test_prefix_and_owner(self):
+        self.assertEqual(naming.dims_label("T.Joist.001"), "TDim_T.Joist.001")
+        self.assertEqual(naming.dims_owner("TDim_T.Joist.001"), "T.Joist.001")
+
+    def test_legacy_prefix_still_recognised(self):
+        # existing documents keep 'TimberDims_'; the binding is structural
+        self.assertTrue(naming.is_dims_label("TimberDims_P0-1"))
+        self.assertEqual(naming.dims_owner("TimberDims_P0-1"), "P0-1")
+        self.assertIsNone(naming.dims_owner("PostDims"))
 
     def test_is_template_metadata(self):
         # name-keyed: the group is author-controlled and drifts
