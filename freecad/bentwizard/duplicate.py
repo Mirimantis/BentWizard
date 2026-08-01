@@ -222,7 +222,7 @@ def duplicate_bent(doc, member_map, joint_id_map, library_dir,
                 expr = exprs[p["name"]]
                 for old, new in label_renames.items():
                     expr = expr.replace(old, new)
-                values[p["name"]] = expr
+                values[p["name"]] = f"={expr}"   # '=' marks an expression
             else:
                 current = getattr(owner, p["name"])
                 values[p["name"]] = (int(current) if isinstance(current, int)

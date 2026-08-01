@@ -818,7 +818,9 @@ class ApplyJointDialog(QtWidgets.QDialog):
                 if not text:
                     raise JointError(
                         f"{name}: expression entry is on but empty")
-                values[name] = text        # applied as an expression
+                # '=' marks it an expression (spreadsheet convention,
+                # same as New Timber's dimension fields)
+                values[name] = f"={text}"
             else:
                 raw = field.spin.property("rawValue")
                 values[name] = App.Units.Quantity(f"{raw} {field.unit}")

@@ -406,6 +406,26 @@ def joint_members(varset):
     return members
 
 
+def _expression_input(value):
+    """The expression in an apply-time `values` entry, or None when it
+    is a literal.
+
+    Same spreadsheet convention as new_timber: a string starting with
+    '=' is an expression, anything else is a value. apply_joint used to
+    treat EVERY string as an expression, which silently turned a plain
+    '3 in' into the expression `3 in` — resolving to the same number,
+    so it looked right, while quietly making the property
+    expression-bound and unwritable. It cost two debugging rounds
+    during the grid-span work before the inconsistency was named.
+    """
+    if isinstance(value, str) and value.lstrip().startswith("="):
+        expr = value.lstrip()[1:].strip()
+        if not expr:
+            raise JointError("empty expression (nothing after '=')")
+        return expr
+    return None
+
+
 def layout_varset(varset):
     """A joint's companion layout VarSet, or None.
 
@@ -771,8 +791,12 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
 
     body_map: {template body label -> target PartDesign body object},
     e.g. {"P0-1": post, "B0-1": beam}. values: optional {property name ->
-    value} overrides applied to the new joint VarSet (literal override
-    of a junction binding replaces the expression, per §4.9).
+    value} overrides applied to the new joint VarSet, or to its
+    companion layout VarSet for parameters the template declares there
+    (literal override of a junction binding replaces the expression,
+    per §4.9). A value is a Quantity/number, or a string starting with
+    '=' for an expression — the spreadsheet convention new_timber uses.
+    A plain string is a literal, NOT an expression.
     placement: optional {template body label -> options}:
       {"end": "A"|"B"} for end-landing roles — end B keeps the frame
       orientation (reference-face rule: setbacks keep measuring from the same
@@ -875,14 +899,23 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
                 continue
             if p["name"] in values:
                 v = values[p["name"]]
-                if isinstance(v, str):
-                    # a string value is an expression (e.g. bind a
-                    # parameter to a project VarSet at apply time)
+                expr = _expression_input(v)
+                if expr is not None:
                     try:
-                        target.setExpression(p["name"], v)
+                        target.setExpression(p["name"], expr)
                     except Exception as exc:
                         raise JointError(
-                            f"{p['name']}: invalid expression {v!r} — {exc}")
+                            f"{p['name']}: invalid expression {expr!r} "
+                            f"— {exc}")
+                elif isinstance(v, str):
+                    # a plain string is a literal: parse it the way the
+                    # property's own type would
+                    try:
+                        setattr(target, p["name"], v)
+                    except Exception as exc:
+                        raise JointError(
+                            f"{p['name']}: cannot use {v!r} as a value "
+                            f"(prefix with '=' for an expression) — {exc}")
                 else:
                     setattr(target, p["name"], v)   # literal override
             elif p["expression"]:
