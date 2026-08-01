@@ -141,6 +141,20 @@ Cost of the companion: `TemplateSpec` reads a second VarSet per joint; the gener
 
 **Owed, in order.** (1) Build the companion-VarSet template support described above. (2) Apply Timber Joint / the Beam tool writing the timber's `Length` expression, opt-in per timber, with Remove Joint reverting the term to the resolved literal (mirroring how it already removes the Fixed assembly joint). (3) A derived `Clear_Inside` read-out per bay, so the dimension you do *not* drive stays visible, feeding a Phase 4 advisory check on bays diverging from typical. (4) Linter: expression-cycle advisory, and `Layout_`/project VarSet kinds in the naming rule (a hand-built `Layout_Main` currently trips `naming-convention`; `Project_Main` is already accepted).
 
+## Framer-facing front end (adopted August 2026; sequence after the technical workflow is complete)
+
+**The audience is framers and carpenters, not CAD users** — some of them not technically savvy. Every parameter this workbench has accumulated (timber Dims, joint VarSets, companion layout VarSets, project/group VarSets) is today edited where it *lives*, which is wherever the dependency graph forced it to live. That is the right place for the machinery and the wrong place for a person: the split is an artifact of FreeCAD's object-granular dependencies, not something a framer should have to learn.
+
+The intent is one task panel presenting the numbers **by what they mean to the work** — this bay's span, this joint's tenon, this timber's section — reading and writing whichever VarSet actually owns each value, so the user never navigates the split. Adopted as the eventual home for the ergonomic debt this design deliberately took on:
+
+- **The two-VarSet juggle** (named at the companion-VarSet GUI test, August 2026): `Tenon_Length` and `Housing_Depth` moved to the companion and are no longer editable on the joint VarSet — writes there are silently overwritten. Technically forced, and a bad affordance; a front end that shows one "tenon length" field and writes it to the authoritative VarSet removes it entirely.
+- Junction-bound parameters (`Housing_Height` ← the entering timber's Depth) have the same shape and the same fix.
+- The layout layer's discipline (Span_Basis, pure-source rule) is a *constraint on the model*, not a thing a user should have to hold in their head — the front end enforces it by construction.
+
+Related items already logged, which this subsumes or feeds: the dock panel showing a timber's Dims when selected; the parameter-provenance UI; reference-face visualization; joint parameter presets. **Terminology stays the governing rule**: timber-framing terms everywhere, "timber joint" never bare "joint", and units deferring to the user's FreeCAD schema (Building US and fractional inches are what a framer reads).
+
+Not started, and deliberately last: it should be built against a workflow that is already technically complete, or it will encode the wrong abstractions.
+
 ## Open Items
 - **Principal Post visibility** (from the second shakedown): the Principal timber should be visually distinguished in the 3D view and tree (beyond the stock red padlock on its GroundedJoint) — ties into the reference-face visualization item below. Also: Apply Timber Joint currently picks the anchor as Principal when it creates a new bent and announces it in a popup; a picker in the dialog (shown only when both timbers are loose) would let the user choose up front instead of regrounding via Assemble Timbers.
 - New Timber dialog (expanded July 2026, testing notes):
