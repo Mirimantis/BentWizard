@@ -24,6 +24,10 @@ class BentWizardWorkbench(Gui.Workbench):
         # ones opened later
         from freecad.bentwizard import view_joint_handle
         view_joint_handle.install()
+        # undo of a deletion restores expression text but not the
+        # dependency it stands for (finding #15) — re-arm the bindings
+        from freecad.bentwizard import undo_repair
+        undo_repair.install()
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"
