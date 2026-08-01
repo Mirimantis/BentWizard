@@ -758,6 +758,11 @@ class ApplyJointDialog(QtWidgets.QDialog):
                 # the tools — the hand option and angle field limits —
                 # never a per-application input
                 continue
+            if p.get("consumed"):
+                # this joint parameter is consumed from the companion
+                # layout VarSet, whose own row below is the editable
+                # one; a read-only echo here would just be confusing
+                continue
             if p["expression"]:
                 note = QtWidgets.QLabel(f"= {p['expression']}   (tracks "
                                         f"the mating timber)", self)

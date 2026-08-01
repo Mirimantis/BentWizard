@@ -249,7 +249,12 @@ class ApplyJointTest(unittest.TestCase):
                          {"T.Post.001": self.post, "T.AnchorBeam.001": self.beam})
         added = [o for o in self.doc.Objects
                  if o.TypeId == "App::VarSet" and o.Name not in before]
-        self.assertEqual([o.Label for o in added], [vs.Label],
+        # the joint's own VarSet, plus its companion layout VarSet when
+        # the template declares one — and nothing else, above all no
+        # clone of the body-nested Dims VarSet
+        from freecad.bentwizard.apply_joint import layout_varset
+        expected = [o.Label for o in (layout_varset(vs), vs) if o is not None]
+        self.assertEqual([o.Label for o in added], expected,
                          "apply added a VarSet besides the joint's own")
         # and the timbers' real Dims still drive them
         self.assertIsNotNone(self.doc.getObjectsByLabel("TDim_P3-1"))

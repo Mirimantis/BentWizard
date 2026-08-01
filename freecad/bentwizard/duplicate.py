@@ -188,7 +188,18 @@ def duplicate_bent(doc, member_map, joint_id_map, library_dir,
 
         # current parameter state: expressions (rewritten to the copies)
         # win over literals, so user overrides AND group bindings carry
-        exprs = {p.lstrip("."): e for p, e in varset.ExpressionEngine}
+        # A parameter may live on the joint VarSet or on its companion
+        # layout VarSet (the template declares the split); read each
+        # from wherever it actually is, so a copy carries both halves.
+        from .apply_joint import layout_varset
+        companion = layout_varset(varset)
+        # kept per owner, never merged: a consumed name (Tenon_Length)
+        # exists on BOTH VarSets, and the joint's binding would shadow
+        # the companion's actual value
+        joint_exprs = {p.lstrip("."): e for p, e in varset.ExpressionEngine}
+        layout_exprs = ({p.lstrip("."): e
+                         for p, e in companion.ExpressionEngine}
+                        if companion is not None else {})
         values = {}
         for p in template.parameters:
             if p["metadata"]:
@@ -197,13 +208,23 @@ def duplicate_bent(doc, member_map, joint_id_map, library_dir,
                 # (It is not a dimension either: Template_Abbrev is a
                 # string, which the Quantity branch below cannot carry.)
                 continue
+            owner = companion if p.get("varset") == "layout" else varset
+            if owner is None or not hasattr(owner, p["name"]):
+                continue        # template gained a parameter this joint predates
+            if p.get("consumed"):
+                # rebuilt from the companion by apply_joint; carrying the
+                # stale binding would point the copy at the ORIGINAL's
+                # companion (finding #2: audit, never blind-clone)
+                continue
+            exprs = (layout_exprs if p.get("varset") == "layout"
+                     else joint_exprs)
             if p["name"] in exprs:
                 expr = exprs[p["name"]]
                 for old, new in label_renames.items():
                     expr = expr.replace(old, new)
                 values[p["name"]] = expr
             else:
-                current = getattr(varset, p["name"])
+                current = getattr(owner, p["name"])
                 values[p["name"]] = (int(current) if isinstance(current, int)
                                      else App.Units.Quantity(
                                          f"{current.Value} mm"))

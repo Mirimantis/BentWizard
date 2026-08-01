@@ -228,6 +228,15 @@ def ensure_handle(varset):
     home = varset.getParentGroup()
     if home is not handle and home is not group:
         handle.addObject(varset)
+    # The companion layout VarSet, when the template declared one, is
+    # part of the joint too and nests beside its VarSet — same
+    # respect-the-user's-arrangement rule.
+    from .apply_joint import layout_varset
+    companion = layout_varset(varset)
+    if companion is not None:
+        home = companion.getParentGroup()
+        if home is not handle and home is not group:
+            handle.addObject(companion)
     prune_root_group(doc)
     if created and App.GuiUp:
         attach_view(handle)
