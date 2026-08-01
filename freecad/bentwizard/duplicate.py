@@ -232,7 +232,7 @@ def duplicate_bent(doc, member_map, joint_id_map, library_dir,
         principal_src = next(
             (src for src in member_map
              if grounded_by(src, inside)), None) or next(iter(member_map))
-        asm, _skipped, _misfits = assemble_timbers(
+        asm, _skipped, _misfits, _adopted = assemble_timbers(
             doc, list(new_bodies.values()), label=assembly_label,
             grounded=new_bodies[principal_src])
         asm.Placement = shift.multiply(base)

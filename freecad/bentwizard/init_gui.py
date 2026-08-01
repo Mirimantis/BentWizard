@@ -18,6 +18,13 @@ class BentWizardWorkbench(Gui.Workbench):
         self.appendToolbar("BentWizard", commands.ALL_COMMANDS)
         self.appendMenu("BentWizard", commands.ALL_COMMANDS)
 
+    def Activated(self):
+        # timber-joint markers: adopt handles in documents already open
+        # (a headless-built file carries no view providers) and watch for
+        # ones opened later
+        from freecad.bentwizard import view_joint_handle
+        view_joint_handle.install()
+
     def GetClassName(self):
         return "Gui::PythonWorkbench"
 

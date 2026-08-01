@@ -149,7 +149,7 @@ class TwoLevelAssemblyTest(unittest.TestCase):
         bent2 = next(o for o in self.doc.Objects if o.Label == "Bent-002")
 
         tie = self.timber("T8-1", "6 in", "8 in", "10 ft")
-        bay, _s, _m = assemble_timbers(self.doc, [tie], label="Bay-1")
+        bay, _s, _m, _a = assemble_timbers(self.doc, [tie], label="Bay-1")
         ta = self.joint("8t1", post1, tie, face=3, end="A")
         assimilate_joint(self.doc, ta)      # cross: bent1 + Bay-1 -> frame
         frame = root_assembly(bent1)
@@ -248,6 +248,143 @@ class TwoLevelAssemblyTest(unittest.TestCase):
         self.assertAlmostEqual(bent2.Placement.Base.y - y_before, 200,
                                places=4,
                                msg="bay width did not follow tie Length")
+
+    def test_repair_of_an_already_assembled_bent(self):
+        """Regression (July 2026 grid-span testing): Assemble Timbers on
+        timbers that already share an assembly used to create a second,
+        empty assembly — addObject skips already-contained bodies, so
+        member_bodies came back empty and pick_grounded raised
+        IndexError on bodies[0]. The repair path must adopt the
+        assembly the timbers already live in."""
+        from freecad.bentwizard.assemble import (assemble_timbers,
+                                                 assimilate_joint,
+                                                 container_assembly,
+                                                 find_fixed_joint)
+        post = self.timber("T-Post-R1", length="10 ft")
+        beam = self.timber("T-Tie-R1", w="6 in", length="8 ft")
+        varset = self.joint("R01", post, beam)
+        assimilate_joint(self.doc, varset)
+        self.doc.recompute()
+        home = container_assembly(post)
+        self.assertIsNotNone(home)
+
+        # simulate the damage: drop the Fixed joint, leaving the timber
+        # joint unseated inside an existing, grounded assembly
+        fixed = find_fixed_joint(self.doc, varset)
+        self.assertIsNotNone(fixed)
+        self.doc.removeObject(fixed.Name)
+        self.doc.recompute()
+        self.assertIsNone(find_fixed_joint(self.doc, varset))
+
+        n_before = len([o for o in self.doc.Objects
+                        if o.TypeId == "Assembly::AssemblyObject"])
+        asm, skipped, misfits, _adopted = assemble_timbers(
+            self.doc, [post, beam])
+        self.assertIs(asm, home, "repair created a new assembly instead "
+                                 "of adopting the timbers' own")
+        self.assertEqual(
+            n_before,
+            len([o for o in self.doc.Objects
+                 if o.TypeId == "Assembly::AssemblyObject"]),
+            "repair left a stray empty assembly behind")
+        self.assertEqual((skipped, misfits), ([], []))
+        self.assertIsNotNone(find_fixed_joint(self.doc, varset),
+                             "repair did not re-seat the timber joint")
+
+    def test_fixed_joint_found_after_its_label_drifts(self):
+        """Regression (July 2026 grid-span testing): find_fixed_joint
+        matched on 'Fixed_<VarSet label>', so renaming either label
+        orphaned the Fixed joint. It must resolve from the landing/mate
+        frames its references point at."""
+        from freecad.bentwizard.assemble import (assimilate_joint,
+                                                 find_fixed_joint)
+        post = self.timber("T-Post-D1", length="10 ft")
+        beam = self.timber("T-Tie-D1", w="6 in", length="8 ft")
+        varset = self.joint("D01", post, beam)
+        fixed = assimilate_joint(self.doc, varset).joint
+        self.doc.recompute()
+
+        fixed.Label = "Fixed_J-HousedMT-999"        # the drift Adam hit
+        self.doc.recompute()
+        self.assertIs(find_fixed_joint(self.doc, varset), fixed,
+                      "a renamed Fixed joint went missing")
+
+        varset.Label = "J-HousedMT-042"             # and from the other end
+        self.doc.recompute()
+        self.assertIs(find_fixed_joint(self.doc, varset), fixed)
+
+    def test_reassimilating_replaces_rather_than_duplicates(self):
+        """The consequence of the label bug: assimilate_joint could not
+        find the stale joint to remove, so it added a second Fixed joint
+        on the same two frames."""
+        from freecad.bentwizard.assemble import assimilate_joint
+
+        def fixed_joints():
+            return [o for o in self.doc.Objects
+                    if getattr(o, "JointType", None) is not None]
+
+        post = self.timber("T-Post-D2", length="10 ft")
+        beam = self.timber("T-Tie-D2", w="6 in", length="8 ft")
+        varset = self.joint("D02", post, beam)
+        assimilate_joint(self.doc, varset)
+        self.doc.recompute()
+        self.assertEqual(len(fixed_joints()), 1)
+
+        fixed_joints()[0].Label = "Fixed_something_else"
+        self.doc.recompute()
+        assimilate_joint(self.doc, varset)
+        self.doc.recompute()
+        self.assertEqual(len(fixed_joints()), 1,
+                         "re-assimilation duplicated the Fixed joint")
+
+    def test_reassimilating_clears_every_duplicate(self):
+        """Adam's GUI test, exactly: a document already damaged by the
+        label-matching era carries TWO Fixed joints on the same pair of
+        frames. Finding only the first left one behind, so re-running
+        Assemble Timbers never converged on a clean assembly."""
+        from freecad.bentwizard.assemble import (assimilate_joint,
+                                                 find_fixed_joints)
+
+        def fixed_joints():
+            return [o for o in self.doc.Objects
+                    if getattr(o, "JointType", None) is not None]
+
+        post = self.timber("T-Post-D5", length="10 ft")
+        beam = self.timber("T-Tie-D5", w="6 in", length="8 ft")
+        varset = self.joint("D05", post, beam)
+        assimilate_joint(self.doc, varset)
+        self.doc.recompute()
+
+        # seed the damage: a second Fixed joint on the same frames,
+        # under a drifted label, as the old lookup produced
+        original = fixed_joints()[0]
+        clone_name = self.doc.copyObject(original).Name
+        original.Label = "busted"
+        self.doc.recompute()
+        self.assertEqual(len(find_fixed_joints(self.doc, varset)), 2,
+                         "test seed did not produce a duplicate")
+
+        assimilate_joint(self.doc, varset)
+        self.doc.recompute()
+        self.assertEqual(len(fixed_joints()), 1,
+                         "a duplicate Fixed joint survived re-assimilation")
+        self.assertEqual(fixed_joints()[0].Label, "Fixed_J-HousedMT-D05",
+                         "the healed joint kept a drifted label")
+        self.assertNotIn(clone_name, [o.Name for o in fixed_joints()])
+
+    def test_unassembled_joint_still_reports_none(self):
+        """The structural match must not claim a NEIGHBOUR's Fixed joint
+        when this timber joint has none of its own."""
+        from freecad.bentwizard.assemble import (assimilate_joint,
+                                                 find_fixed_joint)
+        post = self.timber("T-Post-D3", length="10 ft")
+        beam = self.timber("T-Tie-D3", w="6 in", length="8 ft")
+        seated = self.joint("D03", post, beam)
+        assimilate_joint(self.doc, seated)
+        loose = self.joint("D04", post, beam, end="B")
+        self.doc.recompute()
+        self.assertIsNotNone(find_fixed_joint(self.doc, seated))
+        self.assertIsNone(find_fixed_joint(self.doc, loose))
 
     def test_output_lints_completely_clean(self):
         from freecad.bentwizard.linter import lint

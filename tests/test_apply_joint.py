@@ -700,14 +700,20 @@ class ApplyJointTest(unittest.TestCase):
 
     def test_joint_label_and_tree_placement(self):
         # new scheme: J-<Kind>-<serial>, kind token from the template's
-        # file stem; the VarSet parks in the TimberJointVars group
-        # (named apart from every Assembly's own "Joints" group);
+        # file stem; the VarSet and its handle park side by side in the
+        # TimberJoints group (named apart from every Assembly's own
+        # "Joints" group) until a bent claims them;
         # Position_Tag exists as empty display-only data
+        from freecad.bentwizard.joint_handle import find_handle
         vs = self.apply("001")
         self.assertEqual(vs.Label, "J-HousedMT-001")
+        handle = find_handle(vs)
+        self.assertEqual(handle.Label, "Handle_J-HousedMT-001")
+        self.assertIs(handle.Joint, vs)
         group = next(o for o in self.doc.Objects
                      if o.TypeId == "App::DocumentObjectGroup"
-                     and o.Label == "TimberJointVars")
+                     and o.Label == "TimberJoints")
+        self.assertIn(handle, list(group.Group))
         self.assertIn(vs, list(group.Group))
         self.assertEqual(vs.Position_Tag, "")
 
@@ -717,8 +723,18 @@ class ApplyJointTest(unittest.TestCase):
         legacy = self.doc.addObject("App::DocumentObjectGroup", "Joints")
         legacy.Label = "Joints"
         vs = self.apply("001")
-        self.assertEqual(legacy.Label, "TimberJointVars")
+        self.assertEqual(legacy.Label, "TimberJoints")
         self.assertIn(vs, list(legacy.Group))
+        groups = [o for o in self.doc.Objects
+                  if o.TypeId == "App::DocumentObjectGroup"]
+        self.assertEqual(len(groups), 1)
+
+    def test_legacy_varset_group_migrates(self):
+        # ...as is a TimberJointVars group from before handles existed
+        legacy = self.doc.addObject("App::DocumentObjectGroup", "TJV")
+        legacy.Label = "TimberJointVars"
+        self.apply("001")
+        self.assertEqual(legacy.Label, "TimberJoints")
         groups = [o for o in self.doc.Objects
                   if o.TypeId == "App::DocumentObjectGroup"]
         self.assertEqual(len(groups), 1)

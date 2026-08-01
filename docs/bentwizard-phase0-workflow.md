@@ -64,11 +64,17 @@ existing files):
   Apply-Joint and the linter resolve a body's Dims structurally from the
   base pad's `Length` expression.
 - **Tree organization** (pure organization, zero geometric effect): each
-  Dims VarSet nests inside its timber's Body; joint VarSets live in a
-  `TimberJointVars` Std Group (renamed from `Joints`, which collides
-  with the `Joints` group inside every FreeCAD Assembly; legacy
-  documents are migrated); bents/bays are user-arranged (optionally nested)
-  Std Groups of Bodies — Duplicate Timbers can create one for the copies.
+  Dims VarSet nests inside its timber's Body; each joint VarSet nests in
+  its joint's **handle** (`Handle_J-HousedMT-001`), and the handles live
+  in a `TimberJoints_<Assembly>` Std Group **inside the assembly the
+  joint belongs to** — one folder of joints per bent, one node per
+  joint, the frame's group holding the joints that span bents. Named apart from `Joints`, which
+  collides with the group inside every FreeCAD Assembly; the root-level
+  `TimberJointVars`/`Joints` groups of earlier documents are migrated in
+  place, and a joint with no assembly yet waits in a bare `TimberJoints`
+  group at the root. Bents/bays are also user-arranged (optionally
+  nested) Std Groups of Bodies — Duplicate Timbers can create one for
+  the copies.
 - **Property names**: `Part_Attribute[_Qualifier]`, most-significant first: `Tenon_Thickness`, `Tenon_Setback_Face2`, `Housing_Depth`, `Peg_Drawbore_Offset`, `Peg_Count`. Reference-face qualifiers use `_Face1`/`_Face2` (stable regardless of timber orientation; Face 1 = XZ-plane face, Face 2 = YZ-plane face). Alphabetical property sorting then clusters each part's parameters automatically.
 - **Tooltips**: mandatory on every template-defined property, written by the template author, cloned on apply. As brief as possible while still informative; always states which face/end it measures from; timber framing terminology. Missing tooltip = advisory linter failure.
 - **Joint features within bodies**: **descriptive-first** (reworked July 2026) — `<Descriptive>[.<TypeTag>].<Abbrev>.<serial>`, e.g. `Mortise.HMT.001`, `TailSlope.Skt.WHD.001`, `Mate.Lcs.WHD.001`. The name you scan for comes first; the retired `<TimberLabel>_<Feature>_<JointLabel>` form buried it between two long tokens (`T.AnchorBeam.001_TailSlopeSketch_J-WedgedHalfDovetail-000`, 57 characters).
