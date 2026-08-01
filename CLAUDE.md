@@ -8,7 +8,7 @@ Timber framing workbench for FreeCAD 1.1.1. Mill Rule layout, subtractive joiner
 
 - [docs/bentwizard-roadmap.md](docs/bentwizard-roadmap.md) — phases, governing rules, adopted designs
 - [docs/bentwizard-phase0-workflow.md](docs/bentwizard-phase0-workflow.md) — the proven manual recipes the tools must reproduce; **this is the spec Phase 1 is built against**
-- [docs/phase0-friction-findings.md](docs/phase0-friction-findings.md) — numbered findings (#1–#14) cited throughout; each maps to an automation requirement
+- [docs/phase0-friction-findings.md](docs/phase0-friction-findings.md) — numbered findings (#1–#15) cited throughout; each maps to an automation requirement
 
 ## Governing rules (non-negotiable)
 

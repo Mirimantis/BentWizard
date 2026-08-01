@@ -181,3 +181,50 @@ feature touches a boundary face, sketch the removal regions directly (two flanki
 quadrilaterals sharing the dovetail's angled sides).
 **Automation response:** the tool chooses island-pocket vs. direct-removal-region sketches
 based on whether the kept profile touches the section boundary — computed, not discovered.
+
+### 15. Undo of a deletion restores expression text but not the binding — UPSTREAM BUG ⚠ Phase 1 shakedown
+Undoing **Remove Timber Joint** appears to give the joint back and does not. Every object returns,
+the object count matches, nothing reports Invalid/Error/Touched, the joint's `joint_misfit` is 0,
+and the geometry is the right shape in the right place — but editing the restored joint VarSet
+(`Housing_Depth`, anything) no longer changes the timbers. The joint has become a fossil: correct
+geometry, permanently detached from its parameters. In the GUI the restored objects also carry red
+error icons that clear after one unrelated edit, which reads as "it recovered" and is the opposite
+of the truth.
+
+**Cause — FreeCAD 1.1.1, not BentWizard.** Undo restores a deleted object's `ExpressionEngine`
+property (the expression strings are right there in the property editor) but never re-registers the
+*dependency* each expression stands for. The restored object vanishes from its driver's `InList`,
+so a change to the driver never touches it and no recompute re-evaluates the expression. Reproduced
+with two `Part::Box` objects and no BentWizard code at all: bind `BoxB.Height` to `BoxA.Height`,
+delete both in a transaction, undo — `BoxB.ExpressionEngine` is intact, `BoxA.InList` is empty, and
+`BoxA.Height = 40` leaves `BoxB` behind. Confirmed pre-existing by A/B against commit `f8a6106`,
+i.e. not a regression from the per-joint handle work.
+
+The breakage is one-sided, which is what makes a targeted repair possible: deleting and undoing the
+object an expression **points at** is fine (the surviving dependent re-resolves it), while deleting
+and undoing the object that **carries** the expression is what breaks. The repair set is therefore
+exactly the objects FreeCAD just re-created.
+
+Two red herrings cost time and are worth recording. The console spew during the undo —
+`PositionBySupport: AttachEngine3D: subshape not found LocalCoordinateSystem001.XY_Plane003.` and
+`LocalCoordinateSystem "..." doesn't contain feature with role "XY_Plane"` — is a *transient*
+restore-order artifact: the attached sketches recompute while the LCS's child origin features are
+not yet populated. The children do come back under their original internal names, and the
+attachments do re-resolve; this is noise, not the fault. Second, `remove_joint`'s explicit deletion
+of the frames' `OriginFeatures` is not the fault either — suppressing it changes nothing, the
+children cascade with their parent LCS either way.
+
+**Automation response:** `freecad/bentwizard/undo_repair.py` — a document observer buffers the
+objects announced through `slotCreatedObject` and, on `slotUndoDocument`/`slotRedoDocument`,
+re-arms their expression bindings by clearing each one and writing it back (re-setting an
+expression to the identical string is a no-op, so the clear is required). An undo that restores no
+objects costs nothing: no touch, no recompute. Installed when the workbench activates. Documents
+stay ordinary FreeCAD files (Tier 2: gated *functionality*, native data) — without BentWizard
+loaded they behave as stock FreeCAD does, which is to say with this bug.
+`tests/test_undo_repair.py` pins both the upstream defect and the repair; the test asserting the
+defect is the tripwire that tells us when FreeCAD fixes it and the observer can be dropped.
+
+**Expect the console spew to remain.** FreeCAD prints those `AttachEngine3D` / `role "XY_Plane"`
+exceptions from inside its own restore, before the observer is called — there is nothing on our side
+to silence, and they are not a sign the repair failed. GUI-confirmed after the fix: the undone joint
+comes back with no error icons and fully parametric, with that spew still in the report view.
