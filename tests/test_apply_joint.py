@@ -249,7 +249,12 @@ class ApplyJointTest(unittest.TestCase):
                          {"T.Post.001": self.post, "T.AnchorBeam.001": self.beam})
         added = [o for o in self.doc.Objects
                  if o.TypeId == "App::VarSet" and o.Name not in before]
-        self.assertEqual([o.Label for o in added], [vs.Label],
+        # the joint's own VarSet, plus its companion layout VarSet when
+        # the template declares one — and nothing else, above all no
+        # clone of the body-nested Dims VarSet
+        from freecad.bentwizard.apply_joint import layout_varset
+        expected = [o.Label for o in (layout_varset(vs), vs) if o is not None]
+        self.assertEqual([o.Label for o in added], expected,
                          "apply added a VarSet besides the joint's own")
         # and the timbers' real Dims still drive them
         self.assertIsNotNone(self.doc.getObjectsByLabel("TDim_P3-1"))
@@ -523,17 +528,36 @@ class ApplyJointTest(unittest.TestCase):
                              for o in self.doc.Objects))
 
     def test_expression_values_bind(self):
-        # a string value is applied as an expression: bind Joint_Station
-        # to a project-level VarSet at apply time
+        # an '='-prefixed string is applied as an expression: bind
+        # Joint_Station to a project-level VarSet at apply time
         proj = self.doc.addObject("App::VarSet", "ProjectVars")
         proj.Label = "Project_Main"
         proj.addProperty("App::PropertyLength", "Tie_Height", "Project", "t")
         proj.Tie_Height = "60 in"
-        vs = self.apply(values={"Joint_Station": "<<Project_Main>>.Tie_Height"})
+        vs = self.apply(values={"Joint_Station": "=<<Project_Main>>.Tie_Height"})
         self.assertAlmostEqual(vs.Joint_Station.Value, 60 * 25.4, places=6)
         proj.Tie_Height = "50 in"
         self.doc.recompute()
         self.assertAlmostEqual(vs.Joint_Station.Value, 50 * 25.4, places=6)
+
+    def test_plain_string_value_is_a_literal_not_an_expression(self):
+        """Regression: every string used to become an expression, so a
+        plain '5 in' silently bound the property to the expression
+        `5 in` — the right number, but unwritable ever after, which is
+        exactly how it hid."""
+        vs = self.apply(values={"Joint_Station": "5 in"})
+        self.assertAlmostEqual(vs.Joint_Station.Value, 5 * 25.4, places=6)
+        self.assertNotIn("Joint_Station",
+                         [p.lstrip(".") for p, _e in vs.ExpressionEngine],
+                         "a literal value left the property expression-bound")
+        vs.Joint_Station = "7 in"          # and it must still be writable
+        self.doc.recompute()
+        self.assertAlmostEqual(vs.Joint_Station.Value, 7 * 25.4, places=6)
+
+    def test_empty_expression_is_refused(self):
+        from freecad.bentwizard.apply_joint import JointError
+        with self.assertRaises(JointError):
+            self.apply(values={"Joint_Station": "="})
 
     def test_engagement_seats_the_mate_frame(self):
         # the seated pose must make the beam's mate frame coincide with

@@ -166,8 +166,18 @@ class UndoRemoveJointTest(unittest.TestCase):
         App.closeDocument(self.doc.Name)
 
     def housing_drives_the_post(self):
-        """Nudge Housing_Depth and see whether the post's cut follows."""
-        vs = self.doc.getObject(self.names[0])
+        """Nudge Housing_Depth and see whether the post's cut follows.
+
+        Nudges wherever the parameter is AUTHORITATIVE: templates that
+        declare a companion layout VarSet hold the length-consuming
+        parameters there, and the joint VarSet only consumes them, so
+        writing to the joint's copy is overwritten on recompute.
+        """
+        from freecad.bentwizard.apply_joint import layout_varset
+        joint = self.doc.getObject(self.names[0])
+        vs = layout_varset(joint) or joint
+        if not hasattr(vs, "Housing_Depth"):
+            vs = joint
         post = self.doc.getObject(self.names[1])
         before = post.Shape.Volume
         quarter = App.Units.Quantity("0.25 in")

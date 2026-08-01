@@ -137,9 +137,45 @@ class TemplateSpec:
         # -> HousedMT), which beats a terse internal kind like "MT"
         self.kind_token = naming.kind_token_from_source(self.source_name)
 
-        # Parameter schema: (name, type_id, value, tooltip, expression)
+        # Companion layout VarSet (optional; roadmap: Parametric layout).
+        # Resolved through the VarSet_Role marker, never by label — the
+        # Frame_Role discipline. A template without one behaves exactly
+        # as before, so every existing template stays valid.
+        self.layout = None
+        self.layout_label = None
+        for vs in doc.of_type("App::VarSet"):
+            if vs is self.joint:
+                continue
+            role = vs.prop(naming.VARSET_ROLE_PROP)
+            if role is not None and role.value == naming.VARSET_ROLE_LAYOUT:
+                if self.layout is not None:
+                    raise JointError(
+                        f"template declares more than one companion "
+                        f"layout VarSet ({self.layout.label!r}, "
+                        f"{vs.label!r}) — a joint may have at most one")
+                self.layout = vs
+                self.layout_label = vs.label
+
+        # Parameter schema: (name, type_id, value, tooltip, expression).
+        # The two VarSets present ONE merged schema to the dialog, each
+        # row tagged with the VarSet it lands on: a parameter moved to
+        # the companion must still be editable where the user expects
+        # it, without the dialog knowing the split exists.
         exprs = {e.path.lstrip("."): e.expression
                  for e in self.joint.expressions}
+        layout_exprs = ({e.path.lstrip("."): e.expression
+                         for e in self.layout.expressions}
+                        if self.layout is not None else {})
+        # A joint parameter bound to the companion is CONSUMED from it.
+        # It still has to EXIST on the joint VarSet — the template's own
+        # geometry references it — so it is tagged, never dropped; only
+        # the dialog hides it, because the companion's row is the
+        # editable one and a read-only echo beside it just confuses.
+        consumed = set()
+        if self.layout_label:
+            token = f"<<{self.layout_label}>>"
+            consumed = {name for name, e in exprs.items() if token in e}
+
         self.parameters = []
         for p in sorted(self.joint.properties.values(), key=lambda p: p.name):
             if p.group is None:
@@ -149,6 +185,19 @@ class TemplateSpec:
                 "tooltip": p.doc or "", "group": p.group,
                 "expression": exprs.get(p.name),
                 "metadata": naming.is_template_metadata(p.name, p.group),
+                "varset": "joint", "consumed": p.name in consumed,
+            })
+        for p in sorted((self.layout.properties.values()
+                         if self.layout is not None else []),
+                        key=lambda p: p.name):
+            if p.group is None or p.name == naming.VARSET_ROLE_PROP:
+                continue
+            self.parameters.append({
+                "name": p.name, "type_id": p.type_id, "value": p.value,
+                "tooltip": p.doc or "", "group": p.group,
+                "expression": layout_exprs.get(p.name),
+                "metadata": naming.is_template_metadata(p.name, p.group),
+                "varset": "layout", "consumed": False,
             })
 
         # Template metadata (Tier 2, 'Template_' name prefix — adopted
@@ -357,11 +406,56 @@ def joint_members(varset):
     return members
 
 
+def _expression_input(value):
+    """The expression in an apply-time `values` entry, or None when it
+    is a literal.
+
+    Same spreadsheet convention as new_timber: a string starting with
+    '=' is an expression, anything else is a value. apply_joint used to
+    treat EVERY string as an expression, which silently turned a plain
+    '3 in' into the expression `3 in` — resolving to the same number,
+    so it looked right, while quietly making the property
+    expression-bound and unwritable. It cost two debugging rounds
+    during the grid-span work before the inconsistency was named.
+    """
+    if isinstance(value, str) and value.lstrip().startswith("="):
+        expr = value.lstrip()[1:].strip()
+        if not expr:
+            raise JointError("empty expression (nothing after '=')")
+        return expr
+    return None
+
+
+def layout_varset(varset):
+    """A joint's companion layout VarSet, or None.
+
+    Structural: whichever VarSet this joint's own expressions consume
+    from carries the VarSet_Role marker. Never label-matched — a
+    renamed companion must still resolve (Frame_Role's lesson) — with
+    the label kept only as a fallback for a companion nothing happens
+    to reference yet.
+    """
+    doc = varset.Document
+    for _path, expr in (getattr(varset, "ExpressionEngine", None) or []):
+        for label in _LABEL_IN_EXPR.findall(expr):
+            for obj in doc.getObjectsByLabel(label):
+                if obj.TypeId == "App::VarSet" and getattr(
+                        obj, naming.VARSET_ROLE_PROP,
+                        None) == naming.VARSET_ROLE_LAYOUT:
+                    return obj
+    for obj in doc.getObjectsByLabel(naming.layout_label(varset.Label)):
+        if obj.TypeId == "App::VarSet":
+            return obj
+    return None
+
+
 def remove_joint(varset):
-    """Remove a joint instance: all members from both timbers, then the
+    """Remove a joint instance: all members from both timbers, the
+    companion layout VarSet if the template declared one, then the
     VarSet. Returns the number of objects removed. Caller owns the
     transaction."""
     doc = varset.Document
+    companion = layout_varset(varset)
     # clear any live preview first — its ghost link and group are not
     # joint members (no expression ties them to the VarSet), so removing
     # the joint would orphan the ghost and leave the secondary hidden
@@ -421,6 +515,11 @@ def remove_joint(varset):
         doc.removeObject(name)
         removed += 1
     doc.removeObject(varset.Name)
+    if companion is not None:
+        # goes with its joint: nothing else may consume from it, since
+        # a pure source is by definition only read downstream
+        doc.removeObject(companion.Name)
+        removed += 1
     joint_handle.prune_root_group(doc)
     doc.recompute()
     # deleting a body's visible tip leaves the relinked tip hidden (the
@@ -692,8 +791,12 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
 
     body_map: {template body label -> target PartDesign body object},
     e.g. {"P0-1": post, "B0-1": beam}. values: optional {property name ->
-    value} overrides applied to the new joint VarSet (literal override
-    of a junction binding replaces the expression, per §4.9).
+    value} overrides applied to the new joint VarSet, or to its
+    companion layout VarSet for parameters the template declares there
+    (literal override of a junction binding replaces the expression,
+    per §4.9). A value is a Quantity/number, or a string starting with
+    '=' for an expression — the spreadsheet convention new_timber uses.
+    A plain string is a literal, NOT an expression.
     placement: optional {template body label -> options}:
       {"end": "A"|"B"} for end-landing roles — end B keeps the frame
       orientation (reference-face rule: setbacks keep measuring from the same
@@ -770,46 +873,103 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
         # reference a body directly, and to scrub the timber token out of
         # legacy templates whose features still carry it
         renames[tmpl_label] = body.Label
+    new_layout_label = None
+    if template.layout is not None:
+        new_layout_label = naming.layout_label(new_joint_label)
+        renames[template.layout_label] = new_layout_label
     expr_renames = {f"<<{k}>>": f"<<{v}>>" for k, v in renames.items()}
+
+    def _fill(target, params):
+        """Create `params` on `target` and apply values/expressions."""
+        for p in params:
+            target.addProperty(p["type_id"], p["name"], p["group"],
+                               p["tooltip"])
+            setattr(target, p["name"], p["value"])
+        for p in params:
+            if p.get("consumed"):
+                # Consumed from the companion — the binding always wins.
+                # `values` is keyed by NAME and both VarSets share these
+                # names, so without this the companion's own value lands
+                # on the joint VarSet too and silently replaces the
+                # binding: the allowance would then track an edit the
+                # actual cut ignored.
+                if p["expression"]:
+                    target.setExpression(
+                        p["name"], _rewrite(p["expression"], expr_renames))
+                continue
+            if p["name"] in values:
+                v = values[p["name"]]
+                expr = _expression_input(v)
+                if expr is not None:
+                    try:
+                        target.setExpression(p["name"], expr)
+                    except Exception as exc:
+                        raise JointError(
+                            f"{p['name']}: invalid expression {expr!r} "
+                            f"— {exc}")
+                elif isinstance(v, str):
+                    # a plain string is a literal: parse it the way the
+                    # property's own type would
+                    try:
+                        setattr(target, p["name"], v)
+                    except Exception as exc:
+                        raise JointError(
+                            f"{p['name']}: cannot use {v!r} as a value "
+                            f"(prefix with '=' for an expression) — {exc}")
+                else:
+                    setattr(target, p["name"], v)   # literal override
+            elif p["expression"]:
+                target.setExpression(p["name"],
+                                     _rewrite(p["expression"], expr_renames))
+
+    def _params(kind):
+        return [p for p in template.parameters if p["varset"] == kind]
+
+    # --- companion layout VarSet ------------------------------------------
+    # Created FIRST: it is the pure source the joint VarSet consumes
+    # from, and that direction is what keeps a grid-driven Dims.Length
+    # out of a dependency cycle (roadmap: Parametric layout).
+    layout = None
+    if template.layout is not None:
+        layout = doc.addObject("App::VarSet", "JointLayoutVarSet")
+        layout.Label = new_layout_label
+        joints_group(doc).addObject(layout)
+        layout.addProperty("App::PropertyString", naming.VARSET_ROLE_PROP,
+                           naming.TEMPLATE_META_GROUP,
+                           "Marks this as a joint's companion layout "
+                           "VarSet: the pure source holding the "
+                           "length-consuming parameters. Tools resolve "
+                           "the companion through this, never by label.")
+        setattr(layout, naming.VARSET_ROLE_PROP, naming.VARSET_ROLE_LAYOUT)
+        _fill(layout, _params("layout"))
 
     # --- joint VarSet -----------------------------------------------------
     varset = doc.addObject("App::VarSet", "JointVarSet")
     varset.Label = new_joint_label
     joints_group(doc).addObject(varset)
-    for p in template.parameters:
-        varset.addProperty(p["type_id"], p["name"], p["group"], p["tooltip"])
-        setattr(varset, p["name"], p["value"])
-    for p in template.parameters:
-        if p["name"] in values:
-            v = values[p["name"]]
-            if isinstance(v, str):
-                # a string value is an expression (e.g. bind a parameter
-                # to a project VarSet at apply time)
-                try:
-                    varset.setExpression(p["name"], v)
-                except Exception as exc:
-                    raise JointError(
-                        f"{p['name']}: invalid expression {v!r} — {exc}")
-            else:
-                setattr(varset, p["name"], v)    # literal override
-        elif p["expression"]:
-            varset.setExpression(p["name"],
-                                 _rewrite(p["expression"], expr_renames))
+    _fill(varset, _params("joint"))
 
     # Pre-flight parameter sanity against the RESOLVED values — junction
     # bindings have now evaluated against the actual chosen timbers, so
     # this is where template defaults meet a too-small stick. Refuse
     # before cutting anything (roadmap: apply-dialog sanity bounds).
     doc.recompute()
-    if "Invalid" in varset.State or "Error" in varset.State:
-        # an expression that parsed but cannot evaluate (e.g. a VarSet
-        # or property that does not exist) surfaces here
-        raise JointError(
-            f"{varset.Label} failed to compute — check the expression "
-            f"values entered for this joint")
+    for vs in (v for v in (varset, layout) if v is not None):
+        if "Invalid" in vs.State or "Error" in vs.State:
+            # an expression that parsed but cannot evaluate (e.g. a
+            # VarSet or property that does not exist) surfaces here
+            raise JointError(
+                f"{vs.Label} failed to compute — check the expression "
+                f"values entered for this joint")
 
     def lookup(name):
+        # parameters may live on either VarSet: a length-consuming one
+        # (Tenon_Length) moves to the companion, and the sanity checks
+        # must still see it. The joint VarSet wins when both carry the
+        # name, since that is the value the geometry actually reads.
         p = getattr(varset, name, None)
+        if p is None and layout is not None:
+            p = getattr(layout, name, None)
         return p.Value if hasattr(p, "Value") else p
 
     problems = footprint_violations(lookup)

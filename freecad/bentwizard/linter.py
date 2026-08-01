@@ -573,12 +573,14 @@ def rule_label_reserved_characters(model):
 # Advisory rules
 # --------------------------------------------------------------------------
 
-# VarSet labels: Kind_Owner (TDim_/Group_/Project_/Order_), joint
-# instances J-<Kind>-<serial> (legacy Joint_<Kind>_<ID> and the longer
-# TimberDims_ prefix grandfathered). The owner part is free-form
-# (permissive naming, July 2026).
+# VarSet labels: Kind_Owner (TDim_/Group_/Project_/Order_/Layout_),
+# joint instances J-<Kind>-<serial> (legacy Joint_<Kind>_<ID> and the
+# longer TimberDims_ prefix grandfathered). The owner part is free-form
+# (permissive naming, July 2026). 'Layout_' covers both a joint's
+# companion layout VarSet ('Layout_J-HousedMT-001', whose owner is its
+# joint) and a hand-authored project layout VarSet.
 _VARSET_LABEL = re.compile(
-    r"^(TDim|TimberDims|Joint|Group|Project|Order)_.+$|^J-.+-.+$")
+    r"^(TDim|TimberDims|Joint|Group|Project|Order|Layout)_.+$|^J-.+-.+$")
 _PROPERTY_NAME = re.compile(r"^[A-Z][A-Za-z0-9]*(_[A-Z0-9][A-Za-z0-9]*)+$")
 _DIMS_BASE_PROPS = {"Width", "Depth", "Length"}
 

@@ -100,7 +100,10 @@ class JointHandleTest(unittest.TestCase):
         group.addObject(j1)                        # the user drags it out
         ensure_handle(j1)
         self.assertIs(j1.getParentGroup(), group)
-        self.assertEqual(list(handle.Group), [])
+        # the joint VarSet stays where the user put it; the companion
+        # layout VarSet (when the template declares one) is a separate
+        # member and legitimately stays nested under the handle
+        self.assertNotIn(j1, list(handle.Group))
 
     def test_a_varset_that_drifted_out_of_the_folder_is_refiled(self):
         from freecad.bentwizard.joint_handle import ensure_handle, find_handle

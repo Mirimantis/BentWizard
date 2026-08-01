@@ -235,6 +235,41 @@ FRAME_ROLES = (FRAME_ROLE_LANDING, FRAME_ROLE_MATE)
 LEGACY_FRAME_TOKENS = {"MateFrame": FRAME_ROLE_MATE,
                        "JointFrame": FRAME_ROLE_LANDING}
 
+# Tier-2 marker naming a VarSet's role within a joint template. Same
+# discipline as Frame_Role: a template declares the companion, tools
+# read the property, and nothing keys off the label — a renamed
+# companion must still resolve.
+VARSET_ROLE_PROP = "VarSet_Role"
+VARSET_ROLE_LAYOUT = "Layout"
+
+# The companion layout VarSet a joint template may declare (roadmap:
+# Parametric layout). It holds the length-consuming parameters
+# authoritatively plus the derived Stick_Allowance, and is a PURE
+# SOURCE: the joint VarSet consumes from it, never the reverse, which
+# is what keeps a grid-driven Dims.Length out of a dependency cycle.
+LAYOUT_PREFIX = "Layout_"
+STICK_ALLOWANCE_PROP = "Stick_Allowance"
+
+
+def layout_label(joint_label_):
+    """The companion layout VarSet's label for a joint: kind_owner, the
+    owner being the joint itself ('Layout_J-HousedMT-001')."""
+    return f"{LAYOUT_PREFIX}{joint_label_}"
+
+
+def is_layout_varset_label(label):
+    """True for a companion layout VarSet label. Advisory only — every
+    tool resolves the companion through VarSet_Role, never this."""
+    return label.startswith(LAYOUT_PREFIX)
+
+
+def layout_owner(label):
+    """The joint label a companion layout VarSet belongs to, or None."""
+    if not is_layout_varset_label(label):
+        return None
+    owner = label[len(LAYOUT_PREFIX):]
+    return owner or None
+
 
 def base_feature_label(descriptive, type_id, timber_label):
     """A timber's own base feature, qualified by its timber:
