@@ -456,6 +456,13 @@ def remove_joint(varset):
     transaction."""
     doc = varset.Document
     companion = layout_varset(varset)
+    if companion is not None:
+        # a timber whose Length is driven from a span consumes this
+        # joint's allowance; freeze that one term at its resolved value
+        # so the stick stays put instead of shrinking by the tenon it is
+        # losing (and dragging the far post with it) mid-delete
+        from .span import freeze_allowance_term
+        freeze_allowance_term(companion)
     # clear any live preview first — its ghost link and group are not
     # joint members (no expression ties them to the VarSet), so removing
     # the joint would orphan the ghost and leave the secondary hidden

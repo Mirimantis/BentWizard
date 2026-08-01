@@ -248,7 +248,42 @@ VARSET_ROLE_LAYOUT = "Layout"
 # SOURCE: the joint VarSet consumes from it, never the reverse, which
 # is what keeps a grid-driven Dims.Length out of a dependency cycle.
 LAYOUT_PREFIX = "Layout_"
-STICK_ALLOWANCE_PROP = "Stick_Allowance"
+
+# What a companion publishes, one per layout basis. Both are measured
+# along the ENTERING timber's own axis, which is what keeps the
+# arithmetic angle-blind:
+#   O.C.  — past the landing timber's CENTERLINE (tenon + housing - ddim/2)
+#   F.T.F.— past the landing timber's FACE      (tenon + housing)
+# The half-thickness between them is published too, because it is the
+# conversion term: OC = FTF + sum(Grid_Setback).
+STICK_ALLOWANCE_OC = "Stick_Allowance_OC"
+STICK_ALLOWANCE_FTF = "Stick_Allowance_FTF"
+GRID_SETBACK_PROP = "Grid_Setback"
+
+# Layout bases. The basis belongs to the DISTANCE, not to the tool: a
+# variable is an on-center number or a clear-span number for good, so
+# there is no mode for a user to set wrongly. Which allowance a
+# driven Length sums IS the basis, so it reads back structurally.
+BASIS_OC = "OC"
+BASIS_FTF = "FTF"
+BASES = (BASIS_OC, BASIS_FTF)
+ALLOWANCE_FOR_BASIS = {BASIS_OC: STICK_ALLOWANCE_OC,
+                       BASIS_FTF: STICK_ALLOWANCE_FTF}
+BASIS_SUFFIX = {BASIS_OC: "_Dist_OC", BASIS_FTF: "_Dist_FTF"}
+BASIS_LABEL = {BASIS_OC: "O.C. (On-Center)",
+               BASIS_FTF: "Clear span (Face-to-Face)"}
+
+
+def basis_from_name(prop_name):
+    """The layout basis a distance variable's name advertises, or None.
+
+    Advisory only — a nudge for the dialog's default. What a driven
+    Length actually uses is read from its expression, never from a name.
+    """
+    for basis, suffix in BASIS_SUFFIX.items():
+        if prop_name.endswith(suffix):
+            return basis
+    return None
 
 
 def layout_label(joint_label_):

@@ -54,7 +54,7 @@ _FRAMEWORK_PROPERTIES = frozenset((
 ))
 
 
-def _expression_candidates(doc, include_dims=True):
+def _expression_candidates(doc, include_dims=True, include_joints=True):
     """Sorted '<<VarSet Label>>.Property' completion candidates: every
     numeric user property on every VarSet in the document — the values
     an expression can bind to under the project conventions.
@@ -73,6 +73,14 @@ def _expression_candidates(doc, include_dims=True):
         if obj.TypeId != "App::VarSet":
             continue
         if not include_dims and naming.is_dims_label(obj.Label):
+            continue
+        if not include_joints and (
+                naming.is_joint_varset_label(obj.Label)
+                or getattr(obj, naming.VARSET_ROLE_PROP, None)
+                == naming.VARSET_ROLE_LAYOUT):
+            # a span comes from a project/group VarSet, never from one
+            # joint's own parameters — offering Tenon_Length as a bay
+            # dimension is noise a framer has to read past
             continue
         for prop in obj.PropertiesList:
             if prop in _FRAMEWORK_PROPERTIES:
@@ -1214,6 +1222,321 @@ class AssembleTimbersCommand:
             return
 
 
+class DriveLengthFromSpanDialog(QtWidgets.QDialog):
+    """Pick the layout distance a timber's Length derives from.
+
+    The list holds every numeric project/group VarSet property plus a
+    '(new distance...)' entry, so a framer never has to hand-author a
+    VarSet before the tool is usable (CLAUDE.md audience note). Joint
+    parameters are filtered out: Tenon_Length is not a bay dimension,
+    and a long list of them buries everything else.
+
+    The basis (O.C. or clear span) belongs to the DISTANCE, not to this
+    dialog — picking an existing variable adopts its basis. All three
+    numbers are shown live, so choosing the wrong one is visible rather
+    than silent.
+    """
+
+    NEW = "(new distance…)"
+
+    def __init__(self, doc, body, parent=None):
+        super().__init__(parent)
+        from . import naming
+        from .span import available_bases, driving_span, entering_joints
+        self.doc = doc
+        self.body = body
+        self.dims = dims_varset(body)
+        self.bases = available_bases(body)
+        self.setWindowTitle("Drive Length from Layout Distance")
+        layout = QtWidgets.QVBoxLayout(self)
+
+        joints = entering_joints(body)
+        summary = QtWidgets.QLabel(
+            f"<b>{body.Label}</b> lands on {len(joints)} timber(s). Its "
+            f"stick length becomes the layout distance plus what each "
+            f"end's joinery adds beyond it.", self)
+        summary.setWordWrap(True)
+        layout.addWidget(summary)
+
+        form = QtWidgets.QFormLayout()
+        self.basis_box = QtWidgets.QComboBox(self)
+        for basis in self.bases:
+            self.basis_box.addItem(naming.BASIS_LABEL[basis], basis)
+        self.basis_box.setToolTip(
+            "O.C. = On-Center, centerline of one timber to centerline "
+            "of the next. Clear span = Face-to-Face, the open distance "
+            "between them. Both give the same stick; they are two ways "
+            "of writing down the same layout.\n\nClear span needs "
+            "exactly two timbers to be between, so it is unavailable "
+            "otherwise.")
+        self.basis_box.currentIndexChanged.connect(self._refresh)
+        form.addRow("Measured:", self.basis_box)
+
+        self.span_box = QtWidgets.QComboBox(self)
+        self.span_box.addItem(self.NEW, None)
+        for ref in _expression_candidates(doc, include_dims=False,
+                                          include_joints=False):
+            self.span_box.addItem(ref, ref)
+        self.span_box.setToolTip(
+            "The layout distance this timber spans. Several bays bound "
+            "to one distance move together when it is edited.")
+        self.span_box.currentIndexChanged.connect(self._span_chosen)
+        form.addRow("Distance:", self.span_box)
+
+        self.new_name = QtWidgets.QLineEdit(self)
+        self.new_name.setToolTip(
+            "Name for the new distance variable, created on the "
+            "project VarSet (Project_Main). The '_Dist_OC' / "
+            "'_Dist_FTF' suffix marks which basis it is measured on, "
+            "so the name is never ambiguous on its own.")
+        form.addRow("New distance name:", self.new_name)
+        # the stick's present length is the closest thing to a layout
+        # distance the user already has; they adjust from there
+        self.new_value = _quantity_field(
+            self.dims.Length.Value if self.dims is not None else 3048.0)
+        self.new_value.valueChanged.connect(self._refresh)
+        self.new_value.setToolTip(
+            "Starting distance. Edit it later on the project VarSet to "
+            "move every bay bound to it.")
+        form.addRow("New distance value:", self.new_value)
+        layout.addLayout(form)
+
+        self.readout = QtWidgets.QLabel(self)
+        self.readout.setTextFormat(QtCore.Qt.RichText)
+        self.readout.setToolTip(
+            "What this layout gives, both ways round, plus the stick "
+            "that gets cut. Shown together so the two bases cannot be "
+            "quietly confused.")
+        layout.addWidget(self.readout)
+
+        # adopt the basis this timber is ALREADY driven on, if any
+        self.driven = driving_span(body)
+        if self.driven:
+            ref, basis = self.driven
+            at = self.basis_box.findData(basis)
+            if at >= 0:
+                self.basis_box.setCurrentIndex(at)
+            at = self.span_box.findData(ref)
+            if at >= 0:
+                self.span_box.setCurrentIndex(at)
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
+            parent=self)
+        # Stopping is its own action, not a distance you could pick — as
+        # a combo entry it sat at the bottom of a long list, present but
+        # undiscoverable. Shown only when there is something to stop.
+        self.stop_requested = False
+        if self.driven:
+            stop = buttons.addButton(
+                "Stop driving", QtWidgets.QDialogButtonBox.DestructiveRole)
+            stop.setToolTip(
+                f"Keep {body.Label} at its present length and stop "
+                f"following {self.driven[0]}. The stick does not move.")
+            stop.clicked.connect(self._stop)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self._span_chosen()
+
+    # -- state -------------------------------------------------------------
+
+    def basis(self):
+        return self.basis_box.currentData()
+
+    def _stop(self):
+        self.stop_requested = True
+        self.accept()
+
+    def _span_chosen(self):
+        """A named distance carries its own basis; adopt it and lock the
+        selector, so a variable cannot be driven on the wrong one."""
+        from . import naming
+        ref = self.span_box.currentData()
+        making = ref is None
+        self.new_name.setEnabled(making)
+        self.new_value.setEnabled(making)
+        if making:
+            self.basis_box.setEnabled(len(self.bases) > 1)
+            self._suggest_name()
+        else:
+            advertised = naming.basis_from_name(ref.split(".")[-1])
+            at = self.basis_box.findData(advertised) if advertised else -1
+            if at >= 0:
+                self.basis_box.setCurrentIndex(at)
+            # only lock when the name actually declares a basis
+            self.basis_box.setEnabled(at < 0 and len(self.bases) > 1)
+        self._refresh()
+
+    def _suggest_name(self):
+        from .span import suggested_name
+        self.new_name.setText(suggested_name("Bay", self.basis()))
+
+    def _refresh(self):
+        from .span import readout
+        if self.span_box.currentData() is None:
+            self._suggest_name()
+        try:
+            values = readout(self.body, self._distance_mm(), self.basis())
+        except Exception:
+            self.readout.setText("")
+            return
+
+        def show(mm):
+            if mm is None:
+                return "—"
+            return App.Units.Quantity(mm, App.Units.Length).UserString
+
+        self.readout.setText(
+            "<table cellpadding=3>"
+            f"<tr><td>On-Center (O.C.)</td><td><b>{show(values['OC'])}"
+            "</b></td></tr>"
+            f"<tr><td>Clear span (F.T.F.)</td><td><b>"
+            f"{show(values['FTF'])}</b></td></tr>"
+            f"<tr><td>Stick length cut</td><td><b>"
+            f"{show(values['Length'])}</b></td></tr></table>")
+
+    def _distance_mm(self):
+        """The distance being proposed, in mm."""
+        ref = self.span_box.currentData()
+        if ref is None:
+            return float(self.new_value.property("rawValue"))
+        label, _, prop = ref.partition(">>.")
+        holder = self.doc.getObjectsByLabel(label.lstrip("<"))
+        if not holder:
+            raise ValueError(ref)
+        value = getattr(holder[0], prop)
+        return value.Value if hasattr(value, "Value") else float(value)
+
+    def span_ref(self):
+        """The expression term to bind to; creates the property when the
+        user asked for a new distance."""
+        from .span import ensure_span_property
+        chosen = self.span_box.currentData()
+        if chosen:
+            return chosen
+        return ensure_span_property(
+            self.doc, self.new_name.text().strip(),
+            App.Units.Quantity(f"{self.new_value.property('rawValue')} mm"),
+            basis=self.basis())
+
+
+def _offer_cleanup(doc, span_ref):
+    """Offer to delete a layout distance nothing consumes any more.
+
+    Offered, never automatic: it is the user's variable, and a distance
+    is shared on purpose — so this stays silent while anything still
+    references it, and only speaks when the value is provably an orphan.
+    """
+    from .span import SpanError, references_to, remove_distance
+    if references_to(doc, span_ref):
+        return
+    name = span_ref.split(".")[-1]
+    answer = QtWidgets.QMessageBox.question(
+        Gui.getMainWindow(), "Drive Length from Layout Distance",
+        f"Nothing uses {name} any more.\n\nRemove it from the project "
+        f"variables?",
+        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+        QtWidgets.QMessageBox.Yes)
+    if answer != QtWidgets.QMessageBox.Yes:
+        return
+    try:
+        doc.openTransaction("Remove unused layout distance")
+        try:
+            remove_distance(doc, span_ref)
+        except Exception:
+            doc.abortTransaction()
+            raise
+        doc.commitTransaction()
+        doc.recompute()
+    except SpanError as err:
+        QtWidgets.QMessageBox.warning(
+            Gui.getMainWindow(), "Drive Length from Layout Distance",
+            str(err))
+
+
+def _span_ready(body):
+    """Explain, once, why a timber cannot be driven yet."""
+    from .span import available_bases
+    if available_bases(body):
+        return True
+    QtWidgets.QMessageBox.information(
+        Gui.getMainWindow(), "Drive Length from Layout Distance",
+        f"{body.Label} does not land on any timber joint that publishes "
+        f"a stick allowance yet.\n\nApply its end joints first, using a "
+        f"joint template that declares a layout VarSet.")
+    return False
+
+
+class DriveLengthFromSpanCommand:
+    def GetResources(self):
+        return {
+            "MenuText": "Drive Length from Layout Distance",
+            "ToolTip": "Derive the selected timber's stick length from a "
+                       "layout distance: O.C. (On-Center, centerline to "
+                       "centerline) or clear span (Face-to-Face). Length "
+                       "= distance + what each end's joinery adds beyond "
+                       "it. Edit the distance later and every timber "
+                       "bound to it re-cuts, with the bays moving to "
+                       "match. Run it on a timber after its end joints "
+                       "exist.",
+        }
+
+    def IsActive(self):
+        return App.ActiveDocument is not None
+
+    def Activated(self):
+        from .span import (SpanError, drive_length, driving_span,
+                           freeze_length)
+        doc = App.ActiveDocument
+        bodies = [o for o in Gui.Selection.getSelection()
+                  if o in _timber_bodies(doc)]
+        if len(bodies) != 1:
+            QtWidgets.QMessageBox.information(
+                Gui.getMainWindow(), "Drive Length from Layout Distance",
+                "Select one timber — the one whose stick length should "
+                "follow the layout distance.")
+            return
+        body = bodies[0]
+        if not _span_ready(body):
+            return
+        was_driven = driving_span(body)
+        dialog = DriveLengthFromSpanDialog(doc, body, Gui.getMainWindow())
+        while dialog.exec() == QtWidgets.QDialog.Accepted:
+            stopping = dialog.stop_requested
+            try:
+                doc.openTransaction("Stop driving length" if stopping
+                                    else "Drive length from layout distance")
+                try:
+                    if stopping:
+                        freeze_length(body)
+                        length = dims_varset(body).Length
+                    else:
+                        length = drive_length(body, dialog.span_ref(),
+                                              dialog.basis())
+                except Exception:
+                    doc.abortTransaction()
+                    raise
+                doc.commitTransaction()
+            except SpanError as err:
+                QtWidgets.QMessageBox.warning(
+                    dialog, "Drive Length from Layout Distance", str(err))
+                continue
+            doc.recompute()
+            QtWidgets.QMessageBox.information(
+                Gui.getMainWindow(), "Drive Length from Layout Distance",
+                f"{body.Label} stays at {length.UserString}, no longer "
+                f"following a layout distance." if stopping else
+                f"{body.Label} is now {length.UserString} and follows "
+                f"the layout distance. Edit it to move the bay.")
+            # the distance it used to follow may now be an orphan — both
+            # from stopping and from switching to a different one
+            now = driving_span(body)
+            if was_driven and (now is None or now[0] != was_driven[0]):
+                _offer_cleanup(doc, was_driven[0])
+            return
+
+
 def register():
     # the handle marker's context menu: whole-joint operations, in one
     # place a future joint-wide tool can extend without touching the
@@ -1230,8 +1553,11 @@ def register():
     Gui.addCommand("BentWizard_PreviewJoint", PreviewJointCommand())
     Gui.addCommand("BentWizard_DuplicateBent", DuplicateBentCommand())
     Gui.addCommand("BentWizard_AssembleTimbers", AssembleTimbersCommand())
+    Gui.addCommand("BentWizard_DriveLengthFromSpan",
+                   DriveLengthFromSpanCommand())
 
 
 ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_ApplyJoint",
                 "BentWizard_RemoveJoint", "BentWizard_PreviewJoint",
-                "BentWizard_DuplicateBent", "BentWizard_AssembleTimbers"]
+                "BentWizard_DuplicateBent", "BentWizard_AssembleTimbers",
+                "BentWizard_DriveLengthFromSpan"]
