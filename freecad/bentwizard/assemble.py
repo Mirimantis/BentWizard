@@ -41,7 +41,7 @@ from collections import namedtuple
 
 import FreeCAD as App
 
-from . import naming
+from . import joint_handle, naming
 from .apply_joint import (JointError, bent_joints, joint_role_frames,
                           mate_parity)
 
@@ -420,6 +420,9 @@ def assimilate_joint(doc, varset):
     doc.recompute()
     if move is not None and move.TypeId == ASSEMBLY_TYPE:
         refresh_joint_display(move)
+    # the joint now belongs to an assembly (possibly one just created,
+    # possibly promoted to the frame): file its handle where it lives
+    joint_handle.ensure_handle(varset)
     return Assimilation(joint, new_asm, principal)
 
 
@@ -460,12 +463,18 @@ def assemble_timbers(doc, bodies, assembly=None, label="", grounded=None):
     with `label` when None), ground the principal timber (`grounded`,
     or the pick_grounded heuristic), and assimilate every timber joint
     among the members. The path for pre-pivot documents, repair, and
-    regrounding. Returns (assembly, skipped, misfits): timber-joint
-    labels skipped (no engagement frames) and those still disagreeing
-    after the solve (kept visible for inspection). Caller owns the
-    transaction."""
+    regrounding. Returns (assembly, skipped, misfits, adopted):
+    timber-joint labels skipped (no engagement frames), those still
+    disagreeing after the solve (kept visible for inspection), and how
+    many joints in the DOCUMENT gained a handle — this is also the
+    migration path for documents built before handles existed. Caller
+    owns the transaction."""
     if not bodies:
         raise JointError("select the timbers to assemble first")
+    # doc-wide, and before assimilation re-files them: a repair run is
+    # when an older document meets this workbench, and every joint in it
+    # deserves a handle, not just those in the selection
+    adopted = joint_handle.adopt_handles(doc)
     if assembly is None:
         # Repair/reground: when every selected timber ALREADY shares one
         # assembly, that assembly is the subject — creating a new one
@@ -503,4 +512,4 @@ def assemble_timbers(doc, bodies, assembly=None, label="", grounded=None):
         assimilate_joint(doc, varset)
     doc.recompute()
     misfits = [v.Label for v in seatable if is_misfit(v)]
-    return assembly, skipped, misfits
+    return assembly, skipped, misfits, adopted

@@ -23,7 +23,7 @@ import FreeCAD as App
 import Part
 import Sketcher
 
-from . import naming
+from . import joint_handle, naming
 from .fcstd import FcstdDocument
 from .linter import Model, footprint_violations
 
@@ -93,29 +93,16 @@ def dims_varset(body):
     return None
 
 
-JOINTS_GROUP_LABEL = "TimberJointVars"
-LEGACY_JOINTS_GROUP_LABEL = "Joints"
-
-
 def joints_group(doc):
-    """The document's 'TimberJointVars' Std Group (created on first
-    use): timber-joint VarSets live there instead of scattered through
-    the tree. Named apart from "Joints" because every FreeCAD Assembly
-    carries its own Assembly::JointGroup labeled "Joints" — two
-    same-name tree nodes once a bent is assembled. A legacy 'Joints'
-    Std Group is renamed in place (the type check keeps assembly
-    JointGroups untouched). Pure organization — an
+    """The document root's timber-joints Std Group (created on first
+    use), where a joint's handle waits until assimilation files it in
+    the bent it belongs to. Named apart from "Joints" because every
+    FreeCAD Assembly carries its own Assembly::JointGroup labeled
+    "Joints" — two same-name tree nodes once a bent is assembled;
+    legacy groups (that one, and 'TimberJointVars' from before handles)
+    are renamed in place. Pure organization — an
     App::DocumentObjectGroup has no geometric effect."""
-    for obj in doc.getObjectsByLabel(JOINTS_GROUP_LABEL):
-        if obj.TypeId == "App::DocumentObjectGroup":
-            return obj
-    for obj in doc.getObjectsByLabel(LEGACY_JOINTS_GROUP_LABEL):
-        if obj.TypeId == "App::DocumentObjectGroup":
-            obj.Label = JOINTS_GROUP_LABEL
-            return obj
-    group = doc.addObject("App::DocumentObjectGroup", "TimberJointVars")
-    group.Label = JOINTS_GROUP_LABEL
-    return group
+    return joint_handle.handle_group(doc)
 
 
 # --------------------------------------------------------------------------
@@ -382,6 +369,9 @@ def remove_joint(varset):
     preview = find_preview(varset)
     if preview is not None:
         remove_preview(preview)
+    # the handle is not a joint member either (it holds the VarSet, it
+    # does not reference it by expression) — it would outlive its joint
+    joint_handle.remove_handle(varset)
     members = joint_members(varset)
     # the joint's Fixed assembly joint (if assembled) references the
     # landing/mate frames — remove it with the frames it points at
@@ -431,6 +421,7 @@ def remove_joint(varset):
         doc.removeObject(name)
         removed += 1
     doc.removeObject(varset.Name)
+    joint_handle.prune_root_group(doc)
     doc.recompute()
     # deleting a body's visible tip leaves the relinked tip hidden (the
     # GUI restores it on delete; the API does not) — the timber would
@@ -914,6 +905,10 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
            if "Invalid" in o.State or "Error" in o.State]
     if bad:
         raise JointError(f"recompute failed for: {', '.join(bad)}")
+    # the joint's handle: one clickable thing standing for a joint that
+    # is otherwise scattered across two bodies. Assimilation re-files it
+    # once the joint has an assembly to belong to.
+    joint_handle.ensure_handle(varset)
     return varset
 
 

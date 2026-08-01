@@ -12,7 +12,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
-from . import naming
+from . import joint_handle, naming
 from .apply_joint import (JointError, TemplateSpec, apply_joint,
                           create_preview, dims_varset, engagement_placement,
                           find_preview, joint_members, remove_joint,
@@ -490,19 +490,25 @@ def _timber_bodies(doc):
 
 def _pick_joint(doc, title):
     """Prompt for a timber-joint instance VarSet, preselected from the current
-    selection (its VarSet, or any joint member — the landing frame is
-    3D-clickable, and member labels carry the joint's suffix).
+    selection (its handle, its VarSet, or any joint member — the marker
+    and the landing frame are both 3D-clickable, and member labels carry
+    the joint's suffix).
     Returns the VarSet, or None if cancelled / none present."""
-    joints = [o for o in doc.Objects
-              if o.TypeId == "App::VarSet"
-              and naming.is_joint_varset_label(o.Label)]
+    joints = joint_handle.joint_varsets(doc)
     if not joints:
         QtWidgets.QMessageBox.information(
             Gui.getMainWindow(), title, "No timber joints in this document.")
         return None
     labels = [j.Label for j in joints]
     current = 0
-    sel_labels = [o.Label for o in Gui.Selection.getSelection()]
+    selection = Gui.Selection.getSelection()
+    # a selected marker names its joint outright — no suffix matching
+    sel_labels = [o.Label for o in selection]
+    for obj in selection:
+        held = joint_handle.handle_varset(obj) \
+            if joint_handle.is_handle(obj) else None
+        if held is not None:
+            sel_labels.append(held.Label)
     for i, joint in enumerate(joints):
         # member labels carry the joint's suffix: '.WHD.001' under the
         # current scheme, '_J-HousedMT-001' or legacy '_MT_B2a' for joints
@@ -520,6 +526,90 @@ def _pick_joint(doc, title):
     if not ok:
         return None
     return joints[labels.index(label)]
+
+
+# --------------------------------------------------------------------------
+# Whole-joint operations
+#
+# Shared by the toolbar commands (which pick a joint first) and the
+# handle marker's context menu (which already knows which joint). Each
+# owns its transaction, so either entry point is one undo step.
+# --------------------------------------------------------------------------
+
+def show_joint_parameters(varset):
+    """Select the joint's VarSet: its parameters fill the Data property
+    editor, editable in place."""
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(varset)
+
+
+def select_joint_members(varset):
+    """Select everything the joint is made of — both timbers' cuts,
+    sketches and frames. A timber joint is scattered by nature; this is
+    how you see its full extent in the tree and the 3D view."""
+    Gui.Selection.clearSelection()
+    for obj in joint_members(varset):
+        Gui.Selection.addSelection(obj)
+    Gui.Selection.addSelection(varset)
+
+
+def preview_joint_interactive(varset):
+    """Toggle Preview Mated Joint for one joint, reporting why not."""
+    doc = varset.Document
+    existing = find_preview(varset)
+    if existing is not None:                 # toggle off
+        doc.openTransaction(f"Clear preview {varset.Label}")
+        try:
+            remove_preview(existing)
+        except Exception:
+            doc.abortTransaction()
+            raise
+        doc.commitTransaction()
+        return
+    if engagement_placement(varset) is None:
+        QtWidgets.QMessageBox.warning(
+            Gui.getMainWindow(), "Preview Mated Timber Joint",
+            f"{varset.Label} has no mate frame, so its engaged pose is "
+            f"not defined. Joints applied before mate frames were added "
+            f"to the template cannot be previewed; re-apply to enable it.")
+        return
+    doc.openTransaction(f"Preview {varset.Label}")
+    try:
+        group = create_preview(varset)
+    except Exception:
+        doc.abortTransaction()
+        raise
+    doc.commitTransaction()
+    Gui.Selection.clearSelection()
+    if group is not None:
+        Gui.Selection.addSelection(group)
+        try:
+            Gui.SendMsgToActiveView("ViewFit")
+        except Exception:
+            pass
+
+
+def remove_joint_interactive(varset):
+    """Remove one timber joint, after showing what goes with it."""
+    doc = varset.Document
+    label = varset.Label
+    members = joint_members(varset)
+    bodies = sorted({o.getParentGeoFeatureGroup().Label
+                     for o in members if o.getParentGeoFeatureGroup()})
+    answer = QtWidgets.QMessageBox.question(
+        Gui.getMainWindow(), "Remove Timber Joint",
+        f"Remove {label} — {len(members)} objects across "
+        f"{', '.join(bodies) or 'no bodies'} — plus the VarSet?",
+        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+    if answer != QtWidgets.QMessageBox.Yes:
+        return
+    doc.openTransaction(f"Remove joint {label}")
+    try:
+        remove_joint(varset)
+    except Exception:
+        doc.abortTransaction()
+        raise
+    doc.commitTransaction()
 
 
 class ApplyJointDialog(QtWidgets.QDialog):
@@ -803,28 +893,9 @@ class RemoveJointCommand:
         return App.ActiveDocument is not None
 
     def Activated(self):
-        doc = App.ActiveDocument
-        varset = _pick_joint(doc, "Remove Timber Joint")
-        if varset is None:
-            return
-        label = varset.Label
-        members = joint_members(varset)
-        bodies = sorted({o.getParentGeoFeatureGroup().Label
-                         for o in members if o.getParentGeoFeatureGroup()})
-        answer = QtWidgets.QMessageBox.question(
-            Gui.getMainWindow(), "Remove Timber Joint",
-            f"Remove {label} — {len(members)} objects across "
-            f"{', '.join(bodies) or 'no bodies'} — plus the VarSet?",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-        if answer != QtWidgets.QMessageBox.Yes:
-            return
-        doc.openTransaction(f"Remove joint {label}")
-        try:
-            remove_joint(varset)
-        except Exception:
-            doc.abortTransaction()
-            raise
-        doc.commitTransaction()
+        varset = _pick_joint(App.ActiveDocument, "Remove Timber Joint")
+        if varset is not None:
+            remove_joint_interactive(varset)
 
 
 class PreviewJointCommand:
@@ -841,41 +912,9 @@ class PreviewJointCommand:
         return App.ActiveDocument is not None
 
     def Activated(self):
-        doc = App.ActiveDocument
-        varset = _pick_joint(doc, "Preview Mated Timber Joint")
-        if varset is None:
-            return
-        existing = find_preview(varset)
-        if existing is not None:                 # toggle off
-            doc.openTransaction(f"Clear preview {varset.Label}")
-            try:
-                remove_preview(existing)
-            except Exception:
-                doc.abortTransaction()
-                raise
-            doc.commitTransaction()
-            return
-        if engagement_placement(varset) is None:
-            QtWidgets.QMessageBox.warning(
-                Gui.getMainWindow(), "Preview Mated Timber Joint",
-                f"{varset.Label} has no mate frame, so its engaged pose is "
-                f"not defined. Joints applied before mate frames were added "
-                f"to the template cannot be previewed; re-apply to enable it.")
-            return
-        doc.openTransaction(f"Preview {varset.Label}")
-        try:
-            group = create_preview(varset)
-        except Exception:
-            doc.abortTransaction()
-            raise
-        doc.commitTransaction()
-        Gui.Selection.clearSelection()
-        if group is not None:
-            Gui.Selection.addSelection(group)
-            try:
-                Gui.SendMsgToActiveView("ViewFit")
-            except Exception:
-                pass
+        varset = _pick_joint(App.ActiveDocument, "Preview Mated Timber Joint")
+        if varset is not None:
+            preview_joint_interactive(varset)
 
 
 class DuplicateBentDialog(QtWidgets.QDialog):
@@ -1139,7 +1178,7 @@ class AssembleTimbersCommand:
                 assembly, label, grounded = dialog.request()
                 doc.openTransaction("Assemble timbers")
                 try:
-                    asm, skipped, misfits = assemble_timbers(
+                    asm, skipped, misfits, adopted = assemble_timbers(
                         doc, bodies, assembly=assembly, label=label,
                         grounded=grounded)
                 except Exception:
@@ -1151,6 +1190,9 @@ class AssembleTimbersCommand:
                                               str(err))
                 continue
             msg = f"Assembled {len(bodies)} timber(s) into {asm.Label}."
+            if adopted:
+                msg += (f" Gave {adopted} existing timber joint(s) a "
+                        f"handle — the marker in the 3D view.")
             if skipped:
                 msg += (f" No engagement frames (re-apply to enable): "
                         f"{', '.join(skipped)}.")
@@ -1166,6 +1208,15 @@ class AssembleTimbersCommand:
 
 
 def register():
+    # the handle marker's context menu: whole-joint operations, in one
+    # place a future joint-wide tool can extend without touching the
+    # ViewProvider
+    joint_handle.CONTEXT_ACTIONS[:] = [
+        ("Joint parameters", show_joint_parameters),
+        ("Select joint members", select_joint_members),
+        ("Preview mated joint", preview_joint_interactive),
+        ("Remove timber joint", remove_joint_interactive),
+    ]
     Gui.addCommand("BentWizard_NewTimber", NewTimberCommand())
     Gui.addCommand("BentWizard_ApplyJoint", ApplyJointCommand())
     Gui.addCommand("BentWizard_RemoveJoint", RemoveJointCommand())

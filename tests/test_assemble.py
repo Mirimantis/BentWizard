@@ -149,7 +149,7 @@ class TwoLevelAssemblyTest(unittest.TestCase):
         bent2 = next(o for o in self.doc.Objects if o.Label == "Bent-002")
 
         tie = self.timber("T8-1", "6 in", "8 in", "10 ft")
-        bay, _s, _m = assemble_timbers(self.doc, [tie], label="Bay-1")
+        bay, _s, _m, _a = assemble_timbers(self.doc, [tie], label="Bay-1")
         ta = self.joint("8t1", post1, tie, face=3, end="A")
         assimilate_joint(self.doc, ta)      # cross: bent1 + Bay-1 -> frame
         frame = root_assembly(bent1)
@@ -278,7 +278,8 @@ class TwoLevelAssemblyTest(unittest.TestCase):
 
         n_before = len([o for o in self.doc.Objects
                         if o.TypeId == "Assembly::AssemblyObject"])
-        asm, skipped, misfits = assemble_timbers(self.doc, [post, beam])
+        asm, skipped, misfits, _adopted = assemble_timbers(
+            self.doc, [post, beam])
         self.assertIs(asm, home, "repair created a new assembly instead "
                                  "of adopting the timbers' own")
         self.assertEqual(

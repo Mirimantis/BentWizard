@@ -272,7 +272,7 @@ class LcsChildPlaneReference(unittest.TestCase):
 def _naming_doc(frame_label="Socket.Lcs.K.001", frame_role="Landing",
                 cut_label="Housing.K.001", abbrev="K",
                 joint_label="J-K-001", body_label="T-Post-001",
-                second_frame=None):
+                second_frame=None, handle=False):
     """A minimal one-role joint: a landing frame and a cut, both bound to
     the joint VarSet (which is what makes them joint members). Every
     token the descriptive-first scheme cares about is a parameter."""
@@ -298,6 +298,27 @@ def _naming_doc(frame_label="Socket.Lcs.K.001", frame_role="Landing",
     <ExpressionEngine count="1">
      <Expression path=".AttachmentOffset.Base.z" expression="{ref}" />
     </ExpressionEngine></Property>
+  </Properties></Object>"""
+    if handle:
+        # the per-joint handle: an App::FeaturePython group holding the
+        # joint VarSet, filed in its bent's Std Group
+        extra_decl += ('<Object type="App::FeaturePython" '
+                       'name="TimberJointHandle" />'
+                       '<Object type="App::DocumentObjectGroup" '
+                       'name="TimberJoints" />')
+        extra_data += f"""
+  <Object name="TimberJointHandle"><Properties Count="3">
+   <Property name="Label" type="App::PropertyString"><String value="Handle_{joint_label}" /></Property>
+   <Property name="Frame" type="App::PropertyLinkGlobal" group="TimberJoint" doc="d"><Link value="Frame" /></Property>
+   <Property name="Group" type="App::PropertyLinkList"><LinkList count="1">
+    <Link value="Joint" />
+   </LinkList></Property>
+  </Properties></Object>
+  <Object name="TimberJoints"><Properties Count="2">
+   <Property name="Label" type="App::PropertyString"><String value="TimberJoints_Bent-001" /></Property>
+   <Property name="Group" type="App::PropertyLinkList"><LinkList count="1">
+    <Link value="TimberJointHandle" />
+   </LinkList></Property>
   </Properties></Object>"""
     xml = f"""<?xml version="1.0"?>
 <Document SchemaVersion="4">
@@ -388,6 +409,27 @@ class FrameRoleRule(unittest.TestCase):
     def test_a_mate_frame_alongside_a_landing_frame_is_clean(self):
         self.assertEqual(
             _hits("frame-role", second_frame=("Mate.Lcs.K.001", "Mate")), [])
+
+
+class JointHandleIsLintTransparent(unittest.TestCase):
+    """The per-joint handle is Tier-2 decoration: an App::FeaturePython
+    group holding the joint VarSet, nested in its bent. Wrapping the
+    VarSet must change no finding — the joint rules resolve members from
+    expression references, not from where the VarSet sits in the tree,
+    and the handle itself is not a nameable feature."""
+
+    def test_findings_are_identical_with_and_without_a_handle(self):
+        plain = [str(f) for f in lint_document(_naming_doc())]
+        wrapped = [str(f) for f in lint_document(_naming_doc(handle=True))]
+        self.assertEqual(wrapped, plain)
+        self.assertEqual([f for f in wrapped if "Handle" in f
+                          or "TimberJoints" in f], [])
+
+    def test_joint_rules_still_reach_a_wrapped_varset(self):
+        # the rules must still SEE the joint, not merely stay quiet
+        hits = [f.rule for f in
+                lint_document(_naming_doc(handle=True, cut_label="Housing"))]
+        self.assertIn("joint-feature-label", hits)
 
 
 class JointFeatureLabelRule(unittest.TestCase):
