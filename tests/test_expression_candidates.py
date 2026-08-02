@@ -90,6 +90,40 @@ class ExpressionCandidatesTest(unittest.TestCase):
         self.assertTrue([c for c in self.candidates(include_dims=True)
                          if c.startswith("<<TDim_")])
 
+    def test_include_joints_false_drops_joints_and_companions(self):
+        """The span picker offers layout dimensions, not one joint's
+        own parameters: a 30-item list of Tenon_Length and Peg_Diameter
+        is noise a framer has to read past — and it buried the dialog's
+        other entries below the fold."""
+        from freecad.bentwizard import naming
+        self.varset("Project_Main", [("Bay_Span_OC", "App::PropertyLength")])
+        self.varset("J-HousedMT-001", [("Tenon_Length", "App::PropertyLength")])
+        companion = self.varset("Layout_J-HousedMT-001",
+                                [("Stick_Allowance", "App::PropertyDistance")])
+        companion.addProperty("App::PropertyString", naming.VARSET_ROLE_PROP,
+                              naming.TEMPLATE_META_GROUP, "role")
+        setattr(companion, naming.VARSET_ROLE_PROP, naming.VARSET_ROLE_LAYOUT)
+        self.doc.recompute()
+
+        got = self.candidates(include_dims=False, include_joints=False)
+        self.assertEqual(got, ["<<Project_Main>>.Bay_Span_OC"])
+        # ...and they are still there for the joint-parameter fields
+        everything = self.candidates()
+        self.assertIn("<<J-HousedMT-001>>.Tenon_Length", everything)
+        self.assertIn("<<Layout_J-HousedMT-001>>.Stick_Allowance", everything)
+
+    def test_a_renamed_companion_is_still_dropped(self):
+        """Resolved by VarSet_Role, not by the Layout_ label."""
+        from freecad.bentwizard import naming
+        companion = self.varset("whatever the user called it",
+                                [("Stick_Allowance", "App::PropertyDistance")])
+        companion.addProperty("App::PropertyString", naming.VARSET_ROLE_PROP,
+                              naming.TEMPLATE_META_GROUP, "role")
+        setattr(companion, naming.VARSET_ROLE_PROP, naming.VARSET_ROLE_LAYOUT)
+        self.doc.recompute()
+        self.assertEqual(
+            self.candidates(include_dims=False, include_joints=False), [])
+
     def test_non_varset_objects_ignored(self):
         self.doc.addObject("App::DocumentObjectGroup", "SomeGroup")
         self.varset("Project_Main", [("Bay_Span_OC", "App::PropertyLength")])

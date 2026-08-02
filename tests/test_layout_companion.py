@@ -84,7 +84,7 @@ class LayoutCompanionTest(unittest.TestCase):
         self.assertIsNotNone(self.spec.layout,
                              "library template lost its companion VarSet")
         merged = {(p["name"], p["varset"]) for p in self.spec.parameters}
-        self.assertIn(("Stick_Allowance", "layout"), merged)
+        self.assertIn(("Stick_Allowance_OC", "layout"), merged)
         self.assertIn(("Tenon_Length", "layout"), merged)
         # the joint's copy still exists (its geometry reads it) but is
         # tagged consumed, so the dialog shows only the companion's row
@@ -146,9 +146,9 @@ class LayoutCompanionTest(unittest.TestCase):
         j1, j2 = self.bent()
         # tenon + housing - post/2:  3+1-4 = 0   and   11+1-4 = +8
         self.assertAlmostEqual(
-            self.inches(layout_varset(j1).Stick_Allowance), 0, places=4)
+            self.inches(layout_varset(j1).Stick_Allowance_OC), 0, places=4)
         self.assertAlmostEqual(
-            self.inches(layout_varset(j2).Stick_Allowance), 8, places=4)
+            self.inches(layout_varset(j2).Stick_Allowance_OC), 8, places=4)
 
     def test_grid_drives_the_stick_with_no_cycle(self):
         from freecad.bentwizard.apply_joint import layout_varset
@@ -164,8 +164,8 @@ class LayoutCompanionTest(unittest.TestCase):
         self.dt.setExpression(
             "Length",
             f"<<Project_Main>>.Bay_Span_OC"
-            f" + <<{c1.Label}>>.Stick_Allowance"
-            f" + <<{c2.Label}>>.Stick_Allowance")
+            f" + <<{c1.Label}>>.Stick_Allowance_OC"
+            f" + <<{c2.Label}>>.Stick_Allowance_OC")
         self.doc.recompute()
         self.assertAlmostEqual(self.inches(self.dt.Length), 144, places=3)
 
@@ -184,10 +184,10 @@ class LayoutCompanionTest(unittest.TestCase):
         from freecad.bentwizard.apply_joint import layout_varset
         j1, j2 = self.bent()
         c1 = layout_varset(j1)
-        before = self.inches(c1.Stick_Allowance)
+        before = self.inches(c1.Stick_Allowance_OC)
         self.d1.Width = "10 in"
         self.doc.recompute()
-        self.assertAlmostEqual(self.inches(c1.Stick_Allowance),
+        self.assertAlmostEqual(self.inches(c1.Stick_Allowance_OC),
                                before - 1, places=4,
                                msg="allowance did not follow the post section")
 
