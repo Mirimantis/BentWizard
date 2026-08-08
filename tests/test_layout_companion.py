@@ -221,5 +221,60 @@ class LayoutCompanionTest(unittest.TestCase):
             self.assertEqual([str(f) for f in lint(path)], [])
 
 
+@unittest.skipUnless(HAVE_FREECAD,
+                     "FreeCAD not importable — run with the bundled python")
+class CompanionFaceSwapTest(unittest.TestCase):
+    """Grid_Setback is half the ANCHOR timber's dimension along the joint
+    normal, and that dimension changes with the face: FACES[n]['ddim'] is
+    Width on faces 2/4 and Depth on 1/3. The companion's expressions were
+    never face-corrected — _face_transform runs on landing-frame specs
+    only and _fill rewrites labels alone — so on faces 1/3 the setback
+    kept reading Width and on-center layout came out wrong by half the
+    section difference, silently. Needs a NON-SQUARE post to detect.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from freecad.bentwizard.apply_joint import TemplateSpec
+        cls.spec = TemplateSpec(TEMPLATE)
+
+    def setUp(self):
+        from freecad.bentwizard.timber import new_timber
+        self.doc = App.newDocument("FaceSwapTest")
+        self.post, _ = new_timber(self.doc, "T-Post-001",
+                                  "10 in", "8 in", "10 ft")
+        self.tie, _ = new_timber(self.doc, "T-Tie-001",
+                                 "6 in", "8 in", "12 ft")
+        self.doc.recompute()
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+
+    def setback_on(self, face):
+        from freecad.bentwizard.apply_joint import apply_joint, layout_varset
+        vs = apply_joint(
+            self.doc, self.spec, f"00{face}",
+            {"T.Post.001": self.post, "T.AnchorBeam.001": self.tie},
+            values={"Tenon_Length": "3 in", "Housing_Depth": "1 in",
+                    "Joint_Station": "48 in"},
+            placement={"T.Post.001": {"face": face},
+                       "T.AnchorBeam.001": {"end": "A"}})
+        self.doc.recompute()
+        return layout_varset(vs).Grid_Setback.Value / IN
+
+    def test_anchor_role_is_the_landing_only_timber(self):
+        self.assertEqual(self.spec.anchor_role, "T.Post.001")
+
+    def test_width_faces_use_half_the_width(self):
+        for face in (2, 4):
+            with self.subTest(face=face):
+                self.assertAlmostEqual(self.setback_on(face), 5, places=6)
+
+    def test_depth_faces_use_half_the_depth(self):
+        for face in (1, 3):
+            with self.subTest(face=face):
+                self.assertAlmostEqual(self.setback_on(face), 4, places=6)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -26,9 +26,17 @@ import _repo_path  # noqa: E402, F401 — this repo's code must win the import
 from freecad.bentwizard.linter import ADVISORY, STRICT, lint  # noqa: E402
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+LIBRARY = REPO_ROOT / "library"
 SESSION_12 = FIXTURES / "Joint_HouseMT_session_12.FCStd"
 TEMPLATE = FIXTURES / "TimberTemplate.FCStd"
-JOINT_TEMPLATE = FIXTURES / "Joint_HousedMT.FCStd"
+# The library acceptance controls read library/ DIRECTLY. They used to
+# read a fixture copy, which drifted: the copy predated the companion
+# layout VarSet entirely, so the bar was being asserted against a
+# template two conventions old. Every other test module already reads
+# library/, and a duplicate that must be hand-refreshed is exactly the
+# kind of thing that silently stops being refreshed.
+JOINT_TEMPLATE = LIBRARY / "Joint_HousedMT.FCStd"
+BUTT_TEMPLATE = LIBRARY / "Joint_Butt.FCStd"
 
 
 class LinterFixtureTest(unittest.TestCase):
@@ -185,6 +193,22 @@ class HousedMTTemplateControl(LinterFixtureTest):
     the rule is wrong or the template needs updating alongside it."""
 
     FIXTURE = JOINT_TEMPLATE
+
+    def test_completely_clean(self):
+        self.assertEqual([str(f) for f in self.findings], [])
+
+
+@unittest.skipUnless(BUTT_TEMPLATE.exists(),
+                     f"{BUTT_TEMPLATE.name} not built yet — see "
+                     f"docs/butt-template-build.md")
+class ButtTemplateControl(LinterFixtureTest):
+    """The jointless starter template. Same acceptance bar as any other
+    library template — strict AND advisory clean — with no
+    caution-threshold exemption, because it has no cuts to be cautious
+    about. It is also the skeleton new templates are authored from, so
+    anything it carries propagates: it must be silent."""
+
+    FIXTURE = BUTT_TEMPLATE
 
     def test_completely_clean(self):
         self.assertEqual([str(f) for f in self.findings], [])
