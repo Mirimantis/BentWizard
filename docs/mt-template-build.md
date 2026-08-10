@@ -11,9 +11,17 @@
 > on each frame. The **geometry, parameters and expressions below are
 > still accurate** — only the labels changed.
 >
-> For authoring a NEW template, follow
-> [housed-dovetail-template-build.md](housed-dovetail-template-build.md),
-> which is written against the current conventions.
+> **Superseded in one respect (August 2026):** joint frames now sit on
+> the primary timber's **face**, not at the housing's bearing plane.
+> Part C.1's `Base.z` and Part F.2's mate-frame offset below are the
+> pre-conversion values; see **Part G** at the end for the conversion,
+> which is what the shipped file now carries.
+>
+> For authoring a NEW template, start from `library/Joint_Butt.FCStd`
+> (see [butt-template-build.md](butt-template-build.md)) — a valid,
+> jointless skeleton — rather than copying a template that already has
+> joinery in it. [housed-dovetail-template-build.md](housed-dovetail-template-build.md)
+> shows a full build against the current conventions.
 
 The first clean joint template: a housed, pegged, drawbored mortise &
 tenon between a post (mortise role) and a beam (tenon role). This is the
@@ -130,7 +138,7 @@ be in body coordinates, and file inspection verifies resolved
 placements at each checkpoint).
 
 1. **Landing frame** `P0-1_JointFrame_MT_0a` (datum coordinate system):
-   attach FlatFace to the post's `YZ_Plane` (from the tree), then set
+   attach "XY on plane" to the post's `YZ_Plane` (from the tree), then set
    attachment offset expressions:
    - `Base.x = <<TimberDims_P0-1>>.Depth / 2` — center of the post face
    - `Base.y = <<Joint_MT_0a>>.Joint_Station + <<Joint_MT_0a>>.Housing_Height / 2` — center of the landing footprint
@@ -210,7 +218,7 @@ the tenon to end B is one frame re-placement plus the drawbore sign
 flip — both computed by the tool at apply time.
 
 1. **Landing frame** `B0-1_JointFrame_MT_0a` (datum coordinate system):
-   attach FlatFace to the beam's `XY_Plane` (end A), all offsets zero.
+   attach "XY on plane" to the beam's `XY_Plane` (end A), all offsets zero.
 2. **Tenon (island pocket).** Sketch `B0-1_TenonSketch_MT_0a` on the
    frame's XY plane: two loops —
    - outer rectangle = the full section, corner at origin,
@@ -223,7 +231,7 @@ flip — both computed by the tool at apply time.
    Both setbacks are > 0, so the island stays strictly interior
    (finding #14) — the linter checks this.
    **Pocket** `B0-1_Tenon_MT_0a`, Length `= <<Joint_MT_0a>>.Tenon_Length`.
-3. **Shoulder datum** `B0-1_ShoulderA_MT_0a`: FlatFace on the frame's
+3. **Shoulder datum** `B0-1_ShoulderA_MT_0a`: "XY on plane" on the frame's
    XY plane, offset `Base.z = <<Joint_MT_0a>>.Tenon_Length`. (Assembly
    references land here, §4.8.)
 4. **Drawbore peg bore.** Sketch `B0-1_PegBoreSketch_MT_0a` on the
@@ -297,3 +305,149 @@ future scarf or lap defines its own engagement the same way.
    (3, 4, 4) in; axes parallel to the beam's own (X across Width, Y
    across Depth, Z along the stick, away from the tenon).
 4. Lint, save, and refresh the test fixture copy.
+
+---
+
+## Part G — conversion to frames-at-face (August 2026)
+
+Edits to the **built** file, not a rebuild. Two things change and the
+rest follows: the landing frame moves out to the post's face, and the
+mate frame is driven by the companion's allowance instead of the tenon
+length.
+
+**Why.** With the landing frame inset to the bearing plane, the
+clear-span allowance was arithmetic each template had to reproduce
+(`Tenon_Length + Housing_Depth`) — and nobody could say what it should
+be for a dovetail. On the face, **the mate frame's offset from the stick
+end IS the allowance**, whatever the joinery, so a template publishes it
+by placing a datum. Housings also become independently adjustable: the
+frame no longer moves when `Housing_Depth` changes.
+
+Nothing about assembly or preview changes. Both frames shift by the same
+amount along the same axis, so the engaged pose is identical, and
+`_face_transform` is algebraic on whatever the template authors (face
+2's `complement` of `Width` resolves to 0 — the near reference face —
+exactly as it previously resolved to `Housing_Depth`).
+
+### G.1 — the companion and the joint VarSet
+
+`Layout_J-HousedMT-000` is unchanged: it keeps authoring
+`Stick_Allowance_FTF = Tenon_Length + Housing_Depth`.
+
+On `J-HousedMT-000`, **add** one property:
+
+| Property | Type | Group | Value | Tooltip |
+|---|---|---|---|---|
+| `Stick_Allowance_FTF` | `App::PropertyDistance` | `Joint` | *expr* `= <<Layout_J-HousedMT-000>>.Stick_Allowance_FTF` | Stick consumed beyond the post's face, along the beam's axis; positions the mate frame. Authored on the companion layout VarSet — edit it there. |
+
+This consumed copy is **not optional bookkeeping**. `joint_members`
+finds a joint's parts by closing over the literal token
+`<<J-HousedMT-000>>` in expressions, and `<<Layout_J-HousedMT-000>>`
+does not contain it — binding the mate frame straight to the companion
+would silently drop it out of the joint, taking Preview, the assembly
+seat, the handle and `rule_frame_role` with it.
+
+### G.2 — the landing frame, `Mortise.Lcs.HMT.000`
+
+One expression:
+
+| Offset | Was | Becomes |
+|---|---|---|
+| `Base.z` | `= <<TDim_T.Post.001>>.Width - <<J-HousedMT-000>>.Housing_Depth` | `= <<TDim_T.Post.001>>.Width` |
+
+`Base.x` and `Base.y` are unchanged. The frame origin now sits on the
+post's face at the center of the landing footprint; its XY plane is the
+**face plane**, no longer the bearing plane.
+
+### G.3 — the two pockets on the post
+
+The housing and mortise **sketches need no edits at all** — they lie in
+the frame's XY plane, and moving the frame along its own Z leaves every
+in-plane coordinate untouched. Only the cuts change:
+
+| Feature | Change |
+|---|---|
+| `Housing.HMT.000` | **Toggle `Reversed` to false** so it cuts *into* the post from the face. `Length` stays `= <<J-HousedMT-000>>.Housing_Depth`. (It previously cut outward from the bearing plane; same material, opposite direction.) |
+| `Mortise.HMT.000` | `Length` becomes `= <<J-HousedMT-000>>.Housing_Depth + <<J-HousedMT-000>>.Tenon_Length + <<J-HousedMT-000>>.Mortise_Relief`. `Reversed` stays false. |
+
+The mortise's new `Housing_Depth` term is honest, not a workaround: the
+cut now starts at the face and has to cross the housing before it
+reaches wood the tenon occupies. Change `Housing_Depth` and the mortise
+bottom still follows automatically.
+
+Verify with a **side orthographic view and a clipping plane**, never
+wireframe (§5): the housing must be a shallow recess in the face and the
+mortise must bottom out `Mortise_Relief` past the tenon's reach.
+
+### G.4 — the mortise peg bore, `MortisePegBore.Skt.HMT.000`
+
+This sketch is on the frame's **YZ plane**, which the frame move *does*
+shift: sketch X runs up the post, sketch Y runs out of the wood, and
+negative sketch Y is into the post. Everything in it now sits
+`Housing_Depth` further in.
+
+Re-anchor the construction scaffold as a **chain from the face** rather
+than adding a term to the peg dimension:
+
+1. Housing rectangle: from the sketch origin **into** the wood, depth
+   `= <<J-HousedMT-000>>.Housing_Depth`, height
+   `= <<J-HousedMT-000>>.Housing_Height` centered on the X axis. (It
+   previously ran *out* of the wood from the origin.)
+2. Tenon rectangle: starts at the housing rectangle's **inner edge**,
+   reaching `= <<J-HousedMT-000>>.Tenon_Length` further in, height
+   `= <<J-HousedMT-000>>.Tenon_Height`, positioned
+   `= <<J-HousedMT-000>>.Tenon_Setback_Face1` above the housing
+   rectangle's lower edge.
+3. Peg circle: depth `= <<J-HousedMT-000>>.Peg_Setback` measured from
+   the **housing rectangle's inner edge** — i.e. from the bearing plane,
+   exactly as before. Centered on the tenon rectangle's vertical
+   centerline (the peg ties to the mortise, not the frame — an
+   asymmetric application would otherwise misplace it).
+
+Chaining off the scaffold is what keeps `Peg_Setback` meaning "from the
+bearing plane" with no arithmetic in the dimension, and keeps every
+dimension positive. `Housing_Depth` appears exactly once in this sketch.
+
+`MortisePegBore.HMT.000` itself is unchanged: Through all, `SideType`
+Symmetric (the sketch plane is mid-post, so the bore must cut both ways).
+
+### G.5 — the beam side
+
+| Object | Change |
+|---|---|
+| `Mate.Lcs.HMT.000` | `Base.z`: `= <<J-HousedMT-000>>.Tenon_Length` → `= <<J-HousedMT-000>>.Stick_Allowance_FTF` |
+| `Tenon.Skt.HMT.000` | Oversize the **outer removal loop** by 1 in on all four sides (a plain literal margin is fine — sketch dimensions are not subject to the stale-offset rule). The inner tenon island is unchanged. |
+| `Tenon.HMT.000`, `ShoulderA.Dtm.HMT.000`, `TenonPegBore.*` | Unchanged. |
+
+`Mate.Lcs` resolves to the same place it always did for the shipped
+defaults (`Tenon_Length + Housing_Depth` from end A, matching the post
+face) — the difference is that it now says *what it means* rather than
+happening to land there.
+
+**Why oversize the tenon loop.** With the shipped setbacks the island is
+already strictly interior, so this changes no geometry today. It is
+insurance against a user zeroing `Tenon_Setback_Face1` for a full-height
+tenon, which is a legitimate joint the apply dialog allows. Verified
+headless (August 2026): with an oversized loop the result is exact, and
+with a section-sized loop the island's edges land on the removal loop
+and **PartDesign silently removes the whole section for the pocket's
+length** — reporting `Up-to-date` and `isValid()` while the tenon simply
+is not there. That is the failure `rule_island_interior` exists to
+catch, and the oversized loop is the sanctioned way to model past it.
+The excess cuts air.
+
+### G.6 — verification
+
+1. Lint: zero strict, and no advisories other than `caution-threshold`.
+2. Parametric shakedown, additionally checking what this change is for:
+   **change `Housing_Depth` alone** — the housing must deepen while the
+   mortise bottom and peg follow, and nothing else in the template moves.
+3. Refresh the `tests/fixtures/` copy and run the suite.
+4. In a model: an H-bent, two posts and a girt, housed M&T both ends.
+   With `Length` typed as a literal, changing `Tenon_Length` moves a
+   post — expected, and unchanged by this work. Then drive the girt's
+   `Length` from a clear-span distance: the driven `Length` must equal
+   the distance plus the two allowances exactly, and from then on
+   changing `Tenon_Length` or `Housing_Depth` re-cuts the stick and
+   leaves both posts where they are. That invariance is the point; the
+   frames were only ever bookkeeping.

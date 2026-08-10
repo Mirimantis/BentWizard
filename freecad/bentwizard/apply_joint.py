@@ -282,6 +282,21 @@ class TemplateSpec:
                     self.side_landing_roles[body.label] = "XZ_Plane"
                 break
 
+        # The anchor role — the timber the joint LANDS ON. Same test
+        # assemble._engagement_frames uses to pick the seat's fixed side:
+        # a landing frame and no mate frame. Named here because the
+        # companion layout VarSet's expressions measure the anchor's
+        # section (Grid_Setback = ddim/2) and so have to follow the face
+        # the anchor is applied to. None for a template that declares no
+        # Frame_Role, which then behaves exactly as before.
+        self.anchor_role = None
+        for label, stack in self.roles.items():
+            frame_roles = {s.get("frame_role") for s in stack}
+            if (naming.FRAME_ROLE_LANDING in frame_roles
+                    and naming.FRAME_ROLE_MATE not in frame_roles):
+                self.anchor_role = label
+                break
+
     @staticmethod
     def _base_members(doc, body):
         """Internal names of the base section sketch + stick pad."""
@@ -929,8 +944,28 @@ def apply_joint(doc, template, joint_id, body_map, values=None,
                 target.setExpression(p["name"],
                                      _rewrite(p["expression"], expr_renames))
 
+    # The companion's expressions measure the ANCHOR timber's section
+    # (Grid_Setback = ddim/2), but nothing was face-correcting them:
+    # _face_transform is applied only to landing-frame specs, and _fill
+    # rewrites labels alone. On faces 1/3 — where FACES[n]['ddim'] is
+    # Depth — Grid_Setback kept reading Width, so on-center layout came
+    # out wrong by half the section difference, silently. Swap the
+    # anchor's section tokens here, before _fill renames them.
+    anchor = template.anchor_role
+    swap_dims = None
+    if (anchor is not None and anchor in template.side_landing_roles
+            and FACES[placement.get(anchor, {}).get("face",
+                                                    TEMPLATE_FACE)]["swap"]):
+        swap_dims = template.dims_labels[anchor]
+
     def _params(kind):
-        return [p for p in template.parameters if p["varset"] == kind]
+        rows = [p for p in template.parameters if p["varset"] == kind]
+        if kind != "layout" or swap_dims is None:
+            return rows
+        return [dict(p, expression=_swap_section_tokens(p["expression"],
+                                                        swap_dims))
+                if p["expression"] else p
+                for p in rows]
 
     # --- companion layout VarSet ------------------------------------------
     # Created FIRST: it is the pure source the joint VarSet consumes
@@ -1246,14 +1281,20 @@ def mate_flip_rotation(authored):
     return App.Rotation(App.Vector(0, 1, 0), 180).multiply(authored)
 
 
+def _swap_section_tokens(expression, dims_label):
+    """Exchange Width and Depth on `dims_label` — the substitution a face
+    change makes when the joint normal moves to the other section axis
+    (FACES[n]['swap'])."""
+    w, d = f"<<{dims_label}>>.Width", f"<<{dims_label}>>.Depth"
+    return expression.replace(w, "\x00").replace(d, w).replace("\x00", d)
+
+
 def _face_transform(path, expression, ctx):
     """Rewrite a landing-frame offset expression for the chosen face."""
     face = ctx["face"]
     dims = ctx["dims_label"]
     if face["swap"]:
-        w, d = f"<<{dims}>>.Width", f"<<{dims}>>.Depth"
-        expression = (expression.replace(w, "\x00").replace(d, w)
-                      .replace("\x00", d))
+        expression = _swap_section_tokens(expression, dims)
     if path == "AttachmentOffset.Base.z":
         mode = face["z_mode"]
         if mode == "negate":

@@ -600,7 +600,11 @@ def rule_naming_conventions(model):
             findings.append(Finding(
                 "naming-convention", ADVISORY, vs.name, vs.label,
                 f"VarSet label does not follow Kind_Owner "
-                f"(TDim_/Group_/Project_/Order_) or J-<Kind>-<serial>"))
+                f"(TDim_/Group_/Project_/Order_/Layout_) or "
+                f"J-<Kind>-<serial>. The owner part is free-form — "
+                f"'TDim_T.Post.001' is fine — but a joint instance needs "
+                f"both hyphens ('J-Butt-000', not 'J-Butt.000'), since "
+                f"Apply Joint regenerates the label in that form"))
         is_dims = model.kind.get(vs.name) == "dims"
         bad_props = []
         for p in vs.properties.values():
@@ -687,7 +691,21 @@ def _joint_feature_members(model, vs):
     Structural, mirroring Apply-Joint's own membership test: anything
     whose expressions reference the joint VarSet, plus the solid
     features consuming those sketches (a Through-All pocket carries no
-    expression of its own).
+    expression of its own), plus the frames and datums those members
+    hang off by attachment.
+
+    The attachment closure is not optional (added August 2026). Without
+    it this set diverged from `apply_joint.joint_members`, which has
+    always had it, in exactly one place — a frame carrying **no
+    expressions of its own**. That is a documented, deliberate template
+    shape: the entering timber's end frame sits at its body origin with
+    every offset zero and joins the joint through the mate frame
+    attached to it. Such a frame was a joint member at runtime and
+    invisible to the linter, so `frame-role` — a STRICT rule whose whole
+    purpose is that a role-less frame leaves Preview, Assemble and
+    Duplicate silently inert — could never fire on it. Caught by
+    TemplateSkeletonCompleteness on Joint_Butt, whose `End.Lcs` shipped
+    role-less through a completely silent lint.
     """
     members = {}
     for (obj, _e, target, _prop) in model.refs:
@@ -703,6 +721,16 @@ def _joint_feature_members(model, vs):
         body = model.owner.get(feature.name)
         if body is not None:
             members.setdefault(feature.name, (feature, body))
+    for obj, _body in list(members.values()):
+        support = obj.prop("AttachmentSupport")
+        for link in (support.links if support else []):
+            target = model.doc.objects.get(link.obj)
+            if target is None or not target.is_type(
+                    "Part::LocalCoordinateSystem", "Part::Datum"):
+                continue
+            body = model.owner.get(target.name)
+            if body is not None:
+                members.setdefault(target.name, (target, body))
     return members
 
 
