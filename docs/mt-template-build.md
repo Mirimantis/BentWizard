@@ -138,7 +138,7 @@ be in body coordinates, and file inspection verifies resolved
 placements at each checkpoint).
 
 1. **Landing frame** `P0-1_JointFrame_MT_0a` (datum coordinate system):
-   attach FlatFace to the post's `YZ_Plane` (from the tree), then set
+   attach "XY on plane" to the post's `YZ_Plane` (from the tree), then set
    attachment offset expressions:
    - `Base.x = <<TimberDims_P0-1>>.Depth / 2` — center of the post face
    - `Base.y = <<Joint_MT_0a>>.Joint_Station + <<Joint_MT_0a>>.Housing_Height / 2` — center of the landing footprint
@@ -218,7 +218,7 @@ the tenon to end B is one frame re-placement plus the drawbore sign
 flip — both computed by the tool at apply time.
 
 1. **Landing frame** `B0-1_JointFrame_MT_0a` (datum coordinate system):
-   attach FlatFace to the beam's `XY_Plane` (end A), all offsets zero.
+   attach "XY on plane" to the beam's `XY_Plane` (end A), all offsets zero.
 2. **Tenon (island pocket).** Sketch `B0-1_TenonSketch_MT_0a` on the
    frame's XY plane: two loops —
    - outer rectangle = the full section, corner at origin,
@@ -231,7 +231,7 @@ flip — both computed by the tool at apply time.
    Both setbacks are > 0, so the island stays strictly interior
    (finding #14) — the linter checks this.
    **Pocket** `B0-1_Tenon_MT_0a`, Length `= <<Joint_MT_0a>>.Tenon_Length`.
-3. **Shoulder datum** `B0-1_ShoulderA_MT_0a`: FlatFace on the frame's
+3. **Shoulder datum** `B0-1_ShoulderA_MT_0a`: "XY on plane" on the frame's
    XY plane, offset `Base.z = <<Joint_MT_0a>>.Tenon_Length`. (Assembly
    references land here, §4.8.)
 4. **Drawbore peg bore.** Sketch `B0-1_PegBoreSketch_MT_0a` on the

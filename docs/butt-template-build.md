@@ -54,9 +54,21 @@ exit code 1 means strict findings remain. Lint after each part.
 Template-wide conventions:
 
 - Template placeholders use the production naming scheme with serial
-  `000`/`001`: bodies `T-Post-001` / `T-Girt-001`, joint VarSet
+  `000`/`001`: bodies `T.Post.001` / `T.Girt.001`, joint VarSet
   `J-Butt-000`. Apply-Joint rewrites all of them; the instance kind
   token comes from the file stem (`Joint_Butt` → `J-Butt-001`).
+- **Separators: `_` after a kind prefix, your choice inside a label —
+  except the joint VarSet.** The `_` in `TDim_`, `Layout_`, `Group_`,
+  `Project_`, `Order_` is a namespace separator marking where the prefix
+  ends and the owner's own label begins, so `TDim_T.Post.001` is correct:
+  fixed prefix, free-form owner. Within a label, `-` `.` `_` and space
+  are equal (permissive naming, July 2026). The exception is the **joint
+  instance label, which needs both hyphens** — `J-Butt-000`, not
+  `J-Butt.000` — because it is not a name you keep: Apply-Joint discards
+  it and regenerates `J-<Kind>-<serial>` from the file stem via
+  `naming.joint_label()`. The companion follows its joint, so
+  `Layout_J-Butt-000`. Rule of thumb: **names you keep are permissive,
+  names the tool regenerates have a fixed shape.**
 - Joint features are descriptive-first, `<Descriptive>[.<TypeTag>].BUT.000`.
   Here that is only the three frames. Declare `Template_Abbrev = "BUT"`
   on the joint VarSet; Apply-Joint rewrites exactly that suffix.
@@ -66,6 +78,12 @@ Template-wide conventions:
   `Mate`.
 - Pick every attachment reference **from the model tree, never the 3D
   view** (finding #8), and never a solid face.
+- **"XY on plane" is the GUI's name for the `FlatFace` attachment mode**
+  (`MapMode` index 5, which is what lands in `Document.xml`). Selecting a
+  single plane and creating the datum auto-selects it, so the Attachment
+  panel showing *"Attached with mode XY on plane"* means it is already
+  right — read the label as the instruction it is: put the new object's
+  XY plane onto the referenced plane.
 - **Double-click the target body to activate it before creating any
   datum** — root-level strays cannot be attached to from body sketches.
 
@@ -80,8 +98,8 @@ pad):
 
 | Timber | Role | Label | Width | Depth | Length |
 |---|---|---|---|---|---|
-| Post | anchor (landed on) | `T-Post-001` | 10 in | 8 in | 96 in |
-| Girt | entering (lands) | `T-Girt-001` | 6 in | 8 in | 96 in |
+| Post | anchor (landed on) | `T.Post.001` | 10 in | 8 in | 96 in |
+| Girt | entering (lands) | `T.Girt.001` | 6 in | 8 in | 96 in |
 
 A **non-square post is deliberate**: `Grid_Setback` is half the post's
 dimension *along the joint normal*, which is Width on faces 2/4 and
@@ -106,7 +124,7 @@ keep joint VarSets before assimilation). Inside it, a **VarSet** labeled
 | Property | Type | Group | Value | Tooltip |
 |---|---|---|---|---|
 | `VarSet_Role` | `App::PropertyString` | `Template` | `Layout` | Marks this as the joint's companion layout VarSet: the pure source holding the length-consuming parameters. Tools resolve the companion through this, never by label. |
-| `Grid_Setback` | `App::PropertyDistance` | `Layout` | *expr* `= <<TDim_T-Post-001>>.Width / 2` | Half the landed timber's thickness along the joint normal — the term that converts a clear span to an on-center distance. |
+| `Grid_Setback` | `App::PropertyDistance` | `Layout` | *expr* `= <<TDim_T.Post.001>>.Width / 2` | Half the landed timber's thickness along the joint normal — the term that converts a clear span to an on-center distance. |
 | `Stick_Allowance_FTF` | `App::PropertyDistance` | `Layout` | `0 in` | Stick this joint consumes beyond the landed timber's face, along the entering timber's axis. Zero for a butt joint: the squared end stops at the face. |
 | `Stick_Allowance_OC` | `App::PropertyDistance` | `Layout` | *expr* `= Stick_Allowance_FTF - Grid_Setback` | Stick this joint consumes beyond the landed timber's centerline, along the entering timber's axis. Negative when the stick stops short of the grid line. |
 
@@ -131,8 +149,8 @@ Inside the same group, a **VarSet** labeled `J-Butt-000`.
 | Property | Type | Group | Value | Tooltip |
 |---|---|---|---|---|
 | `Joint_Station` | `App::PropertyLength` | `Joint` | 48 in | Distance from the landed timber's end A (Z=0) to the lower edge of the landing footprint, along its length. |
-| `Landing_Width` | `App::PropertyLength` | `Joint` | *expr* `= <<TDim_T-Girt-001>>.Width` | Width of the landing footprint across the landed timber's face; tracks the entering timber's Width. Override with a literal to hold the footprint off the entering timber's size. |
-| `Landing_Height` | `App::PropertyLength` | `Joint` | *expr* `= <<TDim_T-Girt-001>>.Depth` | Height of the landing footprint up the landed timber's face; tracks the entering timber's Depth. Override with a literal to hold the footprint off the entering timber's size. |
+| `Landing_Width` | `App::PropertyLength` | `Joint` | *expr* `= <<TDim_T.Girt.001>>.Width` | Width of the landing footprint across the landed timber's face; tracks the entering timber's Width. Override with a literal to hold the footprint off the entering timber's size. |
+| `Landing_Height` | `App::PropertyLength` | `Joint` | *expr* `= <<TDim_T.Girt.001>>.Depth` | Height of the landing footprint up the landed timber's face; tracks the entering timber's Depth. Override with a literal to hold the footprint off the entering timber's size. |
 | `Stick_Allowance_FTF` | `App::PropertyDistance` | `Joint` | *expr* `= <<Layout_J-Butt-000>>.Stick_Allowance_FTF` | Stick consumed beyond the landed timber's face; positions the mate frame. Authored on the companion layout VarSet — edit it there. |
 | `Template_Abbrev` | `App::PropertyString` | `Template` | `BUT` | Template metadata: the short token this joint's feature labels carry. |
 | `Template_Handed` | `App::PropertyBool` | `Template` | `false` | Template metadata: false = the joint is fully symmetrical about its centerline, so hand selection does not apply. |
@@ -163,17 +181,17 @@ them).
 
 ---
 
-## Part D — the landing frame, on `T-Post-001`
+## Part D — the landing frame, on `T.Post.001`
 
-Activate `T-Post-001`. **Create coordinate system**
-`Bearing.Lcs.BUT.000`, attached **FlatFace to the post's `YZ_Plane`**
+Activate `T.Post.001`. **Create coordinate system**
+`Bearing.Lcs.BUT.000`, attached **"XY on plane" to the post's `YZ_Plane`**
 (the canonical Face-4 authoring plane; tree-select it), then:
 
 | Offset | Expression | Meaning |
 |---|---|---|
-| `Base.x` | `= <<TDim_T-Post-001>>.Depth / 2` | center of the face, across |
+| `Base.x` | `= <<TDim_T.Post.001>>.Depth / 2` | center of the face, across |
 | `Base.y` | `= <<J-Butt-000>>.Joint_Station + <<J-Butt-000>>.Landing_Height / 2` | center of the landing footprint, up the post |
-| `Base.z` | `= <<TDim_T-Post-001>>.Width` | **the face itself** |
+| `Base.z` | `= <<TDim_T.Post.001>>.Width` | **the face itself** |
 
 Add a string property `Frame_Role` (group `TimberJoint`) with the value
 `Landing`, and this tooltip: *This frame's role in the timber joint:
@@ -199,15 +217,15 @@ importantly it would not follow a section change.
 
 ---
 
-## Part E — the girt's frames, on `T-Girt-001`
+## Part E — the girt's frames, on `T.Girt.001`
 
-Activate `T-Girt-001`. **Order matters** — build the end frame first,
+Activate `T.Girt.001`. **Order matters** — build the end frame first,
 because the mate frame attaches to it, and because `TemplateSpec` takes
 the **first** LCS in the body's feature order as the role's landing
 frame and reads its attachment plane to decide whether the role gets
 End A/B selection or Face 1–4 selection.
 
-1. **End frame** `End.Lcs.BUT.000`: attach **FlatFace to the girt's
+1. **End frame** `End.Lcs.BUT.000`: attach **"XY on plane" to the girt's
    `XY_Plane`** (end A), **all offsets zero** — frame axes are the body
    axes there. Add `Frame_Role = Landing` (same property and tooltip as
    Part D).
@@ -225,8 +243,8 @@ End A/B selection or Face 1–4 selection.
 
    | Offset | Expression |
    |---|---|
-   | `Base.x` | `= <<TDim_T-Girt-001>>.Width / 2` |
-   | `Base.y` | `= <<TDim_T-Girt-001>>.Depth / 2` |
+   | `Base.x` | `= <<TDim_T.Girt.001>>.Width / 2` |
+   | `Base.y` | `= <<TDim_T.Girt.001>>.Depth / 2` |
    | `Base.z` | `= <<J-Butt-000>>.Stick_Allowance_FTF` |
 
    Add `Frame_Role = Mate`.
@@ -248,22 +266,53 @@ is the acceptance bar; the file ships only when it is silent.
 
 ## Part F — inspection pose and verification
 
-1. Set `T-Girt-001`'s Body Placement so the girt sits as-assembled —
+1. Set `T.Girt.001`'s Body Placement so the girt sits as-assembled —
    its end A flat on the post's face at the station (finding #7a). Body
    Placement is display-only; it does not affect the feature tree or the
    linter.
+
+   Do not eyeball it. In the Python Console:
+
+   ```python
+   from freecad.bentwizard import apply_joint
+   doc = App.ActiveDocument
+   vs = doc.getObjectsByLabel("J-Butt-000")[0]
+   mover, anchor, pl = apply_joint.engagement_placement(vs)
+   mover.Placement = pl
+   doc.recompute()
+   ```
+
+   This is the same `engagement_placement` Preview Mated Joint and
+   Assemble Timbers use, so the inspection pose is the production pose:
+   the seat is derived from the frames rather than approximated, and a
+   frame that is wrong looks wrong instead of merely looking plausible.
+
+   To read the misfit as a number (expect ~1e-14 mm, i.e. float noise):
+
+   ```python
+   f = apply_joint.joint_role_frames(vs)
+   print((f[mover]["mate"].getGlobalPlacement().Base
+          - f[anchor]["landing"].getGlobalPlacement().Base).Length)
+   ```
+
 2. Verify per §5: a top and a side orthographic view (never wireframe
    when profiles align in two axes), and Measure between the girt's end
    face and the post's face — expect **0**.
 3. Parametric shakedown:
    - change `Joint_Station` — the girt travels up and down the post
-   - change `TDim_T-Girt-001.Depth` — the landing footprint's height
+   - change `TDim_T.Girt.001.Depth` — the landing footprint's height
      follows, so the frame stays centered on the girt
-   - change `TDim_T-Post-001.Width` — the landing frame stays on the
+   - change `TDim_T.Post.001.Width` — the landing frame stays on the
      face as the post fattens, and `Grid_Setback` follows
    - set `Layout_J-Butt-000.Stick_Allowance_FTF` to `1 in` — the mate
      frame lifts off the end, i.e. the girt would seat 1 in *into* the
      post. Put it back to 0.
+
+   **Re-run step 1's snippet after each of these.** Body Placement is a
+   plain literal — it does not follow a parameter edit — so the girt
+   keeps its old pose while the frames move, and the gap you are looking
+   at is stale rather than real.
+
    Undo all, or close without saving and re-verify defaults.
 4. Final lint (strict **and** advisory silent), then the test suite:
 
