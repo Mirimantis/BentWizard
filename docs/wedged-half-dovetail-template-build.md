@@ -141,11 +141,57 @@ current §3 tree convention, and what Apply-Joint now expects.
 
 ---
 
+## Part B0 — the companion layout VarSet
+
+*Added August 2026, alongside the frames-at-face conversion. Before it
+existed, a beam entering this joint published no allowance and **Drive
+Length from Layout Distance refused outright**.*
+
+In the same `TimberJointVars` group, a **VarSet**
+`Layout_J-WedgedHalfDovetail-000`. It is the **pure source**: it holds
+the length-consuming parameters authoritatively and reads only the
+*post's* Dims, never the beam's — the beam's `Length` reads back
+through here, so anything this VarSet reads that reads back closes the
+cycle FreeCAD refuses.
+
+| Property | Type | Group | Value | Tooltip |
+|---|---|---|---|---|
+| `VarSet_Role` | `App::PropertyString` | `Template` | `Layout` | Marks this as the joint's companion layout VarSet: the pure source holding the length-consuming parameters. Tools resolve the companion through this, never by label. |
+| `Tenon_Length` | `App::PropertyLength` | `Layout` | 11 in | Length of the through tenon beyond the housing's bearing floor, along the beam's own axis. Authoritative here; the joint VarSet consumes it. |
+| `Housing_Depth` | `App::PropertyLength` | `Layout` | 1 in | Depth of the housing into the post, measured in from the post face the beam lands on. Authoritative here; the joint VarSet consumes it. |
+| `Grid_Setback` | `App::PropertyDistance` | `Layout` | *expr* `= <<TDim_T.Post.001>>.Width / 2` | Half the post's thickness along the joint normal — the term that converts a clear span to an on-center distance. |
+| `Stick_Allowance_FTF` | `App::PropertyDistance` | `Layout` | *expr* `= Tenon_Length + Housing_Depth` | Stick this joint consumes beyond the post's face, along the beam's own axis: the beam is shouldered on the housing floor and the tenon runs on from there, so the two sum. |
+| `Stick_Allowance_OC` | `App::PropertyDistance` | `Layout` | *expr* `= Stick_Allowance_FTF - Grid_Setback` | Stick this joint consumes beyond the post's centerline, along the beam's own axis. Negative when the stick stops short of the grid line. |
+
+**The allowance is the same formula as the housed M&T's, and that was
+the open question.** The roadmap expected a dovetail to need different
+arithmetic, since its tail depth and housing are not an M&T's. It does
+not: both are *housed, shouldered* joints where the shoulder seats on
+the housing floor and a tenon of declared length runs on from there.
+`Dovetail_Angle` and `Wedge_Depth` shape the section, they consume no
+stick length. The general rule this settles, for every future template:
+**place the mate frame and read its offset** — the allowance is a
+measurement, not a derivation.
+
+All three layout terms are `Distance`, not `Length`: `_OC` goes
+negative whenever the stick stops short of the grid line, and a
+`Length` clamps a negative to zero silently. Keep the triple one type
+so the arithmetic never crosses a boundary.
+
 ## Part B — the joint VarSet
 
 A `TimberJointVars` Std Group holding one **VarSet**
 `J-WedgedHalfDovetail-000`, properties in group `Joint`;
 `App::PropertyLength` unless noted.
+
+`Tenon_Length` and `Housing_Depth` are **consumed** from the companion
+(`= <<Layout_J-WedgedHalfDovetail-000>>.<same name>`) — they are listed
+below with their resolved values for readability, but writes here are
+silently overwritten. Edit them on the companion. A consumed
+`Stick_Allowance_FTF` (`App::PropertyDistance`) joins them, because the
+mate frame must reference the **joint** VarSet to be a joint member:
+`joint_members` closes over the literal `<<J-…>>` token, which
+`<<Layout_J-…>>` does not contain.
 
 | Property | Value | Tooltip |
 |---|---|---|
@@ -186,16 +232,25 @@ standalone Body — pads are fine on created parts.
    FlatFace on the post's `YZ_Plane` (canonical Face 4), offsets
    - `Base.x = <<TDim_T.Post.001>>.Depth / 2`
    - `Base.y = <<J-WedgedHalfDovetail-000>>.Joint_Station + <<J-WedgedHalfDovetail-000>>.Housing_Height / 2`
-   - `Base.z = <<TDim_T.Post.001>>.Width - <<J-WedgedHalfDovetail-000>>.Housing_Depth`
+   - `Base.z = <<TDim_T.Post.001>>.Width`
 
-   Origin at the centre of the beam's landing footprint, on the bearing
-   plane. Axes: X across the post face, **Y up the post**, Z out of the
-   wood. That Y axis is the joint's "up" — every dimension below that
-   reads as above or below resolves along it, which is the whole reason
-   the socket member must be plumb.
+   Origin at the centre of the beam's landing footprint, **on the post's
+   face** (frames-at-face, August 2026 — it was at `Width -
+   Housing_Depth`, the bearing plane, until the conversion). Axes: X
+   across the post face, **Y up the post**, Z out of the wood. That Y
+   axis is the joint's "up" — every dimension below that reads as above
+   or below resolves along it, which is the whole reason the socket
+   member must be plumb.
+
+   The housing is now independently adjustable: the two cuts that
+   measure from the bearing plane carry an explicit `Housing_Depth`
+   term back (C.2 and C.3) rather than riding a frame that moved.
 2. **Housing.** Sketch
    `Housing.Skt.WHD.000` on the frame's
-   **XY plane**: rectangle centred on the origin, half-extents
+   **XY plane**, with attachment offset
+   `Base.z = -<<J-WedgedHalfDovetail-000>>.Housing_Depth` — the term
+   that holds the sketch on the bearing plane now that the frame sits
+   on the face. Rectangle centred on the origin, half-extents
    `= <<J-WedgedHalfDovetail-000>>.Housing_Height / 2` and
    `= <<J-WedgedHalfDovetail-000>>.Housing_Width / 2` from the sketch
    axes.
@@ -213,7 +268,13 @@ standalone Body — pads are fine on created parts.
 3. **Through mortise.** Sketch
    `Mortise.Skt.WHD.000` on the frame's
    **YZ plane** — the elevation through the footprint centre:
-   up-the-post × into-the-post. Driven dimensions:
+   up-the-post × into-the-post — with attachment offset
+   `Base.y = -<<J-WedgedHalfDovetail-000>>.Housing_Depth`. The frame's
+   Z lies *in* this plane, so its move to the face slid the sketch
+   origin along the plane rather than off it; the offset is on the
+   sketch's local **y**, which is the axis that maps to the frame's Z
+   here. Driven dimensions (unchanged — every one still measures from
+   the bearing plane):
    - opening height `= <<J-WedgedHalfDovetail-000>>.Tenon_Height + <<J-WedgedHalfDovetail-000>>.Wedge_Depth`
    - reach into the post `= <<J-WedgedHalfDovetail-000>>.Tenon_Length + <<J-WedgedHalfDovetail-000>>.Housing_Depth`
      (overshoots the far face, so the tenon emerges cleanly)
@@ -258,17 +319,41 @@ one of them.
    on the landing frame's **XY plane** child, offsets
    - `Base.x = <<TDim_T.AnchorBeam.001>>.Width / 2`
    - `Base.y = <<TDim_T.AnchorBeam.001>>.Depth / 2`
-   - `Base.z = <<J-WedgedHalfDovetail-000>>.Tenon_Length`
+   - `Base.z = <<J-WedgedHalfDovetail-000>>.Stick_Allowance_FTF`
 
-   No rotation. Origin at the beam's section centre on the shoulder
-   plane — which is exactly where the post's landing frame sits when
-   the joint is engaged. **This is the frame that aligns**, and it is
-   what makes Preview Mated Joint and auto-assembly work; without it
+   No rotation. Origin at the beam's section centre, at the allowance
+   from end A — which is exactly where the post's landing frame sits
+   when the joint is engaged. **This is the frame that aligns**, and it
+   is what makes Preview Mated Joint and auto-assembly work; without it
    `engagement_placement` returns None and applying the template cuts
    the joinery but seats nothing.
+
+   Under frames-at-face the offset is no longer `Tenon_Length`: the
+   landing frame moved out to the post's face, so this one moves out by
+   the same `Housing_Depth` and the engaged pose is unchanged. What the
+   offset now *is* is the clear-span allowance itself — measured, the
+   beam's end A lands 304.8 mm beyond the post face at defaults, which
+   is exactly `Stick_Allowance_FTF`. **Read it from the companion
+   (E), never restate the arithmetic here.**
 3. **Cheek cuts (plan).** Sketch
-   `Cheeks.Skt.WHD.000` on the
-   frame's **XZ plane**: centreline construction line at
+   `Cheeks.Skt.WHD.000` on the **landing** frame `Tail.Lcs.WHD.000`'s
+   **XZ plane** — *not* the mate frame — with attachment offsets
+   - `Base.x = <<TDim_T.AnchorBeam.001>>.Width / 2`
+   - `Base.y = <<J-WedgedHalfDovetail-000>>.Tenon_Length`
+   - `Base.z = -<<TDim_T.AnchorBeam.001>>.Depth / 2`
+
+   These reproduce where the mate frame used to sit, but drive the
+   sketch from `Tenon_Length` — the shoulder — instead of from the
+   allowance. **This decoupling is not optional.** The cheeks hung off
+   `Mate.Lcs` until August 2026, which made a bookkeeping frame
+   load-bearing for geometry: moving the mate frame out by
+   `Housing_Depth` dragged the cheek cut with it, leaving the tenon tip
+   uncut and biting into the shoulder. `Joint_HousedMT` never had the
+   problem because its tenon sketch hangs off its landing frame and its
+   shoulder is a separate `ShoulderA.Dtm`. Nothing may attach to a mate
+   frame.
+
+   Then: centreline construction line at
    `= <<TDim_T.AnchorBeam.001>>.Width / 2`, two removal
    rectangles flanking the tenon — outer edges on the section boundary
    (`= <<TDim_T.AnchorBeam.001>>.Width / 2` from the centreline),

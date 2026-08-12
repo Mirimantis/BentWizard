@@ -839,6 +839,82 @@ def rule_frame_role(model):
     return findings
 
 
+def _mate_frames(model):
+    """{name: LCS} for every frame declaring Frame_Role = Mate.
+
+    Scanned over the whole document rather than through
+    `_joint_feature_members`, so a mate frame the membership closure
+    does not reach is still covered — the rule is about what may attach
+    to the frame, which does not depend on how the frame was found.
+    """
+    mates = {}
+    for lcs in model.doc.of_type("Part::LocalCoordinateSystem"):
+        p = lcs.prop(naming.FRAME_ROLE_PROP)
+        role = (p.value if p and p.value
+                else naming.legacy_frame_role(lcs.label))
+        if role == naming.FRAME_ROLE_MATE:
+            mates[lcs.name] = lcs
+    return mates
+
+
+def rule_mate_frame_attachment(model):
+    """Strict: nothing attaches to a mate frame.
+
+    A mate frame is a **declaration**, not a datum: it says "these two
+    frames coincide when engaged" and carries no geometry of its own.
+    Its offset from the stick end is the joint's clear-span allowance
+    (frames-at-face, August 2026), so it MOVES whenever the allowance
+    changes — and anything hanging off it moves too.
+
+    `Joint_WedgedHalfDovetail` had exactly this: `Cheeks.Skt` was
+    attached to `Mate.Lcs`, so converting the template to frames-at-face
+    pushed the mate frame out by `Housing_Depth` and dragged the cheek
+    cut with it — cutting from `Housing_Depth` to
+    `Tenon_Length + Housing_Depth` instead of `0` to `Tenon_Length`,
+    leaving the tenon tip uncut and biting into the shoulder. It lints
+    clean, recomputes clean, and is wrong. `Joint_HousedMT` never had
+    the problem: its tenon sketch hangs off the landing frame and its
+    shoulder is a separate `ShoulderA.Dtm`.
+
+    Geometry hangs off the **landing** frame, with its own datum for a
+    shoulder. Attaching to a mate frame's child plane counts too — same
+    dependency, and `lcs-child-plane-reference` catches only the
+    reference *form*, not the choice of target.
+    """
+    mates = _mate_frames(model)
+    if not mates:
+        return []
+    child_of = {}                    # child object name -> owning LCS name
+    for name, lcs in mates.items():
+        feats = lcs.prop("OriginFeatures")
+        for link in (feats.links if feats else []):
+            child_of[link.obj] = name
+
+    findings = []
+    for obj in model.doc.objects.values():
+        if obj.name in mates or obj.name in child_of:
+            continue            # a mate frame's own children are not attachers
+        sup = obj.prop("AttachmentSupport") or obj.prop("Support")
+        if sup is None:
+            continue
+        for link in sup.links:
+            target = mates.get(link.obj) or mates.get(child_of.get(link.obj))
+            if target is None:
+                continue
+            via = ("" if link.obj in mates
+                   else f" (via its child '{link.obj}')")
+            findings.append(Finding(
+                "mate-frame-attachment", STRICT, obj.name, obj.label,
+                f"attaches to mate frame '{target.label}'{via} — a mate "
+                f"frame is a declaration, not a datum: its offset from "
+                f"the stick end is the joint's clear-span allowance, so "
+                f"it moves whenever the joinery changes and takes this "
+                f"with it. Attach to the landing frame instead, with "
+                f"its own datum for a shoulder"))
+            break
+    return findings
+
+
 def rule_template_abbrev(model):
     """§3 advisory: a joint VarSet declares Template_Abbrev, the short
     kind token its feature labels carry ('WHD'). Without one the labels
@@ -1089,6 +1165,7 @@ STRICT_RULES = [
     rule_label_reserved_characters,
     rule_joint_feature_labels,
     rule_frame_role,
+    rule_mate_frame_attachment,
 ]
 
 ADVISORY_RULES = [

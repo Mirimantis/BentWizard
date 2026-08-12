@@ -30,6 +30,7 @@ from .linter import Model, footprint_violations
 DIMENSIONAL = {6, 7, 8, 9, 11, 18, 19}   # constraint types carrying a value
 Constraint_DISTANCE_X = 7
 Constraint_DISTANCE_Y = 8
+Constraint_ANGLE = 9
 
 # Reference faces (workflow doc §2): Face 1 = XZ reference face (y=0),
 # Face 2 = YZ reference face (x=0), Faces 3/4 opposite them. Side-
@@ -793,12 +794,44 @@ def _constraint_args(con):
     return args
 
 
+# Which AttachmentOffset component of a frame-child runs along the
+# frame's own Z (and X), per the frame plane it attaches to. Probed in
+# 1.1.1: FlatFace on the frame's XZ or YZ plane puts the frame's Z on
+# the child's local *Y*, not its Z — so a table keyed on the support
+# plane, not an assumption that local z is always the frame's z.
+#
+# Only XY_Plane was handled until August 2026, which was invisible while
+# every template attached its frame-children to XY: Joint_HousedMT does
+# throughout. Joint_WedgedHalfDovetail attaches to XZ and YZ, so its
+# offsets were never flipped for end B or a flip_z face.
+_FRAME_PLANE_OFFSET_AXIS = {
+    "XY_Plane": {"z": "AttachmentOffset.Base.z", "x": "AttachmentOffset.Base.x"},
+    "XZ_Plane": {"z": "AttachmentOffset.Base.y", "x": "AttachmentOffset.Base.x"},
+    "YZ_Plane": {"z": "AttachmentOffset.Base.y", "x": "AttachmentOffset.Base.z"},
+}
+
+
 _CONSTRAINT_NAMES = {
     1: "Coincident", 2: "Horizontal", 3: "Vertical", 4: "Parallel",
     5: "Tangent", 6: "Distance", 7: "DistanceX", 8: "DistanceY",
     9: "Angle", 10: "Perpendicular", 11: "Radius", 12: "Equal",
     13: "PointOnObject", 14: "Symmetric", 17: "Block", 18: "Diameter",
 }
+
+
+def _flips_offset(spec, clean, ctx):
+    """True when this frame-child's offset expression runs along a frame
+    axis the placement flips, and so must measure backward.
+
+    `clean` is the expression path with its leading dot stripped
+    ('AttachmentOffset.Base.y'); which component counts depends on the
+    frame plane the child hangs off — see _FRAME_PLANE_OFFSET_AXIS.
+    """
+    axes = _FRAME_PLANE_OFFSET_AXIS.get(spec["support"]["sub"])
+    if axes is None:
+        return False
+    return ((ctx["flip_z"] and clean == axes["z"])
+            or (ctx["flip_x"] and clean == axes["x"]))
 
 
 def _rewrite(text, replacements):
@@ -1231,10 +1264,7 @@ def _rebuild_member(doc, body, spec, local, renames, expr_renames, ctx):
             expression = _face_transform(clean, expression, ctx)
         if clean in negate_paths:
             expression = f"-({expression})"
-        elif on_frame and not is_frame \
-                and spec["support"]["sub"] == "XY_Plane" \
-                and ((ctx["flip_z"] and clean == "AttachmentOffset.Base.z")
-                     or (ctx["flip_x"] and clean == "AttachmentOffset.Base.x")):
+        elif on_frame and not is_frame and _flips_offset(spec, clean, ctx):
             # frame-child datum offsets along a flipped frame axis
             # measure backward (e.g. the shoulder under end B)
             expression = f"-({expression})"
@@ -1342,6 +1372,18 @@ def _rebuild_sketch(sketch, spec, negate_axes=frozenset()):
     # values (and, via _negate_paths, their expressions)
     negate_types = {Constraint_DISTANCE_X for a in negate_axes if a == 0} \
         | {Constraint_DISTANCE_Y for a in negate_axes if a == 1}
+    # An ANGLE is signed by the sketch's orientation, so a reflection —
+    # an ODD number of negated axes — negates it too; flipping both axes
+    # is a 180° rotation, which preserves it. Missing this made any
+    # sketch carrying an angle unmirrorable: Joint_WedgedHalfDovetail's
+    # mortise (the dovetail slope, '90° - Dovetail_Angle' off the
+    # vertical edge) mirrored its geometry and its distances but kept
+    # the angle, and the contradiction dropped the solver to -1 —
+    # 'recompute failed for Mortise.Skt' on every flip_z face. The other
+    # templates carry no angle constraint, which is why it survived this
+    # long.
+    if len(negate_axes) % 2 == 1:
+        negate_types.add(Constraint_ANGLE)
     negate_paths = set()
     cons = []
     for i, con in enumerate(spec["constraints"]):

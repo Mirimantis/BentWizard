@@ -812,5 +812,119 @@ class ApplyJointTest(unittest.TestCase):
                                     "joint not engaged")
 
 
+WHD_TEMPLATE = REPO_ROOT / "library" / "Joint_WedgedHalfDovetail.FCStd"
+
+
+@unittest.skipUnless(HAVE_FREECAD, "FreeCAD not importable — run with the bundled python")
+class WedgedHalfDovetailPlacementMatrix(unittest.TestCase):
+    """The dovetail exercises two placement paths no other template does,
+    and both were broken until August 2026 (found in GUI testing).
+
+    It is the only template carrying an **angle constraint** (the
+    dovetail slope) and the only one attaching frame-children to a
+    frame's **XZ/YZ** planes rather than its XY. Joint_HousedMT and
+    Joint_Butt cover neither, so this class is the regression guard for
+    both fixes:
+
+    - a mirrored sketch must negate its Angle constraints on an odd
+      number of flipped axes, or the mirrored geometry contradicts the
+      unflipped angle and the solver drops to -1 ('recompute failed for
+      Mortise.Skt' on every flip_z face);
+    - a frame-child's offset must be negated on whichever local
+      component runs along the flipped frame axis, which is local *y*
+      for an XZ/YZ attachment and only local z for XY.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from freecad.bentwizard.apply_joint import TemplateSpec
+        cls.spec = TemplateSpec(WHD_TEMPLATE)
+
+    def setUp(self):
+        self.doc = App.newDocument("WhdMatrix")
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+
+    def _apply(self, face, end):
+        from freecad.bentwizard.apply_joint import apply_joint
+        from freecad.bentwizard.timber import new_timber
+        post, _ = new_timber(self.doc, f"P8-{face}{end}", "10 in", "8 in", "10 ft")
+        beam, _ = new_timber(self.doc, f"B8-{face}{end}", "6 in", "8 in", "8 ft")
+        v0 = (post.Shape.Volume, beam.Shape.Volume)
+        vs = apply_joint(
+            self.doc, self.spec, f"W{face}{end}",
+            {"T.Post.001": post, "T.AnchorBeam.001": beam},
+            placement={"T.Post.001": {"face": face},
+                       "T.AnchorBeam.001": {"end": end}})
+        self.doc.recompute()
+        return vs, post, beam, v0
+
+    def test_applies_on_every_face_and_end(self):
+        """Every combination recomputes. Faces 2 and 3 raised
+        'recompute failed for: Mortise.Skt' outright — the angle
+        constraint — so this is the sharpest form of the regression."""
+        for face in (1, 2, 3, 4):
+            for end in ("A", "B"):
+                with self.subTest(face=face, end=end):
+                    _vs, post, beam, _v0 = self._apply(face, end)
+                    for body in (post, beam):
+                        self.assertNotIn(
+                            "Invalid", " ".join(body.State),
+                            f"{body.Label} invalid after apply")
+
+    def test_beam_cut_is_the_same_whichever_face_and_end(self):
+        """The beam's own joinery cannot depend on where it lands.
+
+        Two distinct bugs showed up here. End B cut 352.000 in3 against
+        end A's 362.586 — quietly wrong, and wrong before any of this
+        work. Then decoupling the cheek sketch from the mate frame (so
+        nothing hangs off a frame that moves) dropped it to 0.000: the
+        offset ran along the frame's Z but sat on local *y*, which the
+        end-B negation did not cover, so at end B the sketch landed at
+        Length + Tenon_Length, outside the stick, and cut air.
+        """
+        cuts = {}
+        for face in (1, 2, 3, 4):
+            for end in ("A", "B"):
+                _vs, _post, beam, v0 = self._apply(face, end)
+                cuts[(face, end)] = round((v0[1] - beam.Shape.Volume) / IN3, 3)
+        self.assertGreater(min(cuts.values()), 1.0,
+                           f"a placement cut no joinery at all: {cuts}")
+        self.assertEqual(len(set(cuts.values())), 1,
+                         f"beam cut varies with placement: {cuts}")
+
+    def test_post_cut_varies_only_with_the_face_dimension(self):
+        """Faces 1/3 land on Depth, faces 2/4 on Width — the only
+        legitimate reason the post's cut differs — and never with the
+        beam's end."""
+        cuts = {}
+        for face in (1, 2, 3, 4):
+            for end in ("A", "B"):
+                _vs, post, _beam, v0 = self._apply(face, end)
+                cuts[(face, end)] = round((v0[0] - post.Shape.Volume) / IN3, 3)
+        for face in (1, 2, 3, 4):
+            self.assertEqual(cuts[(face, "A")], cuts[(face, "B")],
+                             f"face {face}: post cut depends on the beam's end")
+        self.assertEqual(cuts[(1, "A")], cuts[(3, "A")], "faces 1 and 3 differ")
+        self.assertEqual(cuts[(2, "A")], cuts[(4, "A")], "faces 2 and 4 differ")
+
+    def test_engagement_seats_on_every_face_and_end(self):
+        from freecad.bentwizard.apply_joint import engagement_placement
+        for face in (1, 2, 3, 4):
+            for end in ("A", "B"):
+                with self.subTest(face=face, end=end):
+                    vs, post, beam, _v0 = self._apply(face, end)
+                    mover, _anchor, seated = engagement_placement(vs)
+                    self.assertIs(mover, beam)
+                    beam.Placement = seated
+                    self.doc.recompute()
+                    overlap = post.Shape.common(beam.Shape).Volume
+                    self.assertLess(overlap / IN3, 1e-3,
+                                    "seated halves interpenetrate")
+                    self.assertLess(post.Shape.distToShape(beam.Shape)[0], 1e-6,
+                                    "seated halves do not touch")
+
+
 if __name__ == "__main__":
     unittest.main()

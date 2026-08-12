@@ -39,6 +39,7 @@ TEMPLATE = FIXTURES / "TimberTemplate.FCStd"
 # kind of thing that silently stops being refreshed.
 JOINT_TEMPLATE = LIBRARY / "Joint_HousedMT.FCStd"
 BUTT_TEMPLATE = LIBRARY / "Joint_Butt.FCStd"
+WHD_TEMPLATE = LIBRARY / "Joint_WedgedHalfDovetail.FCStd"
 
 
 class LinterFixtureTest(unittest.TestCase):
@@ -397,6 +398,56 @@ class ButtTemplateControl(TemplateSkeletonCompleteness, LinterFixtureTest):
             sorted(pads),
             sorted(f"Stick.{b.label}" for b in self.model.bodies),
             f"expected exactly the two stick pads, got {pads}")
+
+
+class WedgedHalfDovetailTemplateControl(TemplateSkeletonCompleteness,
+                                        LinterFixtureTest):
+    """The Dutch anchor-beam joint, converted to frames-at-face and given
+    its companion layout VarSet (August 2026).
+
+    Its documented bar allows `caution-threshold` — it severs a real
+    fraction of the post, deliberately — but nothing else. It carries
+    the same three-frame skeleton as the other two, so the completeness
+    assertions apply unchanged.
+    """
+
+    FIXTURE = WHD_TEMPLATE
+
+    def test_no_strict_findings(self):
+        strict = [str(f) for f in self.findings if f.severity == STRICT]
+        self.assertEqual(strict, [])
+
+    def test_only_caution_advisories(self):
+        other = [str(f) for f in self.findings
+                 if f.severity == ADVISORY and f.rule != "caution-threshold"]
+        self.assertEqual(other, [])
+
+    def test_publishes_its_allowance(self):
+        """The point of the conversion: a timber entering this joint can
+        drive its Length. Before the companion existed, Drive Length from
+        Layout Distance refused outright.
+
+        FTF is asserted structurally rather than by value — the template
+        must publish an allowance consumed by the mate frame, and it is
+        the frame placement that makes it true, not the arithmetic.
+        """
+        companion = [
+            vs for vs in self.model.varsets
+            if getattr(vs.prop(naming.VARSET_ROLE_PROP), "value", None)
+            == naming.VARSET_ROLE_LAYOUT][0]
+        for prop in ("Stick_Allowance_FTF", "Stick_Allowance_OC",
+                     "Grid_Setback"):
+            self.assertIsNotNone(
+                companion.prop(prop),
+                f"{companion.label} publishes no {prop}")
+        # the layout triple must be one signed type: _OC goes negative
+        # whenever the stick stops short of the grid line, and a Length
+        # would clamp it to zero without complaint
+        for prop in ("Stick_Allowance_FTF", "Stick_Allowance_OC",
+                     "Grid_Setback"):
+            self.assertEqual(
+                companion.prop(prop).type_id, "App::PropertyDistance",
+                f"{prop} must be App::PropertyDistance, not Length")
 
 
 if __name__ == "__main__":

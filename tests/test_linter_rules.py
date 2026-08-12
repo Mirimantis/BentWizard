@@ -480,5 +480,93 @@ class DuplicateLabelRule(unittest.TestCase):
         self.assertIn("Housing.K.001", hits[0].label)
 
 
+def mate_frame_doc(attach_to, attach_sub=""):
+    """Two frames — one Landing, one Mate — and a cut sketch attached to
+    `attach_to`. The Mate frame carries one child plane so the
+    via-a-child path can be exercised."""
+    return FcstdDocument.from_xml(f"""<?xml version="1.0" encoding="utf-8"?>
+<Document>
+ <Objects Count="5">
+  <Object type="PartDesign::Body" name="Body" />
+  <Object type="Part::LocalCoordinateSystem" name="LandingLcs" />
+  <Object type="Part::LocalCoordinateSystem" name="MateLcs" />
+  <Object type="App::Plane" name="MateXY" />
+  <Object type="Sketcher::SketchObject" name="Cut" />
+ </Objects>
+ <ObjectData Count="5">
+  <Object name="Body"><Properties Count="2">
+   <Property name="Label" type="App::PropertyString"><String value="T.Beam.001" /></Property>
+   <Property name="Group" type="App::PropertyLinkList"><LinkList count="3">
+    <Link value="LandingLcs" /><Link value="MateLcs" /><Link value="Cut" />
+   </LinkList></Property>
+  </Properties></Object>
+  <Object name="LandingLcs"><Properties Count="2">
+   <Property name="Label" type="App::PropertyString"><String value="End.Lcs.K.001" /></Property>
+   <Property name="Frame_Role" type="App::PropertyString" group="TimberJoint" doc="role"><String value="Landing" /></Property>
+  </Properties></Object>
+  <Object name="MateLcs"><Properties Count="3">
+   <Property name="Label" type="App::PropertyString"><String value="Mate.Lcs.K.001" /></Property>
+   <Property name="Frame_Role" type="App::PropertyString" group="TimberJoint" doc="role"><String value="Mate" /></Property>
+   <Property name="OriginFeatures" type="App::PropertyLinkList"><LinkList count="1">
+    <Link value="MateXY" />
+   </LinkList></Property>
+  </Properties></Object>
+  <Object name="MateXY"><Properties Count="1">
+   <Property name="Label" type="App::PropertyString"><String value="XY-plane009" /></Property>
+  </Properties></Object>
+  <Object name="Cut"><Properties Count="2">
+   <Property name="Label" type="App::PropertyString"><String value="Cheeks.Skt.K.001" /></Property>
+   <Property name="AttachmentSupport" type="App::PropertyLinkSubList">
+    <LinkSubList count="1"><Link obj="{attach_to}" sub="{attach_sub}"/></LinkSubList>
+   </Property>
+  </Properties></Object>
+ </ObjectData>
+</Document>""".encode("utf-8"))
+
+
+class MateFrameAttachmentRule(unittest.TestCase):
+    """Nothing attaches to a mate frame.
+
+    The regression is Joint_WedgedHalfDovetail's `Cheeks.Skt`, which hung
+    off `Mate.Lcs`: because a mate frame's offset from the stick end IS
+    the clear-span allowance, converting the template to frames-at-face
+    moved the frame and dragged the cheek cut with it — leaving the tenon
+    tip uncut. It lints clean and recomputes clean, so only a rule
+    catches it.
+    """
+
+    def hits(self, attach_to, attach_sub=""):
+        return [f for f in lint_document(mate_frame_doc(attach_to, attach_sub))
+                if f.rule == "mate-frame-attachment"]
+
+    def test_attaching_to_a_mate_frame_is_strict(self):
+        hits = self.hits("MateLcs", "XZ_Plane.")
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].severity, "strict")
+        self.assertEqual(hits[0].label, "Cheeks.Skt.K.001")
+        self.assertIn("Mate.Lcs.K.001", hits[0].message)
+
+    def test_attaching_via_a_mate_frames_child_plane_is_caught(self):
+        # lcs-child-plane-reference catches the reference FORM; this rule
+        # is about the choice of target, and both are wrong here
+        hits = self.hits("MateXY")
+        self.assertEqual(len(hits), 1)
+        self.assertIn("via its child", hits[0].message)
+        self.assertIn("Mate.Lcs.K.001", hits[0].message)
+
+    def test_attaching_to_the_landing_frame_is_clean(self):
+        self.assertEqual(self.hits("LandingLcs", "XZ_Plane."), [])
+
+    def test_the_mate_frame_may_itself_attach_to_something(self):
+        # Joint_Butt's mate frame hangs off the end frame — that is the
+        # correct direction and must not be flagged
+        doc = mate_frame_doc("LandingLcs", "XZ_Plane.")
+        mate = doc.resolve("Mate.Lcs.K.001")
+        self.assertIsNotNone(mate)
+        hits = [f for f in lint_document(doc)
+                if f.rule == "mate-frame-attachment"]
+        self.assertEqual(hits, [])
+
+
 if __name__ == "__main__":
     unittest.main()
