@@ -812,7 +812,129 @@ class ApplyJointTest(unittest.TestCase):
                                     "joint not engaged")
 
 
-WHD_TEMPLATE = REPO_ROOT / "library" / "Joint_WedgedHalfDovetail.FCStd"
+LIBRARY = REPO_ROOT / "library"
+WHD_TEMPLATE = LIBRARY / "Joint_WedgedHalfDovetail.FCStd"
+
+
+@unittest.skipUnless(HAVE_FREECAD, "FreeCAD not importable — run with the bundled python")
+class FramesAtFaceInvariant(unittest.TestCase):
+    """A landing frame sits on the primary timber's face, so changing the
+    housing must not move it.
+
+    This is the whole point of frames-at-face, and until now nothing
+    asserted it. Before the conversion the frame was authored at
+    `Width - Housing_Depth`, so deepening the housing dragged the frame
+    inward — and with it the clear-span allowance, the seat, and every
+    neighbouring timber's position. Now the housing is an independently
+    adjustable bearing feature: the frame holds on the face, the cuts
+    that measure from the bearing plane follow, and the allowance grows
+    by exactly the extra depth (a deeper housing means a deeper seat).
+
+    Runs over every library template declaring a Housing_Depth, so a new
+    template authored on the old convention fails here rather than in a
+    bent six months later.
+    """
+
+    @staticmethod
+    def _housed_companion(doc):
+        """The template's companion layout VarSet, if it has a housing."""
+        for o in doc.Objects:
+            if (o.TypeId == "App::VarSet"
+                    and getattr(o, "VarSet_Role", "") == "Layout"
+                    and hasattr(o, "Housing_Depth")):
+                return o
+        return None
+
+    @staticmethod
+    def _landing_frame(doc):
+        from freecad.bentwizard import naming
+        for o in doc.Objects:
+            if (o.TypeId == "Part::LocalCoordinateSystem"
+                    and getattr(o, naming.FRAME_ROLE_PROP, None)
+                    == naming.FRAME_ROLE_LANDING
+                    and o.ExpressionEngine):
+                return o                      # the anchor's; the entering
+        return None                           # timber's end frame has none
+
+    def test_deepening_the_housing_does_not_move_the_landing_frame(self):
+        import FreeCAD
+        checked = []
+        for path in sorted(LIBRARY.glob("*.FCStd")):
+            doc = FreeCAD.openDocument(str(path))
+            try:
+                companion = self._housed_companion(doc)
+                if companion is None:
+                    continue                  # jointless template, no housing
+                frame = self._landing_frame(doc)
+                self.assertIsNotNone(
+                    frame, f"{path.stem}: no expression-driven landing frame")
+                doc.recompute()
+                before = FreeCAD.Vector(frame.Placement.Base)
+                allowance = companion.Stick_Allowance_FTF.Value
+                companion.Housing_Depth = companion.Housing_Depth.Value + 25.4
+                doc.recompute()
+                moved = (frame.Placement.Base - before).Length
+                grew = companion.Stick_Allowance_FTF.Value - allowance
+                self.assertLess(
+                    moved, 1e-9,
+                    f"{path.stem}: landing frame moved {moved:.4f} mm when "
+                    f"the housing deepened — it is not on the face")
+                self.assertAlmostEqual(
+                    grew, 25.4, places=6,
+                    msg=f"{path.stem}: allowance did not follow the housing")
+                checked.append(path.stem)
+            finally:
+                FreeCAD.closeDocument(doc.Name)
+        self.assertEqual(
+            checked, ["Joint_HousedMT", "Joint_WedgedHalfDovetail"],
+            f"expected both housed templates to be checked, got {checked}")
+
+    def test_a_zero_depth_housing_still_recomputes(self):
+        """A Mill Rule housing is an OPTIONAL bearing feature, so zero is
+        a legitimate value rather than an edge case.
+
+        It used to kill the template: a pocket whose Length is a single
+        user parameter fails outright at zero ("cannot create a pocket
+        with a total length of 0"), and the failure was worse than a
+        stopped recompute — the housing froze at its last good depth
+        while a driven Length carried on resizing the beam, so an H-bent
+        went quietly inconsistent.
+
+        The arrangement that survives: the sketch sits on the bearing
+        plane (an explicit Housing_Depth term back from the frame, which
+        is on the face) and the cut runs OUTWARD from there, padded past
+        the face. The pad only ever cuts air, so the removed volume is
+        exactly Housing_Depth at any depth including zero.
+        """
+        import FreeCAD
+        checked = []
+        for path in sorted(LIBRARY.glob("*.FCStd")):
+            doc = FreeCAD.openDocument(str(path))
+            try:
+                companion = self._housed_companion(doc)
+                if companion is None:
+                    continue
+                bodies = [o for o in doc.Objects
+                          if o.TypeId == "PartDesign::Body"]
+                companion.Housing_Depth = 0
+                doc.recompute()
+                broken = [o.Label for o in doc.Objects
+                          if o.State and ("Invalid" in o.State
+                                          or "Error" in o.State)]
+                self.assertEqual(
+                    broken, [],
+                    f"{path.stem}: objects failed at Housing_Depth = 0: "
+                    f"{broken}")
+                for b in bodies:
+                    self.assertTrue(
+                        b.Shape.isValid(),
+                        f"{path.stem}: {b.Label} invalid at zero housing")
+                checked.append(path.stem)
+            finally:
+                FreeCAD.closeDocument(doc.Name)
+        self.assertEqual(
+            checked, ["Joint_HousedMT", "Joint_WedgedHalfDovetail"],
+            f"expected both housed templates to be checked, got {checked}")
 
 
 @unittest.skipUnless(HAVE_FREECAD, "FreeCAD not importable — run with the bundled python")

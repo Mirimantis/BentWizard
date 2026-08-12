@@ -264,7 +264,19 @@ standalone Body — pads are fine on created parts.
 
    **Pocket** `Housing.WHD.000`, outward
    (Reversed as needed), Length
-   `= <<J-WedgedHalfDovetail-000>>.Housing_Depth`.
+   `= <<J-WedgedHalfDovetail-000>>.Housing_Depth + 0.25 in`.
+
+   **The pad is what lets the housing go to zero** (August 2026). With
+   a bare `Housing_Depth` the pocket dies at zero — *"cannot create a
+   pocket with a total length of 0"* — and zero is legitimate: a Mill
+   Rule housing is optional. The failure is worse than a stopped
+   recompute, because the housing freezes at its last good depth while
+   a driven `Length` keeps resizing the beam, and the bent goes quietly
+   inconsistent. Since the sketch sits on the bearing plane (C.2's
+   offset) and the cut runs outward, the pad only ever crosses the post
+   face into air: removed volume is exactly `Housing_Depth` at any
+   depth, verified identical to the unpadded cut at the shipped
+   default.
 3. **Through mortise.** Sketch
    `Mortise.Skt.WHD.000` on the frame's
    **YZ plane** — the elevation through the footprint centre:
