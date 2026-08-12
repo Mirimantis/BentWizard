@@ -1537,6 +1537,36 @@ class DriveLengthFromSpanCommand:
             return
 
 
+class ShowFaceMarksCommand:
+    def GetResources(self):
+        return {
+            "MenuText": "Show Face && End Marks",
+            "ToolTip": "Label every timber's four faces (1–4) and its two "
+                       "ends (A/B) in the 3D view, so Apply Timber Joint's "
+                       "face and end choices are readable off the model. "
+                       "View-only — nothing is added to the document. Run "
+                       "again to clear.",
+            "Checkable": True,
+        }
+
+    def IsActive(self):
+        return App.ActiveDocument is not None
+
+    def Activated(self, index=None):
+        from . import view_face_marks
+        doc = App.ActiveDocument
+        if doc is None:
+            return
+        view_face_marks.install()
+        if view_face_marks.toggle(doc):
+            marked = len([o for o in doc.Objects
+                          if o.TypeId == "PartDesign::Body"])
+            App.Console.PrintMessage(
+                f"Face and end marks shown on {marked} timber(s).\n")
+        else:
+            App.Console.PrintMessage("Face and end marks cleared.\n")
+
+
 def register():
     # the handle marker's context menu: whole-joint operations, in one
     # place a future joint-wide tool can extend without touching the
@@ -1555,9 +1585,10 @@ def register():
     Gui.addCommand("BentWizard_AssembleTimbers", AssembleTimbersCommand())
     Gui.addCommand("BentWizard_DriveLengthFromSpan",
                    DriveLengthFromSpanCommand())
+    Gui.addCommand("BentWizard_ShowFaceMarks", ShowFaceMarksCommand())
 
 
 ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_ApplyJoint",
                 "BentWizard_RemoveJoint", "BentWizard_PreviewJoint",
                 "BentWizard_DuplicateBent", "BentWizard_AssembleTimbers",
-                "BentWizard_DriveLengthFromSpan"]
+                "BentWizard_DriveLengthFromSpan", "BentWizard_ShowFaceMarks"]
