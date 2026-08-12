@@ -310,6 +310,20 @@ future scarf or lap defines its own engagement the same way.
 
 ## Part G — conversion to frames-at-face (August 2026)
 
+> **Performed August 2026.** The file is converted; this section is now
+> the record of what was done. Two deviations from the recipe as
+> originally written, both noted in place: **G.4** uses an
+> expression-driven attachment offset instead of re-anchoring the peg
+> sketch's construction scaffold (same behaviour, no constraint
+> surgery — the pattern the dovetail conversion proved), and **G.5's
+> tenon-loop oversize was not done** — see the note there.
+>
+> Verified: both solids unchanged (post `dVol` 1.5e-08 on 122M mm³,
+> beam 6.0e-08, face counts and bounding boxes identical); the face
+> 1–4 × end A/B matrix bit-identical to before (post 81.283/79.712 in³
+> by `ddim`, beam 145.571 in³ throughout); all eight seating with
+> misfit ~1e-13 and zero overlap.
+
 Edits to the **built** file, not a rebuild. Two things change and the
 rest follows: the landing frame moves out to the post's face, and the
 mate frame is driven by the companion's allowance instead of the tenon
@@ -367,13 +381,33 @@ in-plane coordinate untouched. Only the cuts change:
 
 | Feature | Change |
 |---|---|
-| `Housing.HMT.000` | **Toggle `Reversed` to false** so it cuts *into* the post from the face. `Length` stays `= <<J-HousedMT-000>>.Housing_Depth`. (It previously cut outward from the bearing plane; same material, opposite direction.) |
+| `Housing.HMT.000` | ~~**Toggle `Reversed` to false** so it cuts *into* the post from the face. `Length` stays `= <<J-HousedMT-000>>.Housing_Depth`.~~ **Superseded — see below.** |
 | `Mortise.HMT.000` | `Length` becomes `= <<J-HousedMT-000>>.Housing_Depth + <<J-HousedMT-000>>.Tenon_Length + <<J-HousedMT-000>>.Mortise_Relief`. `Reversed` stays false. |
 
 The mortise's new `Housing_Depth` term is honest, not a workaround: the
 cut now starts at the face and has to cross the housing before it
 reaches wood the tenon occupies. Change `Housing_Depth` and the mortise
 bottom still follows automatically.
+
+> **The housing cut is padded and runs outward** (revised August 2026,
+> after GUI testing). Cutting inward from the face with
+> `Length = Housing_Depth` dies at `Housing_Depth = 0` — *"cannot
+> create a pocket with a total length of 0"* — and zero is a legitimate
+> value: a Mill Rule housing is optional. Worse than a stopped
+> recompute, the housing then froze at its last good depth while a
+> driven `Length` kept resizing the beam, so an H-bent went quietly
+> inconsistent. As built:
+>
+> | | |
+> |---|---|
+> | `Housing.Skt.HMT.000` | attachment offset `Base.z = -<<J-HousedMT-000>>.Housing_Depth` — back on the bearing plane |
+> | `Housing.HMT.000` | `Reversed` **true** (outward), `Length = <<J-HousedMT-000>>.Housing_Depth + 0.25 in` |
+>
+> The pad only ever crosses the face into air, so the removed volume is
+> exactly `Housing_Depth` at any depth — verified identical to the
+> unpadded cut at the shipped default, and clean at zero both in the
+> template and across all eight applied placements. The mortise needs
+> no such treatment: its length is a sum that cannot reach zero.
 
 Verify with a **side orthographic view and a clipping plane**, never
 wireframe (§5): the housing must be a shallow recess in the face and the
@@ -408,6 +442,22 @@ Chaining off the scaffold is what keeps `Peg_Setback` meaning "from the
 bearing plane" with no arithmetic in the dimension, and keeps every
 dimension positive. `Housing_Depth` appears exactly once in this sketch.
 
+> **What was actually done, and why it differs.** No constraint was
+> touched. The sketch keeps its scaffold and gains one attachment
+> offset, `Base.y = -<<J-HousedMT-000>>.Housing_Depth`, which holds it
+> on the bearing plane where it already sat — the frame's Z maps to
+> this sketch's local **y**, because it hangs off the frame's YZ plane
+> (`_FRAME_PLANE_OFFSET_AXIS`). That satisfies both of the paragraph
+> above's requirements — `Peg_Setback` still measures from the bearing
+> plane with no arithmetic in the dimension, and `Housing_Depth` still
+> appears exactly once — while avoiding the risk that made the rewrite
+> unattractive: this sketch's section bindings are **index-based**
+> (`Constraints[17]`, `Constraints[18]`), so deleting or inserting a
+> constraint renumbers them and silently redirects the expressions.
+> Confirmed equivalent: deepening the housing 1/2 in → 1 1/2 in moves
+> the peg sketch from x=241.3 to x=215.9, identical before and after
+> the conversion.
+
 `MortisePegBore.HMT.000` itself is unchanged: Through all, `SideType`
 Symmetric (the sketch plane is mid-post, so the bore must cut both ways).
 
@@ -435,6 +485,18 @@ length** — reporting `Up-to-date` and `isValid()` while the tenon simply
 is not there. That is the failure `rule_island_interior` exists to
 catch, and the oversized loop is the sanctioned way to model past it.
 The excess cuts air.
+
+> **Not done — still owed.** This is the one item of Part G left
+> outstanding, and it is deliberately separate: it changes no geometry
+> at the shipped setbacks and is about island interiority, not
+> frames-at-face. It was skipped because it cannot be done safely
+> outside the GUI. The outer loop's corner is pinned to the sketch
+> origin by a **Coincident** constraint, so oversizing means deleting
+> that constraint and adding two dimensional ones — and this sketch's
+> section bindings are index-based (`Constraints[17]` = Width,
+> `[18]` = Depth), so the renumbering would silently redirect them to
+> the wrong constraints. In the GUI FreeCAD maintains those paths.
+> Do it there, or name the constraints first and bind by name.
 
 ### G.6 — verification
 

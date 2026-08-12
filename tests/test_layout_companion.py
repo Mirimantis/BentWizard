@@ -87,10 +87,18 @@ class LayoutCompanionTest(unittest.TestCase):
         self.assertIn(("Stick_Allowance_OC", "layout"), merged)
         self.assertIn(("Tenon_Length", "layout"), merged)
         # the joint's copy still exists (its geometry reads it) but is
-        # tagged consumed, so the dialog shows only the companion's row
+        # tagged consumed, so the dialog shows only the companion's row.
+        # Stick_Allowance_FTF joined them at the frames-at-face
+        # conversion: the mate frame's offset IS the allowance, and the
+        # frame has to reach it through the JOINT VarSet — joint_members
+        # closes over the literal <<J-...>> token, which
+        # <<Layout_J-...>> does not contain, so binding the frame
+        # straight to the companion would drop it out of the joint.
         consumed = {p["name"] for p in self.spec.parameters
                     if p["varset"] == "joint" and p["consumed"]}
-        self.assertEqual(consumed, {"Tenon_Length", "Housing_Depth"})
+        self.assertEqual(
+            consumed,
+            {"Tenon_Length", "Housing_Depth", "Stick_Allowance_FTF"})
 
     def test_companion_resolves_structurally_after_a_rename(self):
         """Frame_Role's lesson: never bind by label."""

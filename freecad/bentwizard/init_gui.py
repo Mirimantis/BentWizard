@@ -24,6 +24,10 @@ class BentWizardWorkbench(Gui.Workbench):
         # ones opened later
         from freecad.bentwizard import view_joint_handle
         view_joint_handle.install()
+        # face/end marks: the observer only does work for documents that
+        # have the toggle on, so installing it here costs nothing
+        from freecad.bentwizard import view_face_marks
+        view_face_marks.install()
         # undo of a deletion restores expression text but not the
         # dependency it stands for (finding #15) — re-arm the bindings
         from freecad.bentwizard import undo_repair
