@@ -100,9 +100,13 @@ Keeping the main checkout on `main` is the hygiene that makes
 
 ## Next candidates (roadmap has full detail)
 
-- **Save-as-joint-template** — the linter is already the validator;
-  wrap it as a command that registers a user-modeled joint into
-  `library/`. Natural next Phase-1 piece; low new surface.
+- ~~**Save-as-joint-template**~~ — **built August 2026** as New Joint
+  Template + Save as Joint Template (`template_library.py`,
+  `template_check.py`). The linter was only half the validator: the
+  skeleton rules moved out of the test suite into `template_check.py`
+  so a user reaches the same completeness bar the library controls do.
+  Reports, never blocks. Templates now live in the user's template
+  folder as well as the shipped `library/`.
 - **Full test-bent assembly** (§4.8) — position the sticks into a real
   π with the Assembly workbench (datum-to-datum, mate frames are the
   natural anchors). Currently duplicated/new timbers sit at the origin.

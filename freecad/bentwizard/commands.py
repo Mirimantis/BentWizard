@@ -12,7 +12,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
-from . import joint_handle, naming
+from . import joint_handle, naming, template_check, template_library
 from .apply_joint import (JointError, TemplateSpec, apply_joint,
                           create_preview, dims_varset, engagement_placement,
                           find_preview, joint_members, remove_joint,
@@ -21,7 +21,10 @@ from .duplicate import (bent_joints, duplicate_bent, suggest_joint_ids,
                         suggest_member_labels)
 from .timber import TimberError, new_timber
 
-LIBRARY_DIR = Path(__file__).resolve().parents[2] / "library"
+# The shipped library. User-authored templates live in the user's own
+# template folder, which template_library searches ahead of this one —
+# reach for search_dirs(), not this constant, when listing templates.
+LIBRARY_DIR = template_library.SHIPPED_DIR
 
 def _quantity_field(default, unit="mm"):
     """A native Gui::QuantitySpinBox — parses and displays in the user's
@@ -633,8 +636,8 @@ class ApplyJointDialog(QtWidgets.QDialog):
 
         top = QtWidgets.QFormLayout()
         self.template_box = QtWidgets.QComboBox(self)
-        for f in sorted(LIBRARY_DIR.glob("*.FCStd")):
-            self.template_box.addItem(f.stem, str(f))
+        for stem, path in template_library.templates():
+            self.template_box.addItem(stem, str(path))
         self.template_box.currentIndexChanged.connect(self._load_template)
         top.addRow("Timber joint template:", self.template_box)
         self.joint_id = QtWidgets.QLineEdit(self)
@@ -1064,7 +1067,8 @@ class DuplicateBentCommand:
                 doc.openTransaction("Duplicate timbers")
                 try:
                     new_bodies, new_joints, skipped = duplicate_bent(
-                        doc, member_map, joint_ids, LIBRARY_DIR,
+                        doc, member_map, joint_ids,
+                        template_library.search_dirs(),
                         position_tag=tag, group_label=group,
                         assembly_label=asm_label, offset=offset)
                 except Exception:
@@ -1567,6 +1571,484 @@ class ShowFaceMarksCommand:
             App.Console.PrintMessage("Face and end marks cleared.\n")
 
 
+# --------------------------------------------------------------------------
+# Joint templates: authoring a new one, and saving one into the library
+# --------------------------------------------------------------------------
+
+# Modeless report windows, kept alive here: a QDialog with no Python
+# reference is garbage-collected out from under the user.
+_OPEN_REPORTS = {}
+
+
+class _ReportDialog(QtWidgets.QDialog):
+    """The validation report, in a window a user can read, copy out of,
+    and leave open while they fix what it names.
+
+    Modeless on purpose. Reporting, never blocking: the file is already
+    written by the time this appears, and the findings are a checklist
+    to work through IN the document — a modal box would lock the user
+    out of the very edits it is asking for.
+    """
+
+    def __init__(self, title, headline, report, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setModal(False)
+        # a real window, not a child panel: it stays on top of the main
+        # window without stealing input, and gets its own taskbar entry
+        self.setWindowFlags(QtCore.Qt.Window)
+        self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        self.resize(760, 460)
+        layout = QtWidgets.QVBoxLayout(self)
+        lead = QtWidgets.QLabel(headline, self)
+        lead.setWordWrap(True)
+        lead.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        layout.addWidget(lead)
+        self.text = QtWidgets.QPlainTextEdit(report, self)
+        self.text.setReadOnly(True)
+        self.text.setLineWrapMode(QtWidgets.QPlainTextEdit.NoWrap)
+        layout.addWidget(self.text)
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Close, parent=self)
+        copy = buttons.addButton("Copy", QtWidgets.QDialogButtonBox.ActionRole)
+        copy.setToolTip("Copy the whole report to the clipboard.")
+        copy.clicked.connect(
+            lambda: QtWidgets.QApplication.clipboard().setText(
+                self.text.toPlainText()))
+        buttons.rejected.connect(self.close)
+        buttons.accepted.connect(self.close)
+        layout.addWidget(buttons)
+
+
+def _show_report(key, title, headline, report, parent=None):
+    """Open a modeless report window, replacing the previous one for the
+    same key (a second save of the same template supersedes its own
+    earlier report rather than stacking up windows)."""
+    previous = _OPEN_REPORTS.pop(str(key), None)
+    if previous is not None:
+        try:
+            previous.close()
+        except RuntimeError:
+            pass          # already closed and deleted by Qt
+    dialog = _ReportDialog(title, headline, report, parent)
+    _OPEN_REPORTS[str(key)] = dialog
+    dialog.finished.connect(lambda _r, k=str(key): _OPEN_REPORTS.pop(k, None))
+    dialog.show()
+    dialog.raise_()
+    return dialog
+
+
+def _folder_row(parent, form, label, initial):
+    """A folder field with a Browse button; returns the QLineEdit."""
+    field = QtWidgets.QLineEdit(str(initial), parent)
+    browse = QtWidgets.QPushButton("Browse…", parent)
+    row = QtWidgets.QWidget(parent)
+    box = QtWidgets.QHBoxLayout(row)
+    box.setContentsMargins(0, 0, 0, 0)
+    box.addWidget(field)
+    box.addWidget(browse)
+
+    def pick():
+        chosen = QtWidgets.QFileDialog.getExistingDirectory(
+            parent, "Template folder", field.text())
+        if chosen:
+            field.setText(chosen)
+
+    browse.clicked.connect(pick)
+    form.addRow(label, row)
+    return field
+
+
+def _frame_guide(doc):
+    """The frames this template actually carries, named as they are
+    labelled in the tree.
+
+    'Landing frame' is the ROLE (the Frame_Role property), not the
+    label — telling an author to hang their cuts off "the landing
+    frame" is useless when the tree shows 'Bearing.Lcs.BUT.000'. So the
+    guidance names the objects, and says which role each one plays.
+    """
+    from .apply_joint import joint_role_frames
+    try:
+        varset = template_library._joint_varset(doc)
+    except template_library.TemplateError:
+        return ""
+    lines = []
+    frames = joint_role_frames(varset)
+    # anchor first (the timber landed ON), then the one that enters it —
+    # the order the joint is read in, and the order it is modeled in
+    for body in sorted(frames, key=lambda b: frames[b].get("mate") is not None):
+        roles = frames[body]
+        landing, mate = roles.get("landing"), roles.get("mate")
+        if landing is None:
+            continue
+        line = (f"  {body.Label}: sketch and datum supports go on "
+                f"{landing.Label}")
+        if mate is not None:
+            line += (f"\n      (this timber also carries {mate.Label} — "
+                     f"the mate frame, which declares how the joint "
+                     f"seats. Nothing may attach to it.)")
+        lines.append(line)
+    if not lines:
+        return ""
+    return ("Where the joinery hangs — every cut's sketch and datums "
+            "attach to the timber's own landing frame "
+            f"({naming.FRAME_ROLE_PROP} = "
+            f"'{naming.FRAME_ROLE_LANDING}'), never to a solid face and "
+            "never to a mate frame:\n\n" + "\n".join(lines))
+
+
+def _label_guide(doc):
+    """The exact suffix every feature in THIS template must end with.
+
+    The convention docs illustrate the shape with an applied joint's
+    serial ('Mortise.HMT.001'), but inside a template the serial is the
+    template joint VarSet's own — 000 — and the strict lint rule
+    compares against exactly that. Naming a new sketch '.001' by
+    following the example is a finding waiting to happen, so the tool
+    states the real string rather than the pattern.
+    """
+    try:
+        joint = template_library._joint_varset(doc)
+    except template_library.TemplateError:
+        return ""
+    suffix = naming.joint_suffix_for(
+        joint.Label, getattr(joint, naming.TEMPLATE_ABBREV, None) or None)
+    if not suffix:
+        return ""
+    return (f"How to label what you add — every feature you create ends "
+            f"with '{suffix}':\n\n"
+            f"    <Descriptive>[.<TypeTag>]{suffix}\n\n"
+            f"  the cut itself is bare (Mortise{suffix}); its sketch and "
+            f"datums take a type tag (.Skt, .Lcs, .Dtm) —\n"
+            f"  Mortise.Skt{suffix}, Shoulder.Dtm{suffix}. The trailing "
+            f"'{suffix.rsplit('.', 1)[-1]}' is THIS template's joint "
+            f"serial, not the '001' the convention examples show for an "
+            f"applied joint; Apply-Joint rewrites the whole suffix when "
+            f"it clones. Descriptive names must be unique across both "
+            f"timbers (MortisePegBore / TenonPegBore, never two "
+            f"PegBores).")
+
+
+def _template_kind_defaults(doc):
+    """(kind, abbrev) read off the document's joint VarSet, so re-saving
+    a template offers back what it already is."""
+    try:
+        joint = template_library._joint_varset(doc)
+    except template_library.TemplateError:
+        return "", ""
+    parsed = naming.parse_joint_label(joint.Label)
+    return (parsed[0] if parsed else "",
+            getattr(joint, naming.TEMPLATE_ABBREV, "") or "")
+
+
+def _offer_template_folder(parent, directory):
+    """A template saved outside the searched folders is not lost, but it
+    will not be listed — say so, and offer the one-click fix."""
+    directory = Path(directory).resolve()
+    if any(directory == Path(d).resolve()
+           for d in template_library.search_dirs()):
+        return
+    answer = QtWidgets.QMessageBox.question(
+        parent, "Template folder",
+        f"{directory} is not one of the folders BentWizard searches, so "
+        f"this template will not appear in Apply Timber Joint.\n\n"
+        f"Use it as your template folder from now on?",
+        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+    if answer == QtWidgets.QMessageBox.Yes:
+        template_library.set_user_dir(directory)
+
+
+class SaveJointTemplateDialog(QtWidgets.QDialog):
+    """Name, abbreviation, destination — plus the report, on demand."""
+
+    def __init__(self, doc, parent=None):
+        super().__init__(parent)
+        self.doc = doc
+        self.setWindowTitle("Save as Joint Template")
+        layout = QtWidgets.QVBoxLayout(self)
+        form = QtWidgets.QFormLayout()
+        layout.addLayout(form)
+
+        kind, abbrev = _template_kind_defaults(doc)
+        self.kind = QtWidgets.QLineEdit(kind, self)
+        self.kind.setToolTip(
+            "The joint's name, as a framer would say it (HousedMT, "
+            "BraceMT, TuskTenon). It becomes the file name and the name "
+            "every joint made from this template carries — "
+            "J-<Kind>-<serial> — so it reaches the cut list.")
+        form.addRow("Joint kind:", self.kind)
+
+        self.abbrev = QtWidgets.QLineEdit(abbrev, self)
+        self.abbrev.setToolTip(
+            "Short token (2–4 letters) the cut features are labelled "
+            "with — 'HMT' gives 'Mortise.HMT.001'. Keep it unique "
+            "across joint kinds.")
+        form.addRow("Short token:", self.abbrev)
+
+        self.folder = _folder_row(self, form, "Save in folder:",
+                                  template_library.user_dir())
+
+        self.filename = QtWidgets.QLabel("", self)
+        form.addRow("File:", self.filename)
+
+        self.relabel = QtWidgets.QCheckBox(
+            "Rename the joint's VarSet and feature labels to match", self)
+        self.relabel.setChecked(True)
+        self.relabel.setToolTip(
+            "Applied joints take their kind from the FILE name, so a "
+            "VarSet still called J-Butt-000 inside Joint_BraceMT.FCStd "
+            "is a surprise waiting in a cut list. Renaming is safe: "
+            "FreeCAD re-points every expression that referenced it.")
+        layout.addWidget(self.relabel)
+
+        self.report = QtWidgets.QPlainTextEdit(self)
+        self.report.setReadOnly(True)
+        self.report.setPlaceholderText(
+            "Check runs the same validation the library templates must "
+            "pass — the linter's rules plus the skeleton every template "
+            "carries.")
+        layout.addWidget(self.report)
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
+            parent=self)
+        check = buttons.addButton("Check", QtWidgets.QDialogButtonBox.ActionRole)
+        check.clicked.connect(self._check)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self.kind.textChanged.connect(self._refresh)
+        self._refresh()
+
+    def _refresh(self):
+        try:
+            self.filename.setText(
+                template_library.stem_for(self.kind.text())
+                + template_library.TEMPLATE_SUFFIX)
+        except template_library.TemplateError as err:
+            self.filename.setText(str(err))
+
+    def request(self):
+        return (self.folder.text().strip(), self.kind.text().strip(),
+                self.abbrev.text().strip(), self.relabel.isChecked())
+
+    def _check(self):
+        """Validate what would be written, without writing it — and
+        without touching the document: a plain saveCopy into a temp
+        folder, under the real file name so the file-stem rule sees the
+        name the user chose."""
+        import tempfile
+        _folder, kind, _abbrev, rename = self.request()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                path = template_library.template_path(tmp, kind)
+                self.doc.saveCopy(str(path))
+                findings = template_check.check(path)
+                report = template_check.format_report(path.name, findings)
+                if rename and any(f.rule == "template-kind-matches-stem"
+                                  for f in findings):
+                    report += ("\n\nThe rename option below clears the "
+                               "kind-matches-stem finding when you save.")
+                self.report.setPlainText(report)
+        except (template_library.TemplateError, JointError, OSError) as err:
+            self.report.setPlainText(str(err))
+
+
+class SaveJointTemplateCommand:
+    def GetResources(self):
+        return {
+            "MenuText": "Save as Joint Template",
+            "ToolTip": "Save the joint modeled in this document into "
+                       "your template library, so it can be applied to "
+                       "any timber like the joints that ship with the "
+                       "workbench. Validates first and reports what it "
+                       "finds — it never refuses to save.",
+        }
+
+    def IsActive(self):
+        return App.ActiveDocument is not None
+
+    def Activated(self):
+        doc = App.ActiveDocument
+        parent = Gui.getMainWindow()
+        try:
+            template_library._joint_varset(doc)
+        except template_library.TemplateError as err:
+            QtWidgets.QMessageBox.warning(
+                parent, "Save as Joint Template",
+                f"{err}\n\nA joint template is an authoring document: two "
+                f"timbers and the one joint between them. Start a new one "
+                f"with New Joint Template.")
+            return
+        dialog = SaveJointTemplateDialog(doc, parent)
+        while dialog.exec() == QtWidgets.QDialog.Accepted:
+            folder, kind, abbrev, rename = dialog.request()
+            try:
+                path = template_library.template_path(folder, kind)
+            except template_library.TemplateError as err:
+                QtWidgets.QMessageBox.warning(
+                    dialog, "Save as Joint Template", str(err))
+                continue
+            if path.exists():
+                answer = QtWidgets.QMessageBox.question(
+                    dialog, "Save as Joint Template",
+                    f"{path.name} already exists in {path.parent}.\n\n"
+                    f"Replace it? Joints already applied from it are not "
+                    f"affected — a template edit never reaches back.",
+                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+                if answer != QtWidgets.QMessageBox.Yes:
+                    continue
+            try:
+                doc.openTransaction("Save as joint template")
+                try:
+                    path = template_library.save_as_template(
+                        doc, folder, kind, abbrev, rename=rename)
+                except Exception:
+                    doc.abortTransaction()
+                    raise
+                doc.commitTransaction()
+            except (template_library.TemplateError, JointError, OSError) as err:
+                QtWidgets.QMessageBox.warning(
+                    dialog, "Save as Joint Template", str(err))
+                continue
+
+            findings = template_check.check(path)
+            strict = [f for f in findings
+                      if f.severity == template_check.STRICT]
+            headline = (
+                f"Saved {path.name} to {path.parent}.\n\n"
+                + ("It clears every bar a shipped template has to clear."
+                   if not findings else
+                   f"{len(strict)} must-fix and {len(findings) - len(strict)} "
+                   f"should-fix finding(s). It is saved either way — fix "
+                   f"them in this document and save again."))
+            _show_report(path, "Save as Joint Template", headline,
+                         template_check.format_report(path, findings),
+                         parent)
+            _offer_template_folder(parent, path.parent)
+            App.Console.PrintMessage(f"Joint template saved: {path}\n")
+            return
+
+
+class NewJointTemplateDialog(QtWidgets.QDialog):
+    """Start a joint template from a starter skeleton."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("New Joint Template")
+        layout = QtWidgets.QVBoxLayout(self)
+        intro = QtWidgets.QLabel(
+            "A new template starts from a skeleton — two timbers, their "
+            "frames and parameter sets, and no joinery. Never from a "
+            "template that already has cuts in it: those come along as "
+            "phantom features.", self)
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        form = QtWidgets.QFormLayout()
+        layout.addLayout(form)
+        self.starter = QtWidgets.QComboBox(self)
+        for stem, path in template_library.starters():
+            self.starter.addItem(stem, str(path))
+        form.addRow("Start from:", self.starter)
+
+        self.kind = QtWidgets.QLineEdit(self)
+        self.kind.setPlaceholderText("BraceMT")
+        self.kind.setToolTip(
+            "The joint's name, as a framer would say it. It becomes the "
+            "file name and the name every joint made from this template "
+            "carries — J-<Kind>-<serial>.")
+        form.addRow("Joint kind:", self.kind)
+
+        self.abbrev = QtWidgets.QLineEdit(self)
+        self.abbrev.setPlaceholderText("BMT")
+        self.abbrev.setToolTip(
+            "Short token (2–4 letters) the cut features are labelled "
+            "with — 'BMT' gives 'Mortise.BMT.001'.")
+        form.addRow("Short token:", self.abbrev)
+
+        self.folder = _folder_row(self, form, "Create in folder:",
+                                  template_library.user_dir())
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
+            parent=self)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def request(self):
+        return (self.starter.currentData(), self.folder.text().strip(),
+                self.kind.text().strip(), self.abbrev.text().strip())
+
+
+class NewJointTemplateCommand:
+    def GetResources(self):
+        return {
+            "MenuText": "New Joint Template",
+            "ToolTip": "Start authoring a new joint: creates a template "
+                       "file from a starter skeleton — two timbers with "
+                       "their frames and parameter sets, no joinery — "
+                       "and opens it ready to model the cuts in.",
+        }
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        parent = Gui.getMainWindow()
+        if not template_library.starters():
+            QtWidgets.QMessageBox.warning(
+                parent, "New Joint Template",
+                "No starter skeleton found in your template folders "
+                "(a template carrying no joinery, such as Joint_Butt).")
+            return
+        dialog = NewJointTemplateDialog(parent)
+        while dialog.exec() == QtWidgets.QDialog.Accepted:
+            starter, folder, kind, abbrev = dialog.request()
+            try:
+                path, doc = template_library.new_from_starter(
+                    starter, folder, kind, abbrev)
+            except (template_library.TemplateError, OSError) as err:
+                QtWidgets.QMessageBox.warning(
+                    dialog, "New Joint Template", str(err))
+                continue
+            App.setActiveDocument(doc.Name)
+            Gui.ActiveDocument = Gui.getDocument(doc.Name)
+            _offer_template_folder(parent, path.parent)
+            # modeless, and it names the frames: this is the reference an
+            # author works from while modeling, not a notification
+            _show_report(
+                path, "New Joint Template",
+                f"{path.name} created and opened. Model the joinery in "
+                f"the two timber bodies, then run Save as Joint Template "
+                f"to validate it. Leave this window open while you work.",
+                (_frame_guide(doc) + "\n\n" + _label_guide(doc)
+                 + "\n\nThen:\n"
+                   "  - every joint parameter is a property on the joint "
+                   "VarSet, with a tooltip saying which face or end it "
+                   "measures from\n"
+                   "  - a parameter that consumes stick length "
+                   "(tenon length, housing depth) is authored on the "
+                   "companion Layout_ VarSet, copied onto the joint "
+                   "VarSet as a consumed property, and read by geometry "
+                   "from THAT copy — a cut bound straight to the "
+                   "companion is not part of the joint and never gets "
+                   "cloned\n"
+                   "  - sketch symmetry is a centerline plus half-width "
+                   "constraints, never the Symmetry constraint\n"
+                   "  - a cut must still work when its own parameter is "
+                   "zero: start it inside the material and pad outward "
+                   "into air\n\n"
+                   "The recipe the shipped joints were built to is "
+                   "docs/mt-template-build.md."),
+                parent)
+            App.Console.PrintMessage(f"New joint template: {path}\n")
+            return
+
+
 def register():
     # the handle marker's context menu: whole-joint operations, in one
     # place a future joint-wide tool can extend without touching the
@@ -1586,9 +2068,12 @@ def register():
     Gui.addCommand("BentWizard_DriveLengthFromSpan",
                    DriveLengthFromSpanCommand())
     Gui.addCommand("BentWizard_ShowFaceMarks", ShowFaceMarksCommand())
+    Gui.addCommand("BentWizard_NewJointTemplate", NewJointTemplateCommand())
+    Gui.addCommand("BentWizard_SaveJointTemplate", SaveJointTemplateCommand())
 
 
 ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_ApplyJoint",
                 "BentWizard_RemoveJoint", "BentWizard_PreviewJoint",
                 "BentWizard_DuplicateBent", "BentWizard_AssembleTimbers",
-                "BentWizard_DriveLengthFromSpan", "BentWizard_ShowFaceMarks"]
+                "BentWizard_DriveLengthFromSpan", "BentWizard_ShowFaceMarks",
+                "BentWizard_NewJointTemplate", "BentWizard_SaveJointTemplate"]

@@ -14,29 +14,33 @@ and reported.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import FreeCAD as App
 
-from . import naming
+from . import naming, template_library
 from .apply_joint import (JointError, TemplateSpec, apply_joint,
                           bent_joints, dims_varset, joint_role_frames,
                           parse_placement_record)
 from .timber import new_timber
 
 
-def find_template(kind, library_dir, source_name=None):
+def find_template(kind, library_dirs, source_name=None):
     """TemplateSpec for a joint: by recorded source name if available,
     else the library's single template of this kind (matching either the
     template's internal kind or its descriptive kind token — joint
-    labels of the two schemes carry one or the other)."""
-    library = Path(library_dir)
+    labels of the two schemes carry one or the other).
+
+    `library_dirs` is a directory or an ordered list of them (the user's
+    template folder, then the shipped library — see template_library);
+    the first directory holding a matching stem wins, so a locally
+    revised copy shadows the shipped one rather than colliding with it.
+    """
+    known = template_library.templates(library_dirs)
     if source_name:
-        path = library / f"{source_name}.FCStd"
-        if path.exists():
+        path = template_library.find(source_name, library_dirs)
+        if path is not None:
             return TemplateSpec(path)
     matches = []
-    for path in sorted(library.glob("*.FCStd")):
+    for _stem, path in known:
         try:
             spec = TemplateSpec(path)
         except JointError:
@@ -118,7 +122,7 @@ def suggest_joint_ids(doc, joints):
     return out
 
 
-def duplicate_bent(doc, member_map, joint_id_map, library_dir,
+def duplicate_bent(doc, member_map, joint_id_map, library_dirs,
                    position_tag="", group_label="", assembly_label="",
                    offset=None):
     """Duplicate the timbers in member_map ({source body -> new label})
@@ -178,7 +182,7 @@ def duplicate_bent(doc, member_map, joint_id_map, library_dir,
             raise JointError(f"no new joint ID given for {varset.Label}")
         parsed = naming.parse_joint_label(varset.Label)
         template = find_template(
-            parsed[0] if parsed else "", library_dir,
+            parsed[0] if parsed else "", library_dirs,
             getattr(varset, "Template_Source", None))
         role_bodies = _role_body_map(varset, template)
         body_map = {role: new_bodies[body]

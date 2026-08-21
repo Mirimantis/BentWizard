@@ -93,7 +93,17 @@ class Model:
 
         for vs in self.varsets:
             label = vs.label
-            if naming.is_dims_label(label):
+            role = getattr(vs.prop(naming.VARSET_ROLE_PROP), "value", None)
+            if role == naming.VARSET_ROLE_LAYOUT:
+                # The companion declares itself, so it is never guessed
+                # at — same discipline as Frame_Role. It is a pure
+                # source, exactly like a group VarSet. Without this the
+                # structural fallback called it a JOINT VarSet the
+                # moment any geometry referenced it directly, and the
+                # template stopped loading with a count nobody could
+                # act on ("found 2").
+                self.kind[vs.name] = "group"
+            elif naming.is_dims_label(label):
                 self.kind[vs.name] = "dims"
             elif label.startswith(("Joint_", "J-")):
                 self.kind[vs.name] = "joint"

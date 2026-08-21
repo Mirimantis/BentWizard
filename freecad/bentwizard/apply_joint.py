@@ -120,9 +120,14 @@ class TemplateSpec:
 
         joints = model.joint_varsets()
         if len(joints) != 1:
+            found = ", ".join(vs.label for vs in joints) or "none"
             raise JointError(
-                f"template must contain exactly one joint VarSet, "
-                f"found {len(joints)}")
+                f"template must contain exactly one joint VarSet, found "
+                f"{len(joints)}: {found}. One VarSet holds the "
+                f"parameters for both halves; a companion layout VarSet "
+                f"does not count, provided it declares "
+                f"{naming.VARSET_ROLE_PROP} = "
+                f"'{naming.VARSET_ROLE_LAYOUT}'")
         self.joint = joints[0]
         self.joint_label = self.joint.label            # e.g. Joint_MT_0a
         parsed = naming.parse_joint_label(self.joint_label)

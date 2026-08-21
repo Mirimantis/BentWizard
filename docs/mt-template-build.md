@@ -22,6 +22,16 @@
 > jointless skeleton — rather than copying a template that already has
 > joinery in it. [housed-dovetail-template-build.md](housed-dovetail-template-build.md)
 > shows a full build against the current conventions.
+>
+> **"Landing frame" and "mate frame" are roles, not labels.** No object
+> in the tree is called "landing frame": the role is the `Frame_Role`
+> property on the frame (`Landing` or `Mate`), and the label says what
+> the frame IS on that timber — `Bearing.Lcs.BUT.000` and
+> `End.Lcs.BUT.000` are the two landing frames in `Joint_Butt`,
+> `Mortise.Lcs.HMT.000` is the mortise role's landing frame here.
+> Wherever this recipe says "hang it off the landing frame", it means
+> the frame in that body whose `Frame_Role` is `Landing`. New Joint
+> Template prints the actual labels for the file it creates.
 
 The first clean joint template: a housed, pegged, drawbored mortise &
 tenon between a post (mortise role) and a beam (tenon role). This is the

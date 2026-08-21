@@ -24,7 +24,8 @@ sys.path.insert(0, str(REPO_ROOT))
 import _repo_path  # noqa: E402, F401 — this repo's code must win the import
 
 from freecad.bentwizard import naming  # noqa: E402
-from freecad.bentwizard.fcstd import FcstdDocument, expression_refs  # noqa: E402
+from freecad.bentwizard.fcstd import FcstdDocument  # noqa: E402
+from freecad.bentwizard import template_check  # noqa: E402
 from freecad.bentwizard.linter import ADVISORY, STRICT, Model, lint  # noqa: E402
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -200,151 +201,52 @@ class TemplateSkeletonCompleteness:
     is fit to ship', and it matters most for Joint_Butt, which is the
     skeleton new templates are copied from.
 
-    Mixed into every library control, so the assertions are proven
-    against a template known to be complete rather than only against the
-    one being authored. Failure messages name the build-doc part that
-    creates the missing piece, so a red suite reads as a checklist.
+    The rules themselves live in freecad/bentwizard/template_check.py —
+    Save-as-joint-template runs exactly these checks on a user's own
+    joint, and a completeness bar that existed only in the test suite
+    would be a bar no user ever reaches. This mixin is what proves them
+    against templates known to be complete; each test asserts one rule's
+    findings are empty, so a red suite still reads as a checklist.
     """
 
     # Two timbers, three frames: one Landing per role (the anchor's, and
     # the entering timber's end frame) plus the single Mate.
-    EXPECTED_FRAMES = 3
-    EXPECTED_LANDING = 2
-    EXPECTED_MATE = 1
+    EXPECTED_FRAMES = template_check.EXPECTED_FRAMES
+    EXPECTED_LANDING = template_check.EXPECTED_LANDING
+    EXPECTED_MATE = template_check.EXPECTED_MATE
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.model = Model(FcstdDocument.from_file(cls.FIXTURE))
 
-    # -- helpers ----------------------------------------------------------
-
-    @property
-    def frames(self):
-        return [o for o in self.model.doc.objects.values()
-                if o.is_type("Part::LocalCoordinateSystem")]
-
-    def role_of(self, frame):
-        return getattr(frame.prop(naming.FRAME_ROLE_PROP), "value", None)
-
-    def frames_with_role(self, role):
-        return [f for f in self.frames if self.role_of(f) == role]
-
-    def varsets_of_kind(self, kind):
-        return [vs for vs in self.model.varsets
-                if self.model.kind.get(vs.name) == kind]
-
-    # -- the skeleton -----------------------------------------------------
+    def assertRuleClean(self, rule):
+        findings = rule(self.model)
+        self.assertEqual([str(f) for f in findings], [])
 
     def test_carries_two_timbers_each_with_dims(self):
-        bodies = self.model.bodies
-        self.assertEqual(
-            len(bodies), 2,
-            f"expected 2 timber bodies (the anchor and the entering "
-            f"timber), got {[b.label for b in bodies]} — see Part A")
-        missing = [b.label for b in bodies if b.name not in self.model.dims_of]
-        self.assertEqual(
-            missing, [],
-            f"timber(s) with no Dims VarSet driving the base pad's "
-            f"Length: {missing} — see Part A")
+        self.assertRuleClean(template_check.rule_two_timbers)
 
-    def test_carries_joint_and_companion_varsets(self):
-        joints = [vs for vs in self.model.varsets
-                  if naming.parse_joint_label(vs.label)]
-        self.assertEqual(
-            len(joints), 1,
-            f"expected exactly 1 joint VarSet labelled J-<Kind>-<serial>, "
-            f"got {[vs.label for vs in self.model.varsets]} — see Part C")
+    def test_carries_the_joint_varset_with_its_abbrev(self):
+        self.assertRuleClean(template_check.rule_joint_varset)
 
-        companions = [
-            vs for vs in self.model.varsets
-            if getattr(vs.prop(naming.VARSET_ROLE_PROP), "value", None)
-            == naming.VARSET_ROLE_LAYOUT]
-        self.assertEqual(
-            len(companions), 1,
-            f"expected exactly 1 companion layout VarSet carrying "
-            f"{naming.VARSET_ROLE_PROP} = '{naming.VARSET_ROLE_LAYOUT}' "
-            f"(resolved through the marker, never by label), got "
-            f"{[vs.label for vs in companions]} — see Part B")
-
-    def test_joint_varset_declares_its_abbrev(self):
-        joints = [vs for vs in self.model.varsets
-                  if naming.parse_joint_label(vs.label)]
-        for vs in joints:
-            abbrev = getattr(vs.prop(naming.TEMPLATE_ABBREV), "value", None)
-            self.assertTrue(
-                abbrev,
-                f"{vs.label} declares no {naming.TEMPLATE_ABBREV} — "
-                f"Apply-Joint rewrites exactly that suffix on every "
-                f"feature label — see Part C")
+    def test_carries_the_companion_layout_varset(self):
+        self.assertRuleClean(template_check.rule_layout_companion)
 
     def test_carries_the_full_frame_set(self):
-        self.assertEqual(
-            len(self.frames), self.EXPECTED_FRAMES,
-            f"expected {self.EXPECTED_FRAMES} joint frames, got "
-            f"{[f.label for f in self.frames]} — see Parts D and E")
-
-    def test_every_frame_declares_a_role(self):
-        roleless = [f.label for f in self.frames
-                    if self.role_of(f) not in naming.FRAME_ROLES]
-        self.assertEqual(
-            roleless, [],
-            f"frame(s) with no valid {naming.FRAME_ROLE_PROP} property: "
-            f"{roleless} — the role is Tier-2 data read by Preview, "
-            f"Assemble and Duplicate, never a label substring — "
-            f"see Parts D and E")
-
-    def test_role_counts(self):
-        landing = self.frames_with_role(naming.FRAME_ROLE_LANDING)
-        mate = self.frames_with_role(naming.FRAME_ROLE_MATE)
-        self.assertEqual(
-            len(landing), self.EXPECTED_LANDING,
-            f"expected {self.EXPECTED_LANDING} "
-            f"'{naming.FRAME_ROLE_LANDING}' frames, one per role, got "
-            f"{[f.label for f in landing]} — see Parts D and E")
-        self.assertEqual(
-            len(mate), self.EXPECTED_MATE,
-            f"expected {self.EXPECTED_MATE} "
-            f"'{naming.FRAME_ROLE_MATE}' frame — only the half that "
-            f"enters carries one — got {[f.label for f in mate]} — "
-            f"see Part E")
-
-    def test_each_timber_owns_one_landing_frame(self):
-        owners = {}
-        for f in self.frames_with_role(naming.FRAME_ROLE_LANDING):
-            body = self.model.owner.get(f.name)
-            owners.setdefault(body.label if body else None, []).append(f.label)
-        self.assertNotIn(
-            None, owners,
-            f"landing frame(s) outside any body: {owners.get(None)} — "
-            f"activate the target body before creating a datum, or the "
-            f"frame lands at the document root")
-        self.assertEqual(
-            sorted(owners), sorted(b.label for b in self.model.bodies),
-            f"each timber gets exactly one landing frame; got {owners}")
+        self.assertRuleClean(template_check.rule_frame_set)
 
     def test_mate_frame_is_driven_from_the_joint_varset(self):
-        joints = {vs.name for vs in self.model.varsets
-                  if naming.parse_joint_label(vs.label)}
-        for frame in self.frames_with_role(naming.FRAME_ROLE_MATE):
-            paths = {e.path: e.expression for e in frame.expressions}
-            offset = ".AttachmentOffset.Base.z"
-            self.assertIn(
-                offset, paths,
-                f"{frame.label} has no {offset} expression — the mate "
-                f"frame's offset from the stick end IS the clear-span "
-                f"allowance, and a typed literal would not follow an "
-                f"author's edit — see Part E")
-            refs = {t.name for t, _ in
-                    expression_refs(paths[offset], self.model.doc)}
-            self.assertTrue(
-                refs & joints,
-                f"{frame.label}{offset} does not reference the joint "
-                f"VarSet ({paths[offset]!r}) — joint_members closes over "
-                f"the literal <<J-Kind-serial>> token, which "
-                f"<<Layout_J-Kind-serial>> does not contain, so a mate "
-                f"frame reading the companion directly is not a joint "
-                f"member — see Part E")
+        self.assertRuleClean(template_check.rule_mate_frame_driven_from_joint)
+
+    def test_file_stem_matches_the_joint_kind(self):
+        # The stem is what applied joints take their kind from.
+        findings = template_check.stem_findings(self.FIXTURE, self.model)
+        self.assertEqual([str(f) for f in findings], [])
+
+    def test_apply_joint_can_load_it(self):
+        self.assertEqual(
+            [str(f) for f in template_check.load_findings(self.FIXTURE)], [])
 
 
 class HousedMTTemplateControl(TemplateSkeletonCompleteness, LinterFixtureTest):

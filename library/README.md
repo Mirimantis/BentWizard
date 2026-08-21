@@ -50,6 +50,42 @@ baseline process the others build on):
 - Brace mortise & tenon (parametric angle, default 45°) —
   [docs/brace-mt-template-build.md](../docs/brace-mt-template-build.md)
 
-A "Save as joint template" tool will validate and register user-authored
-joints here; a user-override directory is planned alongside the Phase 3
-reference-data system. Manifest format is an open item (workflow doc §8).
+## Authoring your own
+
+**"Landing frame" and "mate frame" are roles, not labels.** Nothing in
+the tree is called "landing frame" — the role lives in each frame's
+`Frame_Role` property, and the label says what the frame is on its
+timber (`Bearing.Lcs.BUT.000` and `End.Lcs.BUT.000` are `Joint_Butt`'s
+two landing frames; `Mate.Lcs.BUT.000` is its mate frame). Cuts hang off
+the landing frame in their own body; nothing may attach to a mate frame.
+
+**New Joint Template** creates a file from a starter skeleton (a
+template carrying no joinery — `Joint_Butt.FCStd` today; the tool finds
+starters structurally, so anything jointless qualifies) and opens it
+ready to model the cuts in. Never copy a template that already has cuts
+in it: those come along as phantom features (finding #12).
+
+**Save as Joint Template** writes the open authoring document into your
+template folder and reports what validation found. It validates but
+never refuses — the report is a checklist, and a template with findings
+is saved anyway. The bar is the same one this directory's files clear:
+the linter's rules (`linter.py`), the skeleton every template carries
+(`template_check.py` — the completeness half the linter cannot see), the
+file-stem contract, and a real `TemplateSpec` load.
+
+Two folders are searched, the user's ahead of this one, so a locally
+revised copy of a shipped joint shadows it rather than appearing twice:
+
+- **your template folder** — `<FreeCAD user app data>/BentWizard/library`
+  by default, changed by saving a template elsewhere and accepting the
+  offer (stored as `TemplateDir` under
+  `BaseApp/Preferences/Mod/BentWizard`),
+- **this shipped library**.
+
+The **file stem is the joint's name**: `Joint_BraceMT.FCStd` makes every
+joint applied from it `J-BraceMT-<serial>`, which is what reaches the
+cut list. Saving offers to relabel the document's joint VarSet, its
+companion and every feature suffix to match — safe, because FreeCAD
+re-points every `<<Label>>` expression when an object is relabeled.
+
+Manifest format is still an open item (workflow doc §8).
