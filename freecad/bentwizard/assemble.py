@@ -1,33 +1,37 @@
 """Assemble Timbers — the always-assembled two-level structure.
 
 Bents are native Assembly::AssemblyObjects; the building is a parent
-assembly of bent sub-assemblies (created automatically on the first
-cross-bent timber joint). Every timber joint becomes one Fixed assembly
-joint referencing the landing / mate LCS datums by object reference
-(the frames a joint's Frame_Role property names, never solid faces),
-with the face-parity correction carried
-in the joint's Offset1 so its NOMINAL pose is the correct seat.
+frame assembly of bent sub-assemblies (created automatically on the
+first cross-bent timber joint). Every timber joint becomes one Fixed
+assembly joint referencing the two paired datums by object reference
+(never solid faces), with the seat — 180° about the datum's local Y,
+the same for every joint now that every datum's Z points out of its
+material — carried in the joint's Offset1 so its NOMINAL pose is the
+correct seat.
 
 Container rules (deterministic, applied by assimilate_joint every time
 a timber joint is created):
 
-- both timbers loose        -> a new bent sub-assembly; the anchor
-                               timber (the mortise carrier — start at
-                               the Principal Post) is grounded in it
+- both timbers loose        -> a new bent sub-assembly; the host timber
+                               (start at the Principal Post) is grounded
 - one timber loose          -> it joins the other timber's assembly
 - same assembly             -> the Fixed joint lives there
 - different assemblies      -> the joint lives in their deepest common
                                parent; two top-level bents get a new
                                parent frame assembly, grounded by the
-                               anchor-side bent (the principal bent)
+                               oldest bent (the principal bent)
 
 No temporary anchors, ever: the only grounds are each sub-assembly's
-internal principal timber and the principal bent in the parent. An
-unconnected bent's parent-level placement stays free (user-movable)
-until a cross-assembly joint constrains it — verified: the parent
-solver leaves unconstrained sub-assemblies untouched, and a plain
-document recompute re-solves the chain, so tie-beam Length edits move
-whole bays parametrically.
+internal principal timber and the principal bent in the parent.
+
+**Pre-position before the solver sees the joint.** A Fixed joint has no
+flip control and the solver converges to the solution nearest the
+current pose; worse, if a recompute runs while the mover is parked far
+away and rotated, MbD can rotate the GROUNDED part (rev-2 Step 0 probe:
+~20° on the ±X faces). So the free side is moved to its exact seat —
+computable from the two datums — and only then is the document
+recomputed and solved. Nothing here recomputes between creating the
+joint and seating it.
 
 Tier 1 throughout: assemblies, assembly joints, and datum references
 are stock FreeCAD; uninstalling the workbench changes nothing.
@@ -41,9 +45,8 @@ from collections import namedtuple
 
 import FreeCAD as App
 
-from . import joint_handle, naming
-from .apply_joint import (JointError, bent_joints, joint_role_frames,
-                          mate_parity)
+from . import datums, joint_handle
+from .apply import JointError, bent_joints, joint_datums
 
 # post-solve agreement thresholds: solver noise is ~1e-6; anything past
 # these means two timber joints place a timber inconsistently
@@ -67,18 +70,17 @@ def _joint_object():
     return JointObject
 
 
-def _engagement_frames(varset):
-    """((mover_body, mate_lcs), (anchor_body, landing_lcs)) for a
-    seatable timber joint, or None when a frame is missing (legacy
-    joints applied before mate frames existed)."""
-    frames = joint_role_frames(varset)
-    mover = next(((b, f["mate"]) for b, f in frames.items() if f["mate"]),
-                 None)
-    anchor = next(((b, f["landing"]) for b, f in frames.items()
-                   if f["landing"] and not f["mate"]), None)
-    if mover is None or anchor is None:
+def _engagement_datums(varset):
+    """((mover_body, mate_datum), (anchor_body, host_datum)) for a
+    seatable timber joint, or None when it is not paired."""
+    pair = joint_datums(varset)
+    if len(pair) != 2:
         return None
-    return mover, anchor
+    host = joint_handle.anchor_datum(varset)
+    if host not in pair:
+        host = pair[0]
+    mate = pair[1] if host is pair[0] else pair[0]
+    return (datums.owner(mate), mate), (datums.owner(host), host)
 
 
 # --------------------------------------------------------------------------
@@ -87,8 +89,7 @@ def _engagement_frames(varset):
 
 def container_assembly(obj):
     """The nearest Assembly ancestor of `obj`, or None. Std Groups are
-    transparent (they are not GeoFeatureGroups), so a body organized in
-    a group inside a bent still reports the bent."""
+    transparent (they are not GeoFeatureGroups)."""
     parent = obj.getParentGeoFeatureGroup()
     while parent is not None and parent.TypeId != ASSEMBLY_TYPE:
         parent = parent.getParentGeoFeatureGroup()
@@ -96,7 +97,6 @@ def container_assembly(obj):
 
 
 def root_assembly(asm):
-    """The top of an assembly's container chain."""
     while True:
         parent = container_assembly(asm)
         if parent is None:
@@ -116,22 +116,20 @@ def assembly_chain(obj):
 
 def moving_part(body, assembly):
     """The direct member of `assembly` that carries `body` — the body
-    itself, or the sub-assembly the body lives in: the unit the
-    assembly's solver moves."""
+    itself, or the sub-assembly the body lives in."""
     obj = body
     current = container_assembly(obj)
     while current is not assembly:
         if current is None:
-            raise JointError(
-                f"{body.Label!r} is not inside {assembly.Label!r}")
+            raise JointError(f"{body.Label!r} is not inside {assembly.Label!r}")
         obj = current
         current = container_assembly(current)
     return obj
 
 
 def _lcs_path(moving, lcs):
-    """The reference sub-path from a moving part down to an LCS datum,
-    e.g. 'T-Post-001.LocalCoordinateSystem002.' (empty prefix when the
+    """The reference sub-path from a moving part down to a datum,
+    e.g. 'T-Post-001.D_T_Post_001_YPos_001.' (empty prefix when the
     moving part is the body itself)."""
     chain = [lcs]
     obj = lcs.getParentGeoFeatureGroup()
@@ -142,8 +140,6 @@ def _lcs_path(moving, lcs):
 
 
 def assembly_joint_group(asm):
-    """The assembly's own Assembly::JointGroup (FreeCAD's native
-    'Joints' — the reason our Std Group is named TimberJointVars)."""
     for child in asm.Group:
         if child.TypeId == "Assembly::JointGroup":
             return child
@@ -151,7 +147,6 @@ def assembly_joint_group(asm):
 
 
 def grounded_joint(asm):
-    """The assembly's GroundedJoint object, or None."""
     for child in assembly_joint_group(asm).Group:
         if hasattr(child, "ObjectToGround"):
             return child
@@ -165,8 +160,7 @@ def ground(asm, obj):
     existing = grounded_joint(asm)
     if existing is not None:
         asm.Document.removeObject(existing.Name)
-    g = assembly_joint_group(asm).newObject("App::FeaturePython",
-                                            "GroundedJoint")
+    g = assembly_joint_group(asm).newObject("App::FeaturePython", "GroundedJoint")
     JointObject.GroundedJoint(g, obj)
     if App.GuiUp:
         JointObject.ViewProviderGroundedJoint(g.ViewObject)
@@ -174,8 +168,7 @@ def ground(asm, obj):
 
 
 def new_assembly(doc, label="", base="Bent"):
-    """A fresh assembly labeled `label` (or the next free
-    '<base>-NNN'), with its native joint group."""
+    from . import naming
     label = (label or "").strip() or naming.next_serial(
         [o.Label for o in doc.Objects], base)
     if doc.getObjectsByLabel(label):
@@ -188,12 +181,12 @@ def new_assembly(doc, label="", base="Bent"):
 
 
 def pick_grounded(bodies, joints):
-    """The timber to ground: the first (selection order) that anchors a
-    joint without ever being the entering half — the load-bearing
-    primary by the mate-frame heuristic. Falls back to the first body."""
+    """The timber to ground: the first (selection order) that hosts a
+    joint without ever being the entering half. Falls back to the
+    first body."""
     movers, anchors = set(), set()
     for varset in joints:
-        pair = _engagement_frames(varset)
+        pair = _engagement_datums(varset)
         if pair is None:
             continue
         movers.add(pair[0][0])
@@ -212,10 +205,9 @@ def _fixed_label(varset):
     return f"Fixed_{varset.Label}"
 
 
-def _referenced_frames(joint):
+def _referenced_datums(joint):
     """Internal names of the LCS datums an assembly joint's references
-    point at — the last segment of each dotted reference path
-    ('T-Post-001.LocalCoordinateSystem002.' -> the LCS name)."""
+    point at — the last segment of each dotted reference path."""
     names = set()
     for attr in ("Reference1", "Reference2"):
         ref = getattr(joint, attr, None)
@@ -228,52 +220,28 @@ def _referenced_frames(joint):
 
 
 def find_fixed_joints(doc, varset):
-    """EVERY assembly joint seating this timber joint, newest last.
-
-    Normally one. A document damaged by the label-matching era can hold
-    several on the same pair of frames — that is exactly what the old
-    lookup produced — so callers that rebuild must clear all of them,
-    not just the first: an unnoticed leftover silently over-constrains
-    the assembly. See find_fixed_joint for how the match is made.
-    """
-    pair = _engagement_frames(varset)
-    if pair is None:
+    """EVERY assembly joint seating this timber joint (normally one),
+    matched structurally on the datums its references point at."""
+    pair = joint_datums(varset)
+    if len(pair) != 2:
         return [obj for obj in doc.getObjectsByLabel(_fixed_label(varset))
                 if getattr(obj, "JointType", None) is not None]
-    (_mover, mate), (_anchor, landing) = pair
-    want = {landing.Name, mate.Name}
+    want = {pair[0].Name, pair[1].Name}
     return [obj for obj in doc.Objects
             if getattr(obj, "JointType", None) is not None
-            and _referenced_frames(obj) == want]
+            and _referenced_datums(obj) == want]
 
 
 def find_fixed_joint(doc, varset):
-    """The Fixed assembly joint seating this timber joint, or None.
-
-    Resolved STRUCTURALLY, from the landing/mate frames its references
-    point at. A Label is a user-editable string: a drifted one
-    (`Fixed_J-HousedMT-003` sitting on joint 002's frames, found in the
-    July 2026 grid-span testing) hid the joint completely, so
-    assimilate_joint stopped replacing it and started adding a SECOND
-    Fixed joint on the same two frames — a silently over-constrained
-    assembly. Same lesson as the JointFrame/MateFrame substring match
-    that Frame_Role replaced: bind to structure, not to a name.
-
-    Falls back to the label only for legacy joints that have no
-    engagement frames to match on. Use find_fixed_joints when you are
-    about to rebuild — a damaged document may hold more than one.
-    """
     found = find_fixed_joints(doc, varset)
     return found[0] if found else None
 
 
 def _placement_for(varset):
     """(joint_asm, created, principal): the assembly the timber joint's
-    Fixed joint belongs in, applying the container rules (may create a
-    bent or the parent frame — `created` is the new assembly or None,
-    `principal` what got grounded in it)."""
+    Fixed joint belongs in, per the container rules."""
     doc = varset.Document
-    (mover, _mate), (anchor, _landing) = _engagement_frames(varset)
+    (mover, _mate), (anchor, _host) = _engagement_datums(varset)
     a_asm = container_assembly(anchor)
     m_asm = container_assembly(mover)
     if a_asm is None and m_asm is None:
@@ -293,7 +261,6 @@ def _placement_for(varset):
     for asm in a_chain:
         if asm in m_set:
             return asm, None, None          # deepest common parent
-    # disjoint top-level assemblies: join them under the frame
     root_a, root_m = a_chain[-1], root_assembly(m_asm)
 
     def is_parent(asm):
@@ -308,34 +275,26 @@ def _placement_for(varset):
     frame = new_assembly(doc, base="Frame")
     frame.addObject(root_a)
     frame.addObject(root_m)
-    # the principal bent grounds the frame: the OLDEST of the two —
-    # the first bent built holds the Principal Post the framers
-    # measured everything from (the anchor side may well be the NEW
-    # bent, e.g. a tie beam reaching a duplicated bent's post)
+    # the principal bent grounds the frame: the OLDEST of the two
     order = {o.Name: i for i, o in enumerate(doc.Objects)}
     principal = min((root_a, root_m), key=lambda o: order[o.Name])
     ground(frame, principal)
     return frame, frame, principal
 
 
-Assimilation = namedtuple("Assimilation",
-                          "joint new_assembly principal")
+Assimilation = namedtuple("Assimilation", "joint new_assembly principal")
 
 
 def refresh_joint_display(asm):
     """Touch every assembly joint inside `asm`'s tree so viewproviders
-    redraw. A joint's icon is drawn from its references' global
-    placements, but nothing marks the joint when only its CONTAINER
-    moved (a bent seating in the frame) — the icons stay floating at
-    the old spot until touched."""
+    redraw after a container moved."""
     doc = asm.Document
     for obj in doc.Objects:
         if getattr(obj, "JointType", None) is None \
                 and not hasattr(obj, "ObjectToGround"):
             continue
         parent = obj.getParentGeoFeatureGroup()
-        if parent is not None and (parent is asm
-                                   or asm in assembly_chain(parent)):
+        if parent is not None and (parent is asm or asm in assembly_chain(parent)):
             obj.touch()
     doc.recompute()
 
@@ -354,90 +313,67 @@ def _is_connected(assembly, part, suppress_joint=None):
 
 def assimilate_joint(doc, varset):
     """Absorb a timber joint into the structure assembly: choose (or
-    create) the right container per the container rules, create its
-    Fixed assembly joint (parity in Offset1), pre-seat the free side at
-    the engaged pose, and solve. Returns an Assimilation (joint,
-    new_assembly, principal — the latter two set when a bent or frame
-    was created), or None when the joint has no engagement frames
-    (legacy — skipped). Caller owns the transaction."""
-    pair = _engagement_frames(varset)
+    create) the right container, create its Fixed assembly joint (the
+    seat flip in Offset1), pre-seat the free side at the engaged pose,
+    and only then recompute and solve. Returns an Assimilation, or None
+    when the joint is not paired. Caller owns the transaction."""
+    pair = _engagement_datums(varset)
     if pair is None:
         return None
     joint_asm, new_asm, principal = _placement_for(varset)
     doc.recompute()
 
-    (mover, mate), (anchor, landing) = pair
+    (mover, mate), (anchor, host) = pair
     mp_anchor = moving_part(anchor, joint_asm)
     mp_mover = moving_part(mover, joint_asm)
     if mp_anchor is mp_mover:
-        raise JointError(
-            f"{varset.Label}: both halves resolve to the same moving "
-            f"part in {joint_asm.Label!r}")
-    parity = mate_parity(varset, anchor)
+        raise JointError(f"{varset.Label}: both halves resolve to the same "
+                         f"moving part in {joint_asm.Label!r}")
 
-    # clear ALL of them: a document damaged in the label-matching era
-    # can carry duplicates on this same pair of frames, and leaving one
-    # behind over-constrains the assembly with no visible cause
     for old in find_fixed_joints(doc, varset):
         doc.removeObject(old.Name)
     JointObject = _joint_object()
-    joint = assembly_joint_group(joint_asm).newObject(
-        "App::FeaturePython", "FixedJoint")
+    joint = assembly_joint_group(joint_asm).newObject("App::FeaturePython", "FixedJoint")
     JointObject.Joint(joint, 0)                     # 0 = Fixed
     joint.Label = _fixed_label(varset)
-    joint.Offset1 = parity      # nominal pose = the correct seat
-    joint.Reference1 = (mp_anchor, [_lcs_path(mp_anchor, landing), ""])
+    joint.Offset1 = datums.FLIP_PLACEMENT           # nominal pose = the seat
+    joint.Reference1 = (mp_anchor, [_lcs_path(mp_anchor, host), ""])
     joint.Reference2 = (mp_mover, [_lcs_path(mp_mover, mate), ""])
     joint.Placement1 = joint.Proxy.findPlacement(joint, joint.Reference1, 0)
     joint.Placement2 = joint.Proxy.findPlacement(joint, joint.Reference2, 1)
     if App.GuiUp:
         JointObject.ViewProviderJoint(joint.ViewObject)
 
-    # Pre-seat the free side at the engaged pose so the solver locks
-    # the correct one of the Fixed joint's two orientations. The free
-    # side is the one NOT yet connected to the assembly's ground — a
-    # tie beam already seated on bent 1 must stay put while the new
-    # bent comes to IT, never the reverse.
-    landing_g = landing.getGlobalPlacement()
-    mate_g = mate.getGlobalPlacement()
+    # Pre-seat the free side — the one NOT yet connected to the
+    # assembly's ground — at the exact engaged pose. No recompute has
+    # run since the joint was created (see the module docstring).
     move = None
     if not _is_connected(joint_asm, mp_mover, joint):
-        move, delta = mp_mover, (
-            landing_g.multiply(parity).multiply(mate_g.inverse()))
+        move, delta = mp_mover, datums.seat_delta(host, mate)
     elif not _is_connected(joint_asm, mp_anchor, joint):
-        move, delta = mp_anchor, (
-            mate_g.multiply(parity.inverse())
-            .multiply(landing_g.inverse()))
+        move, delta = mp_anchor, datums.seat_delta(mate, host)
     if move is not None:
         new_global = delta.multiply(move.getGlobalPlacement())
-        parent_g = move.getGlobalPlacement().multiply(
-            move.Placement.inverse())
+        parent_g = move.getGlobalPlacement().multiply(move.Placement.inverse())
         move.Placement = parent_g.inverse().multiply(new_global)
-        doc.recompute()
-
+    doc.recompute()
     for asm in {joint_asm, root_assembly(joint_asm)}:
         asm.solve()
     doc.recompute()
     if move is not None and move.TypeId == ASSEMBLY_TYPE:
         refresh_joint_display(move)
-    # the joint now belongs to an assembly (possibly one just created,
-    # possibly promoted to the frame): file its handle where it lives
     joint_handle.ensure_handle(varset)
     return Assimilation(joint, new_asm, principal)
 
 
 def joint_misfit(varset):
     """(mm, degrees) between the joint's seated pose and its actual
-    pose — (0, 0) when seated. A parity or station disagreement shows
-    up here after a solve."""
-    pair = _engagement_frames(varset)
+    pose — (0, 0) when seated."""
+    pair = _engagement_datums(varset)
     if pair is None:
         return (0.0, 0.0)
-    (_, mate), (anchor, landing) = pair
-    target = landing.getGlobalPlacement().multiply(
-        mate_parity(varset, anchor))
-    delta = target.inverse().multiply(mate.getGlobalPlacement())
-    return (delta.Base.Length, math.degrees(delta.Rotation.Angle))
+    (_, mate), (_, host) = pair
+    return datums.misfit(host, mate)
 
 
 def is_misfit(varset):
@@ -450,37 +386,22 @@ def is_misfit(varset):
 # --------------------------------------------------------------------------
 
 def member_bodies(assembly):
-    """Every timber body inside an assembly tree (groups and nested
-    assemblies included)."""
+    """Every timber body inside an assembly tree."""
     doc = assembly.Document
     return [o for o in doc.Objects
-            if o.TypeId == "PartDesign::Body"
-            and assembly in assembly_chain(o)]
+            if o.TypeId == "PartDesign::Body" and assembly in assembly_chain(o)]
 
 
 def assemble_timbers(doc, bodies, assembly=None, label="", grounded=None):
     """Bulk assimilation: put loose `bodies` into `assembly` (created
     with `label` when None), ground the principal timber (`grounded`,
     or the pick_grounded heuristic), and assimilate every timber joint
-    among the members. The path for pre-pivot documents, repair, and
-    regrounding. Returns (assembly, skipped, misfits, adopted):
-    timber-joint labels skipped (no engagement frames), those still
-    disagreeing after the solve (kept visible for inspection), and how
-    many joints in the DOCUMENT gained a handle — this is also the
-    migration path for documents built before handles existed. Caller
-    owns the transaction."""
+    among the members. Returns (assembly, skipped, misfits, adopted).
+    Caller owns the transaction."""
     if not bodies:
         raise JointError("select the timbers to assemble first")
-    # doc-wide, and before assimilation re-files them: a repair run is
-    # when an older document meets this workbench, and every joint in it
-    # deserves a handle, not just those in the selection
     adopted = joint_handle.adopt_handles(doc)
     if assembly is None:
-        # Repair/reground: when every selected timber ALREADY shares one
-        # assembly, that assembly is the subject — creating a new one
-        # would leave it empty (addObject skips already-contained
-        # bodies), so member_bodies came back empty and pick_grounded
-        # blew up on bodies[0]. Only genuinely loose timbers make a bent.
         homes = [container_assembly(b) for b in bodies]
         if len(set(homes)) == 1 and homes[0] is not None:
             assembly = homes[0]
@@ -495,16 +416,15 @@ def assemble_timbers(doc, bodies, assembly=None, label="", grounded=None):
     if not members:
         raise JointError(
             f"{assembly.Label} has no timber bodies to assemble — the "
-            f"selected timbers already belong to another assembly; "
-            f"choose that one instead of a new assembly")
+            f"selected timbers already belong to another assembly")
     inside, _outside = bent_joints(doc, members)
-    seatable = [v for v in inside if _engagement_frames(v)]
+    seatable = [v for v in inside if _engagement_datums(v)]
 
     if grounded is not None:
         ground(assembly, moving_part(grounded, assembly))
     elif grounded_joint(assembly) is None:
-        principal = pick_grounded(
-            [b for b in bodies if b in members] or members, seatable)
+        principal = pick_grounded([b for b in bodies if b in members] or members,
+                                  seatable)
         ground(assembly, moving_part(principal, assembly))
 
     skipped = [v.Label for v in inside if v not in seatable]

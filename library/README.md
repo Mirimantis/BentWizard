@@ -1,91 +1,109 @@
 # Joint template library
 
-One ordinary `.FCStd` file per joint template. A template contains:
+One ordinary `.FCStd` file per joint template, built by
+`scripts/build_library.py` from the workbench's own API (so the shipped
+files are exactly what New Timber, Add Datum and the component helpers
+produce — the library is a test of the tool as much as a product).
 
-- one VarSet — the joint's parameter schema (the apply dialog is generated
-  from it; tooltips mandatory on every property),
-- optionally a second VarSet marked `VarSet_Role = "Layout"` — the
-  companion holding the length-consuming parameters authoritatively, so
-  a timber's `Length` can derive from a layout distance,
-- per-role feature stacks (e.g. mortise side / tenon side) built to the
-  Phase 0 workflow conventions, each hanging off one landing-frame LCS
-  (side-landing roles authored on Face 4, **frame origin on the timber's
-  face** at the landing footprint's center — never inset to a housing's
-  bearing plane; end-landing roles on end A),
-- a **mate frame** LCS on each role that enters its mate, coinciding
-  axis-for-axis with the mating role's landing frame when engaged
-  (drives Preview Mated Joint and assembly). Because the landing frame
-  is on the face, the mate frame's offset from the stick end **is** the
-  clear-span allowance — place it at `Stick_Allowance_FTF`, and read it
-  from the *joint* VarSet's consumed copy, never from the companion
-  directly (`joint_members` closes over the `<<J-…>>` token, which
-  `<<Layout_J-…>>` does not contain — a frame bound straight to the
-  companion silently stops being part of the joint),
-- non-geometric schedule data (e.g. `Peg_Count`) as VarSet properties.
+A template contains:
 
-Templates must lint clean (strict **and** advisory):
-`python -m freecad.bentwizard.linter library/<template>.FCStd`
+- **two timbers** — the *host* (first in the tree) and the *mate* — each
+  with a **datum** paired to the other's under the joint VarSet: the
+  host's face datum (`D_T-Post-000_YPos_001`, on +Y at 48 in) and the
+  mate's end datum (`D_T-Girt-000_B`). The mate is seated so the file
+  shows the joint as it engages.
+- **one joint VarSet**, `J-<Kind>-000` — the parameter schema the apply
+  dialog is generated from. Parameters live in group `Joint`
+  (UpperCamelCase, a tooltip on every one, stating which datum axis it
+  measures along). Optional range bounds go in group `Ranges` as
+  `<Name>Min` / `<Name>Max`; the registration sweep and the apply
+  dialog read them. The tool writes the six accessors `HostWidthU …
+  MateDepthW` (group `Datums`): they read the two datums, and they are
+  how a component learns the *other* timber's section.
+- **component Bodies** at the document root — a `Cutter` modelled in
+  −Z from its own origin (it eats into the material behind the datum)
+  or an `Adder` modelled in +Z (it grows out of it) — each carrying
+  `ComponentRole` and `ComponentOrder`, its `Placement` bound to the
+  datum it sits on (`<<D_…>>.Placement`), labelled
+  `<Descriptive>.<Kind>.000` (`Mortise.HousedMT.000`), and applied to
+  that datum's timber by a `PartDesign::Boolean` (`Cut.Mortise.HousedMT.000`,
+  `Fuse.Tenon.HousedMT.000`), cutters before adders.
+- non-geometric schedule data (`PegCount`) as VarSet properties.
 
-Build recipes (one doc per template; the MT doc also documents the
-baseline process the others build on):
+**A component reads only the datum it is placed on and the joint
+VarSet** — host data through the datum's own `WidthU`/`WidthV`/`DepthW`,
+mate data through the VarSet's `Mate*` accessors — never a timber's Dims,
+never another datum. Referencing the mate's datum directly gives the
+right numbers today and the wrong ones after a re-pair, and a datum
+that reads another datum is a dependency cycle (FreeCAD's graph is
+object-granular).
 
-- Butt joint — a squared end landing flush on a face at a chosen
-  station, no joinery. The **starter skeleton** to author new templates
-  from (finding #12: never copy a jointed template), and a valid project
-  joint in its own right for bracketed or gusseted connections —
-  [docs/butt-template-build.md](../docs/butt-template-build.md)
-  (`Joint_Butt.FCStd`)
-- Housed mortise & tenon —
-  [docs/mt-template-build.md](../docs/mt-template-build.md)
-  (built: `Joint_HousedMT.FCStd`)
-- Housed dovetail — joist dropped into a **horizontal** girt's top
-  face, tops flush —
-  [docs/housed-dovetail-template-build.md](../docs/housed-dovetail-template-build.md)
-- Wedged half-dovetail (anchor-beam through tenon) — beam into a
-  **vertical** post; the socket role must be a post or other vertical
-  member —
-  [docs/wedged-half-dovetail-template-build.md](../docs/wedged-half-dovetail-template-build.md)
-  (`Joint_WedgedHalfDovetail.FCStd` — modeled, finishing the lint
-  cleanup; the recipe is written from the built file)
-- Brace mortise & tenon (parametric angle, default 45°) —
-  [docs/brace-mt-template-build.md](../docs/brace-mt-template-build.md)
+**Applying a template copies it.** Apply Timber Joint copies the VarSet
+and the component bodies into the document, relabels them to the new
+serial, re-points every `<<D_…>>` reference to the target datums,
+mirrors a component across its local X when the target datum's parity
+differs from the authoring datum's (so a component keeps its
+timber-local offsets at either end and on opposite faces), and applies
+the Booleans in `ComponentOrder`, refusing if a timber stops being one
+solid. Nothing about the geometry is rebuilt, so a template author never
+learns a feature vocabulary.
+
+Templates must clear the **template bar**:
+
+```
+python -m freecad.bentwizard.linter library/<template>.FCStd
+```
+
+plus `template_check.check` (skeleton, stem contract, a real
+`TemplateSpec` load) and `template_check.check_geometry` (one solid per
+timber, growth direction, the parameter sweep across each declared
+range — the sweep's findings are persisted on the VarSet as
+`SweepFindings`, empty when clean). `tests/test_template_check.py`
+runs the bar over every file here.
+
+## Shipped
+
+- `Joint_Butt.FCStd` — a squared end landing flush on a face at a
+  station, no joinery: two timbers, two paired datums, an empty VarSet.
+  The **starter skeleton** New Joint Template authors from (a starter is
+  any template with no Boolean in it — found structurally, so a second
+  starter is a file to author, not code to write), and a real project
+  joint in its own right for bracketed or gusseted connections.
+- `Joint_HousedMT.FCStd` — housed, square-shouldered mortise and tenon.
+  `Mortise.HousedMT.000` (Cutter, order 1, on the post's face datum): the
+  housing, `MateWidthU × MateWidthV × HousingDepth`, and the mortise,
+  `TenonThickness × TenonWidth × (TenonLength + HousingDepth + MortiseFit)`,
+  both in −Z. `Tenon.HousedMT.000` (Adder, order 2, on the girt's end-B
+  datum): the full section through the housing, `WidthU × WidthV ×
+  HousingDepth`, and the tenon, `TenonThickness × TenonWidth ×
+  (TenonLength + HousingDepth)`, both in +Z. No lateral fit: cheeks are
+  tight, `MortiseFit` is extra depth so the shoulder seats.
 
 ## Authoring your own
 
-**"Landing frame" and "mate frame" are roles, not labels.** Nothing in
-the tree is called "landing frame" — the role lives in each frame's
-`Frame_Role` property, and the label says what the frame is on its
-timber (`Bearing.Lcs.BUT.000` and `End.Lcs.BUT.000` are `Joint_Butt`'s
-two landing frames; `Mate.Lcs.BUT.000` is its mate frame). Cuts hang off
-the landing frame in their own body; nothing may attach to a mate frame.
+**New Joint Template** copies a starter to your template folder under
+the kind you name, relabels its VarSet to `J-<Kind>-000`, and opens it.
+Author the parameters on the VarSet and the components as above (the
+report window it opens repeats the rules), and apply each component
+with a Boolean so the file shows the finished joint. Never start from a
+template that already has components: the copy brings them along.
 
-**New Joint Template** creates a file from a starter skeleton (a
-template carrying no joinery — `Joint_Butt.FCStd` today; the tool finds
-starters structurally, so anything jointless qualifies) and opens it
-ready to model the cuts in. Never copy a template that already has cuts
-in it: those come along as phantom features (finding #12).
-
-**Save as Joint Template** writes the open authoring document into your
-template folder and reports what validation found. It validates but
-never refuses — the report is a checklist, and a template with findings
-is saved anyway. The bar is the same one this directory's files clear:
-the linter's rules (`linter.py`), the skeleton every template carries
-(`template_check.py` — the completeness half the linter cannot see), the
-file-stem contract, and a real `TemplateSpec` load.
+**Save as Joint Template** writes the open document into your template
+folder and reports what the bar found. It reports, never blocks — a
+template with findings is saved anyway; the report is a checklist to
+work through in the document. *Check* runs the same bar on a
+temporary copy without saving.
 
 Two folders are searched, the user's ahead of this one, so a locally
 revised copy of a shipped joint shadows it rather than appearing twice:
 
 - **your template folder** — `<FreeCAD user app data>/BentWizard/library`
-  by default, changed by saving a template elsewhere and accepting the
-  offer (stored as `TemplateDir` under
+  by default (stored as `TemplateDir` under
   `BaseApp/Preferences/Mod/BentWizard`),
 - **this shipped library**.
 
-The **file stem is the joint's name**: `Joint_BraceMT.FCStd` makes every
+The **file stem is the joint's kind**: `Joint_BraceMT.FCStd` makes every
 joint applied from it `J-BraceMT-<serial>`, which is what reaches the
-cut list. Saving offers to relabel the document's joint VarSet, its
-companion and every feature suffix to match — safe, because FreeCAD
-re-points every `<<Label>>` expression when an object is relabeled.
-
-Manifest format is still an open item (workflow doc §8).
+cut list. Saving relabels the VarSet, components, Booleans and
+mirrorings to match — safe, because FreeCAD re-points every `<<Label>>`
+expression when an object is relabeled.

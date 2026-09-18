@@ -1,9 +1,13 @@
-"""BentWizard model linter — workflow document §6 as executable rules.
+"""BentWizard model linter — the rev-2 workflow's §6 as executable rules.
 
 Runs on FCStd files directly (pure Python, no FreeCAD) via the fcstd
-reader. Strict rules protect the clone mechanism and the model; advisory
-rules report style and drift. Each rule cites the workflow document /
-findings log item it implements.
+reader. Strict rules protect the mechanism — datums placed from the face
+table, joinery bound only to its own datum and joint VarSet, pairings
+that resolve — and the model; advisory rules report style and drift.
+
+What this layer cannot see is geometry: solid count, growth direction
+and the parameter sweep need FreeCAD and live in ``template_check``'s
+geometry half, ``apply``'s post-conditions and the audit command.
 
 Usage:
     python -m freecad.bentwizard.linter <file.FCStd> [file2.FCStd ...]
@@ -17,23 +21,14 @@ import re
 import sys
 from dataclasses import dataclass
 
-from . import naming
-from .fcstd import (
-    Constraint,
-    FcstdDocument,
-    expression_refs,
-    point_in_polygon,
-    point_segment_distance,
-    sketch_profile_loops,
-)
+from . import facetable, naming
+from .fcstd import Constraint, FcstdDocument, expression_refs
 
 STRICT = "strict"
 ADVISORY = "advisory"
 
-# Severing limits (roadmap Phase 1): strict at the limit, advisory at 35 %.
-MORTISE_LIMIT = 0.75
-HOUSING_LIMIT = 0.50
-CAUTION_LIMIT = 0.35
+DATUM_TYPE = "Part::LocalCoordinateSystem"
+MAPMODE_DEACTIVATED = 0          # the static enumeration's first entry
 
 
 @dataclass
@@ -49,7 +44,7 @@ class Finding:
 
 
 # --------------------------------------------------------------------------
-# Semantic model: bodies, ownership, VarSet classification
+# Semantic model
 # --------------------------------------------------------------------------
 
 class Model:
@@ -57,86 +52,67 @@ class Model:
 
     def __init__(self, doc: FcstdDocument):
         self.doc = doc
-
-        # Bodies and feature ownership (Body.Group lists every member).
         self.bodies = doc.of_type("PartDesign::Body")
         self.owner = {}                      # member name -> body
         for body in self.bodies:
             group = body.prop("Group")
             for link in (group.links if group else []):
                 self.owner[link.obj] = body
-
         self.varsets = doc.of_type("App::VarSet")
 
-        # Every (object, varset, prop) expression reference in the document.
-        self.refs = []                       # (obj, path, varset, propname)
+        # Every expression reference in the document, to any object.
+        self.all_refs = []                   # (obj, expr, target, propname)
         for obj in doc.objects.values():
             for e in obj.expressions:
                 for target, prop in expression_refs(e.expression, doc):
-                    if target.is_type("App::VarSet"):
-                        self.refs.append((obj, e, target, prop))
+                    self.all_refs.append((obj, e, target, prop))
+        self.refs = [r for r in self.all_refs if r[2].is_type("App::VarSet")]
 
+        self.datums = [o for o in doc.of_type(DATUM_TYPE)
+                       if o.prop(naming.PROP_FACE) is not None
+                       and o.prop(naming.PROP_STATION) is not None]
+        self.datum_names = {d.name for d in self.datums}
+        self.components = [b for b in self.bodies
+                           if b.prop(naming.PROP_COMPONENT_ROLE) is not None]
+        self.component_names = {c.name for c in self.components}
         self._classify_varsets()
 
     # -- VarSet classification --------------------------------------------
-    #
-    # Production files are classified by the Kind_Owner label convention
-    # (TDim_/Joint_/Group_/Project_/Order_). Prototype files predate
-    # the convention, so fall back to structure: a Dims VarSet drives its
-    # body's base Pad length; a group VarSet is referenced only from other
-    # VarSets; everything else referenced from body features is a joint
-    # VarSet.
 
     def _classify_varsets(self):
         self.dims_of = {}        # body name -> dims varset
         self.kind = {}           # varset name -> "dims" | "joint" | "group"
-
-        for vs in self.varsets:
-            label = vs.label
-            role = getattr(vs.prop(naming.VARSET_ROLE_PROP), "value", None)
-            if role == naming.VARSET_ROLE_LAYOUT:
-                # The companion declares itself, so it is never guessed
-                # at — same discipline as Frame_Role. It is a pure
-                # source, exactly like a group VarSet. Without this the
-                # structural fallback called it a JOINT VarSet the
-                # moment any geometry referenced it directly, and the
-                # template stopped loading with a count nobody could
-                # act on ("found 2").
-                self.kind[vs.name] = "group"
-            elif naming.is_dims_label(label):
-                self.kind[vs.name] = "dims"
-            elif label.startswith(("Joint_", "J-")):
-                self.kind[vs.name] = "joint"
-            elif label.startswith(("Group_", "Project_", "Order_")):
-                self.kind[vs.name] = "group"
-
         # Structural: the base Pad's Length binding names the body's Dims.
         for body in self.bodies:
             group = body.prop("Group")
-            members = [l.obj for l in (group.links if group else [])]
-            for m in members:
-                feat = self.doc.objects.get(m)
+            for link in (group.links if group else []):
+                feat = self.doc.objects.get(link.obj)
                 if feat is None or not feat.is_type("PartDesign::Pad"):
                     continue
                 for e in feat.expressions:
-                    if e.path != "Length":
+                    if e.path.lstrip(".") != "Length":
                         continue
                     refs = expression_refs(e.expression, self.doc)
-                    if len(refs) == 1 and refs[0][0].is_type("App::VarSet"):
+                    # the stick pad reads '<<TDim_...>>.LengthZ'; a component's
+                    # pad reads a joint parameter, which must not be mistaken
+                    # for a Dims binding
+                    if (len(refs) == 1 and refs[0][0].is_type("App::VarSet")
+                            and refs[0][1] == "LengthZ"):
                         vs = refs[0][0]
                         self.dims_of[body.name] = vs
-                        self.kind.setdefault(vs.name, "dims")
-                break   # base feature is the first Pad
-
-        # Anything referenced only from other VarSets is a group VarSet;
-        # remaining VarSets referenced from body features are joint VarSets.
+                        self.kind[vs.name] = "dims"
+                break   # the first Pad is the base feature
+        joint_names = {d.prop(naming.PROP_JOINT).value
+                       for d in self.datums
+                       if d.prop(naming.PROP_JOINT) is not None
+                       and d.prop(naming.PROP_JOINT).value}
         for vs in self.varsets:
             if vs.name in self.kind:
                 continue
-            sources = [o for (o, _, t, _) in self.refs if t is vs]
-            if sources and all(s.is_type("App::VarSet") for s in sources):
-                self.kind[vs.name] = "group"
-            elif any(s.name in self.owner for s in sources):
+            if (naming.is_joint_varset_label(vs.label)
+                    or vs.name in joint_names
+                    or any(vs.prop(s + a) is not None
+                           for s in naming.SIDES for a in naming.ACCESSORS)):
                 self.kind[vs.name] = "joint"
             else:
                 self.kind[vs.name] = "group"
@@ -149,213 +125,144 @@ class Model:
     def dims_varsets(self):
         return [v for v in self.varsets if self.kind.get(v.name) == "dims"]
 
+    def timbers(self):
+        return [b for b in self.bodies if b.name in self.dims_of]
+
     def body_dims(self, body):
         return self.dims_of.get(body.name)
 
-    def own_dims_label(self, obj):
-        body = self.owner.get(obj.name)
-        if body is None:
-            return None
-        dims = self.body_dims(body)
-        return dims.label if dims else None
+    def datum_owner(self, datum):
+        return self.owner.get(datum.name)
 
-    def section_extents(self, body):
-        """(Width, Depth) values in mm of a body's Dims VarSet, or None."""
-        dims = self.body_dims(body)
-        if dims is None:
-            return None
-        w = dims.prop("Width")
-        d = dims.prop("Depth")
-        if w is None or d is None:
-            return None
-        return (w.value, d.value)
+    def datum_face(self, datum):
+        p = datum.prop(naming.PROP_FACE)
+        return p.value if p is not None else None
 
-    def sketch_station(self, sketch):
-        """'A' or 'B': which stick end frame a sketch is positioned in.
+    def datum_by_name(self, name):
+        return self.doc.objects.get(name) if name in self.datum_names else None
 
-        End B = the sketch sits on a datum whose offset expression involves
-        the owning timber's Dims.Length; everything else is end A.
-        """
-        own_dims = self.own_dims_label(sketch)
-        support = sketch.prop("AttachmentSupport") or sketch.prop("Support")
-        if support is None or not support.links or own_dims is None:
-            return "A"
-        target = self.doc.objects.get(support.links[0].obj)
-        if target is None or not target.is_type("Part::Datum"):
-            return "A"
-        for e in target.expressions:
-            for ref_obj, prop in expression_refs(e.expression, self.doc):
-                if ref_obj.label == own_dims and prop == "Length":
-                    return "B"
-        return "A"
+    def datum_mate(self, datum):
+        p = datum.prop(naming.PROP_MATE_DATUM)
+        return self.datum_by_name(p.value) if p and p.value else None
 
-    def profile_sketch(self, feature):
-        """The sketch a Pad/Pocket/Hole feature's Profile links to."""
-        p = feature.prop("Profile")
-        if p and p.links:
-            return self.doc.objects.get(p.links[0].obj)
+    def datum_joint(self, datum):
+        p = datum.prop(naming.PROP_JOINT)
+        obj = self.doc.objects.get(p.value) if p and p.value else None
+        return obj if obj is not None and obj.is_type("App::VarSet") else None
+
+    def joint_datums(self, vs):
+        return [d for d in self.datums if self.datum_joint(d) is vs]
+
+    def accessor_datum(self, vs, side):
+        """The datum a joint VarSet's <side>WidthU accessor reads, or None."""
+        for e in vs.expressions:
+            if e.path.lstrip(".") == side + "WidthU":
+                for target, _p in expression_refs(e.expression, self.doc):
+                    if target.name in self.datum_names:
+                        return target
         return None
 
+    def mirrorings_of(self, body):
+        return [m for m in self.doc.of_type("Part::Mirroring")
+                if any(l.obj == body.name for l in (m.prop("Source").links
+                                                   if m.prop("Source") else []))]
+
+    def component_placement_holder(self, comp):
+        """The object whose Placement carries a component to its datum:
+        the component body itself, or its mirroring."""
+        holders = [comp] + self.mirrorings_of(comp)
+        for h in holders:
+            for e in h.expressions:
+                if e.path.lstrip(".") == "Placement":
+                    return h
+        return None
+
+    def component_datum(self, comp):
+        """The datum a component is placed on (via its Placement
+        expression), or None."""
+        holder = self.component_placement_holder(comp)
+        if holder is None:
+            return None
+        for e in holder.expressions:
+            if e.path.lstrip(".") == "Placement":
+                for target, _p in expression_refs(e.expression, self.doc):
+                    if target.name in self.datum_names:
+                        return target
+        return None
+
+    def component_members(self, comp):
+        """The component body and everything inside it."""
+        group = comp.prop("Group")
+        members = [comp]
+        for link in (group.links if group else []):
+            obj = self.doc.objects.get(link.obj)
+            if obj is not None:
+                members.append(obj)
+        return members
+
+    def joint_members(self, vs):
+        """Objects belonging to a joint: everything referencing its
+        VarSet, closed over profile sketches, attachment supports,
+        Booleans holding a member, and mirrorings of a member. The
+        VarSet itself and the datums are excluded."""
+        members = {}
+        for (obj, _e, target, _p) in self.refs:
+            if target is vs and obj is not vs and obj.name not in self.datum_names:
+                members[obj.name] = obj
+        changed = True
+        while changed:
+            changed = False
+            for obj in self.doc.objects.values():
+                if obj.name in members or obj is vs or obj.name in self.datum_names:
+                    continue
+                hit = False
+                for pname in ("Profile", "Source"):
+                    p = obj.prop(pname)
+                    if p and any(l.obj in members for l in p.links):
+                        hit = True
+                sup = obj.prop("AttachmentSupport") or obj.prop("Support")
+                if obj.is_type("PartDesign::Boolean"):
+                    g = obj.prop("Group")
+                    if g and any(l.obj in members for l in g.links):
+                        hit = True
+                if hit:
+                    members[obj.name] = obj
+                    changed = True
+            # attachment supports of members (datums excluded)
+            for obj in list(members.values()):
+                sup = obj.prop("AttachmentSupport") or obj.prop("Support")
+                for link in (sup.links if sup else []):
+                    t = self.doc.objects.get(link.obj)
+                    if t is not None and t.name not in members \
+                            and t.name not in self.datum_names \
+                            and not t.is_type("App::Origin"):
+                        own = self.owner.get(t.name)
+                        if own is not None and own.name in self.component_names:
+                            members[t.name] = t
+                            changed = True
+        return members
+
     def constraint_expression(self, sketch, index):
-        """The expression string bound to Constraints[index], if any."""
         for e in sketch.expressions:
             if e.path in (f"Constraints[{index}]", f".Constraints[{index}]"):
                 return e.expression
         return None
-
-    def single_ref_value(self, expression):
-        """Value + (varset, prop) when an expression is one property
-        reference, optionally scaled (`X.P`, `X.P / 2`, `X.P * n`).
-        Returns (value_mm, varset, propname) or None."""
-        refs = expression_refs(expression, self.doc)
-        if len(refs) != 1:
-            return None
-        varset, propname = refs[0]
-        prop = varset.prop(propname)
-        if prop is None or not isinstance(prop.value, float):
-            return None
-        stripped = re.sub(r"<<[^<>]+>>\.[A-Za-z_][A-Za-z0-9_]*", "", expression)
-        stripped = stripped.strip()
-        value = prop.value
-        m = re.fullmatch(r"/\s*([0-9.]+)", stripped)
-        if m:
-            value /= float(m.group(1))
-        elif re.fullmatch(r"\*\s*([0-9.]+)", stripped):
-            value *= float(re.fullmatch(r"\*\s*([0-9.]+)", stripped).group(1))
-        elif stripped:
-            return None   # more arithmetic than a simple scale — skip
-        return (value, varset, propname)
 
 
 # --------------------------------------------------------------------------
 # Strict rules
 # --------------------------------------------------------------------------
 
-def rule_joint_varset_single_instance(model):
-    """§6 strict: one VarSet per joint instance.
-
-    (a) A joint VarSet referenced from more than two bodies drives more
-        than one mated pair.
-    (b) A joint VarSet whose profile sketches within one body sit at both
-        stick ends (end-A frame and end-B frame) drives two joint
-        locations on that timber.
-    Both are §7 debt 1 (MT1 drives both beam ends and both posts).
-    """
-    findings = []
-    for vs in model.joint_varsets():
-        bodies = {}
-        for (obj, _, target, _) in model.refs:
-            if target is not vs:
-                continue
-            body = model.owner.get(obj.name)
-            if body is not None:
-                bodies.setdefault(body.name, body)
-        if len(bodies) > 2:
-            names = ", ".join(sorted(b.label for b in bodies.values()))
-            findings.append(Finding(
-                "joint-varset-single-instance", STRICT, vs.name, vs.label,
-                f"joint VarSet is referenced from {len(bodies)} bodies "
-                f"({names}); a joint instance mates exactly two timbers — "
-                f"split into one VarSet per joint instance"))
-        for body in bodies.values():
-            stations = set()
-            for (obj, _, target, _) in model.refs:
-                if target is vs and model.owner.get(obj.name) is body \
-                        and obj.is_type("Sketcher::"):
-                    stations.add(model.sketch_station(obj))
-            if stations == {"A", "B"}:
-                findings.append(Finding(
-                    "joint-varset-single-instance", STRICT, vs.name, vs.label,
-                    f"joint VarSet drives features at both ends of "
-                    f"'{body.label}' — two joint locations, one VarSet; "
-                    f"split into one VarSet per joint instance"))
-    return findings
-
-
-def rule_multi_instance_sketch(model):
-    """§6 strict: no multi-instance sketches.
-
-    A sketch whose circles are positioned in different stick-end frames
-    (some center positions plain, some measured via Dims.Length) serves
-    two joint stations and cannot survive the per-instance VarSet split.
-    §7 debt 2 (combined two-circle peg sketch on the beam).
-    """
-    findings = []
-    for sketch in model.doc.of_type("Sketcher::SketchObject"):
-        own_dims = model.own_dims_label(sketch)
-        geom_prop = sketch.prop("Geometry")
-        cons_prop = sketch.prop("Constraints")
-        if own_dims is None or geom_prop is None or cons_prop is None:
-            continue
-        circles = [i for i, g in enumerate(geom_prop.geometry)
-                   if g.kind == "circle" and not g.construction]
-        if len(circles) < 2:
-            continue
-        frames = {}
-        for geo_id in circles:
-            frame = "A"
-            for ci, con in enumerate(cons_prop.constraints):
-                if con.type_id not in (Constraint.DISTANCE,
-                                       Constraint.DISTANCE_X,
-                                       Constraint.DISTANCE_Y):
-                    continue
-                if geo_id not in con.geo_ids():
-                    continue
-                expr = model.constraint_expression(sketch, ci)
-                if expr is None:
-                    continue
-                for ref_obj, prop in expression_refs(expr, model.doc):
-                    if ref_obj.label == own_dims and prop == "Length":
-                        frame = "B"
-            frames.setdefault(frame, []).append(geo_id)
-        if len(frames) > 1:
-            findings.append(Finding(
-                "multi-instance-sketch", STRICT, sketch.name, sketch.label,
-                f"circles in this sketch are positioned from both stick "
-                f"ends (frames A and B) — it serves two joint instances; "
-                f"use one sketch per instance"))
-    return findings
-
-
-def rule_cross_timber_dims(model):
-    """§6 strict: no cross-timber Dims references.
-
-    Any object inside body X binding to body Y's Dims VarSet couples the
-    timbers and breaks the clone mechanism (and is the recurring silent
-    bug after duplication — §4.2's expression audit). Layout values that
-    must match the mating timber belong in the joint VarSet.
-    §7 debt 3 (PegHole_MT1_sketch2 on Post2 references PostDims).
-    """
-    findings = []
-    for (obj, expr, target, prop) in model.refs:
-        if model.kind.get(target.name) != "dims":
-            continue
-        body = model.owner.get(obj.name)
-        if body is None:
-            continue   # objects outside bodies (assembly, spreadsheet) exempt
-        own = model.body_dims(body)
-        if own is not None and target is not own:
-            findings.append(Finding(
-                "cross-timber-dims-reference", STRICT, obj.name, obj.label,
-                f"expression '{expr.path}' in body '{body.label}' references "
-                f"'{target.label}.{prop}', another timber's Dims (own Dims is "
-                f"'{own.label}') — bind via the joint VarSet instead"))
-    return findings
-
-
 _TOPO_SUB = re.compile(r"(Face|Edge|Vertex)\d+")
 
 
 def rule_solid_face_references(model):
-    """§6 strict: no solid-face references.
-
-    Sketch supports, datum attachments, and assembly joint references must
-    point at origin planes and datums, never at solid topology (Face/Edge/
-    Vertex), which renumbers on any feature edit. Findings log #8/#10.
-    """
+    """§6 strict: no solid-face references. Sketch supports, datum
+    attachments and assembly joint references point at origin planes and
+    datums, never at solid topology, which renumbers on any edit."""
     findings = []
     checked = ("AttachmentSupport", "Support", "Reference1", "Reference2",
-               "ExternalGeometry")
+               "ExternalGeometry", "MirrorPlane")
     for obj in model.doc.objects.values():
         for pname in checked:
             p = obj.prop(pname)
@@ -371,305 +278,27 @@ def rule_solid_face_references(model):
     return findings
 
 
-def rule_island_interior(model):
-    """§6 strict: islands strictly interior or removal regions used.
-
-    In an island-pocket sketch the kept profile must not touch the outer
-    removal loop — coincident edges break face generation (finding #14).
-    Checked for polygon loops; sketches with unsupported geometry are
-    skipped rather than guessed at.
-    """
-    findings = []
-    tol = 1e-6
-    for feature in model.doc.of_type("PartDesign::Pocket"):
-        sketch = model.profile_sketch(feature)
-        if sketch is None:
-            continue
-        geom_prop = sketch.prop("Geometry")
-        if geom_prop is None:
-            continue
-        loops, complete = sketch_profile_loops(geom_prop.geometry)
-        if not complete or len(loops) < 2:
-            continue
-        polygons = [l for l in loops if l[0] == "polygon"]
-        for i, outer in enumerate(polygons):
-            for j, inner in enumerate(polygons):
-                if i == j:
-                    continue
-                overts, iverts = outer[1], inner[1]
-                if not all(point_in_polygon(v, overts) for v in iverts):
-                    continue   # not nested — separate removal regions, fine
-                touch = min(
-                    point_segment_distance(v, overts[k], overts[(k + 1) % len(overts)])
-                    for v in iverts for k in range(len(overts)))
-                if touch <= tol:
-                    findings.append(Finding(
-                        "island-not-interior", STRICT, sketch.name, sketch.label,
-                        f"island profile touches the outer removal loop in "
-                        f"pocket '{feature.label}' — keep the island strictly "
-                        f"interior or sketch removal regions directly"))
-    return findings
-
-
-def _is_island_sketch(sketch):
-    """True when the sketch's profile loops are nested (island pocket)."""
-    geom_prop = sketch.prop("Geometry")
-    if geom_prop is None:
-        return False
-    loops, complete = sketch_profile_loops(geom_prop.geometry)
-    if not complete:
-        return False
-    polygons = [l[1] for l in loops if l[0] == "polygon"]
-    for i, outer in enumerate(polygons):
-        for j, inner in enumerate(polygons):
-            if i != j and all(point_in_polygon(v, outer) for v in inner):
-                return True
-    return False
-
-
-def _severing_ratios(model):
-    """Shared scan for severing/caution checks.
-
-    Yields (feature, sketch, body, varset, propname, value, extent, limit)
-    for every joint-VarSet-bound dimensional parameter that removes wood
-    from a timber: profile widths/thicknesses vs. the section extent
-    (mortise rule) and housing depths vs. the through-dimension.
-
-    Island-pocket sketches (nested loops) are excluded from the profile
-    checks: there the inner profile is the *kept* tenon, and its width is
-    already checked on the receiving timber's mortise.
-    """
-    for feature in model.doc.of_type("PartDesign::Pocket"):
-        body = model.owner.get(feature.name)
-        if body is None:
-            continue
-        extents = model.section_extents(body)
-        if extents is None:
-            continue
-        min_extent = min(extents)
-        sketch = model.profile_sketch(feature)
-
-        # Housing depth: the pocket's own Length parameter.
-        for e in feature.expressions:
-            if e.path != "Length":
-                continue
-            hit = model.single_ref_value(e.expression)
-            if hit is None:
-                continue
-            value, varset, propname = hit
-            if model.kind.get(varset.name) != "joint":
-                continue
-            if "housing" in propname.replace("_", "").lower():
-                yield (feature, sketch, body, varset, propname,
-                       value, min_extent, HOUSING_LIMIT)
-
-        # Mortise/profile widths: dimensional constraints in the sketch.
-        if sketch is None:
-            continue
-        if _is_island_sketch(sketch):
-            continue
-        for ci in range(len(sketch.prop("Constraints").constraints
-                            if sketch.prop("Constraints") else [])):
-            expr = model.constraint_expression(sketch, ci)
-            if expr is None:
-                continue
-            hit = model.single_ref_value(expr)
-            if hit is None:
-                continue
-            value, varset, propname = hit
-            if model.kind.get(varset.name) != "joint":
-                continue
-            flat = propname.replace("_", "").lower()
-            # Housing_* parameters legitimately span the mating timber's
-            # full section; their severing exposure is depth, checked above.
-            if flat.startswith("housing"):
-                continue
-            if flat.endswith(("width", "thickness")):
-                yield (feature, sketch, body, varset, propname,
-                       value, min_extent, MORTISE_LIMIT)
-
-
-def rule_severing_limits(model):
-    """§6 strict: parameter values within severing limits.
-
-    Mortise/profile widths ≤ 75 % of the receiving section extent,
-    housing depths ≤ 50 % of the through-dimension (roadmap Phase 1).
-    """
-    findings = []
-    seen = set()
-    for (feature, sketch, body, varset, propname,
-         value, extent, limit) in _severing_ratios(model):
-        ratio = value / extent
-        key = (feature.name, varset.name, propname)
-        if ratio > limit + 1e-9 and key not in seen:
-            seen.add(key)
-            findings.append(Finding(
-                "severing-limit", STRICT, feature.name, feature.label,
-                f"'{varset.label}.{propname}' = {value:.1f} mm is "
-                f"{ratio:.0%} of '{body.label}' section extent "
-                f"({extent:.1f} mm); limit is {limit:.0%}"))
-    return findings
-
-
-FOOTPRINT_PAIRS = (
-    ("Tenon_Setback_Face1", "Tenon_Height", "Housing_Height"),
-    ("Tenon_Setback_Face2", "Tenon_Width", "Housing_Width"),
-)
-
-
-def footprint_violations(lookup):
-    """Setback + extent combinations exceeding their footprint opening.
-
-    `lookup(name)` returns the parameter value in mm, or None when the
-    parameter doesn't exist. Returns human-readable violation strings.
-    Shared by the joint-exceeds-footprint rule and the Apply-Joint
-    pre-flight (roadmap: apply-dialog parameter sanity bounds).
-    """
-    out = []
-    for setback_n, extent_n, opening_n in FOOTPRINT_PAIRS:
-        vals = [lookup(n) for n in (setback_n, extent_n, opening_n)]
-        if any(not isinstance(v, (int, float)) for v in vals):
-            continue
-        setback, extent, opening = vals
-        if setback + extent > opening + 1e-6:
-            out.append(
-                f"{setback_n} + {extent_n} = {setback + extent:.1f} mm "
-                f"exceeds {opening_n} = {opening:.1f} mm")
-    return out
-
-
-def rule_joint_fits_footprint(model):
-    """Roadmap parameter sanity: the joint must fit inside its landing
-    footprint. A setback + extent past the housing opening describes an
-    impossible joint (tenon taller/wider than the beam); sketch
-    dimensions invert and stick when parameters cross that line (live
-    Part E finding). Name-keyed on the template property conventions.
-    """
-    findings = []
-    for vs in model.joint_varsets():
-        def lookup(name, vs=vs):
-            p = vs.prop(name)
-            return p.value if p is not None else None
-        for violation in footprint_violations(lookup):
-            findings.append(Finding(
-                "joint-exceeds-footprint", STRICT, vs.name, vs.label,
-                f"{violation} — the joint does not fit its landing "
-                f"footprint and sketch dimensions will invert"))
-    return findings
-
-
 def rule_label_reserved_characters(model):
-    """§3 strict: Body and VarSet labels avoid the reserved characters.
-
-    Labels are otherwise free-form (permissive naming, July 2026), but
-    these labels get embedded verbatim in expressions (<<Label>>.Prop)
-    and in Placement_Record strings, where '>', '\\', ';' and line
-    breaks break parsing (verified against FreeCAD 1.1.1).
-    """
+    """§3 strict: Body, VarSet and datum labels avoid the reserved
+    characters — they are embedded verbatim in <<Label>> expressions."""
     findings = []
-    for obj in list(model.bodies) + list(model.varsets):
+    for obj in list(model.bodies) + list(model.varsets) + list(model.datums):
         bad = naming.reserved_in_label(obj.label)
         if bad:
             findings.append(Finding(
                 "label-reserved-characters", STRICT, obj.name, obj.label,
                 f"label contains reserved character(s) {bad!r} — '>', "
                 f"'\\', ';' and line breaks break <<Label>> expression "
-                f"references or the Placement_Record; any other "
-                f"characters are fine"))
-    return findings
-
-
-# --------------------------------------------------------------------------
-# Advisory rules
-# --------------------------------------------------------------------------
-
-# VarSet labels: Kind_Owner (TDim_/Group_/Project_/Order_/Layout_),
-# joint instances J-<Kind>-<serial> (legacy Joint_<Kind>_<ID> and the
-# longer TimberDims_ prefix grandfathered). The owner part is free-form
-# (permissive naming, July 2026). 'Layout_' covers both a joint's
-# companion layout VarSet ('Layout_J-HousedMT-001', whose owner is its
-# joint) and a hand-authored project layout VarSet.
-_VARSET_LABEL = re.compile(
-    r"^(TDim|TimberDims|Joint|Group|Project|Order|Layout)_.+$|^J-.+-.+$")
-_PROPERTY_NAME = re.compile(r"^[A-Z][A-Za-z0-9]*(_[A-Z0-9][A-Za-z0-9]*)+$")
-_DIMS_BASE_PROPS = {"Width", "Depth", "Length"}
-
-
-def rule_naming_conventions(model):
-    """§3 advisory: labels and property names follow the decided scheme.
-
-    VarSets are Kind_Owner (joint instances J-<Kind>-<serial>); timber
-    bodies are free-form but end in a separator + serial (permissive
-    naming, July 2026 — 'T-Post-Level1-003', 'T-Post.Balcony.001');
-    template properties are Part_Attribute[_Qualifier]. §7 debts 5/6
-    (prototype names predate the convention; ProjectVars et al.).
-    """
-    findings = []
-    for vs in model.varsets:
-        if not _VARSET_LABEL.match(vs.label):
-            findings.append(Finding(
-                "naming-convention", ADVISORY, vs.name, vs.label,
-                f"VarSet label does not follow Kind_Owner "
-                f"(TDim_/Group_/Project_/Order_/Layout_) or "
-                f"J-<Kind>-<serial>. The owner part is free-form — "
-                f"'TDim_T.Post.001' is fine — but a joint instance needs "
-                f"both hyphens ('J-Butt-000', not 'J-Butt.000'), since "
-                f"Apply Joint regenerates the label in that form"))
-        is_dims = model.kind.get(vs.name) == "dims"
-        bad_props = []
-        for p in vs.properties.values():
-            if p.group is None:        # framework property, not user-defined
-                continue
-            if is_dims and p.name in _DIMS_BASE_PROPS:
-                continue
-            if not _PROPERTY_NAME.match(p.name):
-                bad_props.append(p.name)
-        if bad_props:
-            findings.append(Finding(
-                "naming-convention", ADVISORY, vs.name, vs.label,
-                f"{len(bad_props)} property name(s) do not follow "
-                f"Part_Attribute[_Qualifier]: {', '.join(sorted(bad_props))}"))
-    for body in model.bodies:
-        if naming.split_serial(body.label)[1] is None:
-            findings.append(Finding(
-                "naming-convention", ADVISORY, body.name, body.label,
-                f"body label has no trailing serial (separator + digits, "
-                f"e.g. 'T-Post-003' or 'T-Post.Balcony.001') — naming is "
-                f"otherwise free-form, but copy tools bump the serial and "
-                f"will append '-001' to this label"))
-        dims = model.body_dims(body)
-        # the legacy 'TimberDims_' prefix is grandfathered: the rename to
-        # 'TDim_' is cosmetic and the binding is structural, so existing
-        # documents are not nagged into a rewrite
-        if dims is not None and naming.dims_owner(dims.label) != body.label:
-            findings.append(Finding(
-                "naming-convention", ADVISORY, dims.name, dims.label,
-                f"Dims VarSet label should be "
-                f"'{naming.dims_label(body.label)}' to match its timber — "
-                f"tools resolve the binding structurally, but drifted "
-                f"labels invite mistakes"))
+                f"references; any other characters are fine"))
     return findings
 
 
 def rule_lcs_child_plane_reference(model):
-    """§6 strict: attach to a landing frame by its sub-element, never to
-    the frame's child plane object directly.
-
-    A `Part::LocalCoordinateSystem` carries its own planes and axes (in
-    OriginFeatures). The engaged form references the FRAME with the
-    plane as a sub-element — support `(frame, "YZ_Plane.")` — and the
-    sketch then follows the frame rigidly. Referencing the child plane
-    OBJECT instead — support `(YZ_Plane003, "")` — resolves to identity
-    placement, not the frame's (roadmap landing-frame caveat): the
-    sketch silently detaches from the frame, betrayed only when the
-    frame is not at the body origin, and Apply-Joint cannot rebuild it
-    (the child plane is neither a body origin plane nor part of the
-    cloned stack) — it fails with 'no origin plane matching ...'. The
-    GUI records this form when a moved sketch is re-attached by picking
-    the plane rather than the frame. Verified against 1.1.1.
-    """
-    child_of = {}                    # child object name -> owning LCS
-    for lcs in model.doc.of_type("Part::LocalCoordinateSystem"):
+    """§6 strict: attach to an LCS by its sub-element, never to the LCS's
+    child plane object directly — that resolves to identity placement
+    and the sketch silently detaches (roadmap caveat, verified 1.1.1)."""
+    child_of = {}
+    for lcs in model.doc.of_type(DATUM_TYPE):
         feats = lcs.prop("OriginFeatures")
         for link in (feats.links if feats else []):
             child_of[link.obj] = lcs
@@ -685,369 +314,349 @@ def rule_lcs_child_plane_reference(model):
             target = model.doc.objects.get(link.obj)
             findings.append(Finding(
                 "lcs-child-plane-reference", STRICT, obj.name, obj.label,
-                f"attaches to datum '{target.label if target else link.obj}' "
-                f"directly, but it is a child of landing frame "
-                f"'{lcs.label}' — reference the frame with the plane as a "
-                f"sub-element (support '{lcs.label}', sub '{link.obj}.') so "
-                f"the sketch follows the frame; a direct child reference "
-                f"resolves to identity placement and Apply-Joint cannot "
-                f"rebuild it"))
+                f"attaches to '{target.label if target else link.obj}' "
+                f"directly, a child plane of '{lcs.label}' — reference the "
+                f"LCS with the plane as a sub-element instead; a direct "
+                f"child reference resolves to identity placement"))
     return findings
 
 
-def _joint_feature_members(model, vs):
-    """{name: (obj, body)} — a joint's features inside timber bodies.
+def rule_datum_not_attached(model):
+    """§4.2 strict: datums are positioned by direct placement with
+    MapMode Deactivated — never by attachment (three separate axis bugs
+    came from attached-datum mapping)."""
+    findings = []
+    for d in model.datums:
+        mode = d.prop("MapMode")
+        sup = d.prop("AttachmentSupport") or d.prop("Support")
+        attached = (mode is not None and mode.value not in (None, MAPMODE_DEACTIVATED)) \
+            or bool(sup and sup.links)
+        if attached:
+            findings.append(Finding(
+                "datum-not-attached", STRICT, d.name, d.label,
+                "datum is positioned by attachment — datums are placed "
+                "directly from the face table (MapMode Deactivated, no "
+                "support); re-create it with Add Datum"))
+    return findings
 
-    Structural, mirroring Apply-Joint's own membership test: anything
-    whose expressions reference the joint VarSet, plus the solid
-    features consuming those sketches (a Through-All pocket carries no
-    expression of its own), plus the frames and datums those members
-    hang off by attachment.
 
-    The attachment closure is not optional (added August 2026). Without
-    it this set diverged from `apply_joint.joint_members`, which has
-    always had it, in exactly one place — a frame carrying **no
-    expressions of its own**. That is a documented, deliberate template
-    shape: the entering timber's end frame sits at its body origin with
-    every offset zero and joins the joint through the mate frame
-    attached to it. Such a frame was a joint member at runtime and
-    invisible to the linter, so `frame-role` — a STRICT rule whose whole
-    purpose is that a role-less frame leaves Preview, Assemble and
-    Duplicate silently inert — could never fire on it. Caught by
-    TemplateSkeletonCompleteness on Joint_Butt, whose `End.Lcs` shipped
-    role-less through a completely silent lint.
-    """
-    members = {}
-    for (obj, _e, target, _prop) in model.refs:
-        if target.name != vs.name:
+def rule_datum_declaration(model):
+    """§4.2 strict: every datum declares a valid Face and is exactly what
+    the face table writes for it — Placement.z bound to Station, x/y
+    bound to the row's half-widths, accessors bound to the row's Dims
+    properties, the row's rotation. Rotation and position must come from
+    the same row: a mismatched pair looks plausible and cuts into air."""
+    findings = []
+    for d in model.datums:
+        face = model.datum_face(d)
+        if face not in facetable.PLACES:
+            findings.append(Finding(
+                "datum-declaration", STRICT, d.name, d.label,
+                f"Face is {face!r}; expected one of {', '.join(facetable.PLACES)}"))
             continue
-        body = model.owner.get(obj.name)
-        if body is not None:
-            members[obj.name] = (obj, body)
-    for feature in model.doc.of_type("PartDesign::"):
-        sketch = model.profile_sketch(feature)
-        if sketch is None or sketch.name not in members:
+        body = model.datum_owner(d)
+        dims = model.body_dims(body) if body is not None else None
+        if dims is None:
+            findings.append(Finding(
+                "datum-declaration", STRICT, d.name, d.label,
+                "datum is not inside a timber Body (no Dims VarSet drives "
+                "the owning body's base pad)"))
             continue
-        body = model.owner.get(feature.name)
-        if body is not None:
-            members.setdefault(feature.name, (feature, body))
-    for obj, _body in list(members.values()):
-        support = obj.prop("AttachmentSupport")
-        for link in (support.links if support else []):
-            target = model.doc.objects.get(link.obj)
-            if target is None or not target.is_type(
-                    "Part::LocalCoordinateSystem", "Part::Datum"):
-                continue
-            body = model.owner.get(target.name)
-            if body is not None:
-                members.setdefault(target.name, (target, body))
-    return members
+        exprs = {e.path.lstrip("."): e.expression for e in d.expressions}
+        problems = []
+        if exprs.get("Placement.Base.z") != naming.PROP_STATION:
+            problems.append("Placement.z is not bound to Station")
+        want = facetable.position_expressions(face, dims.label)
+        for path, expr in want.items():
+            if exprs.get(path.lstrip(".")) != expr:
+                problems.append(f"{path.lstrip('.')} should be '{expr}'")
+        for path in ("Placement.Base.x", "Placement.Base.y"):
+            if path in exprs and "." + path not in want:
+                problems.append(f"{path} is bound but the "
+                                f"{facetable.display(face)} row leaves it at 0")
+        for acc, expr in facetable.accessor_expressions(face, dims.label).items():
+            if exprs.get(acc) != expr:
+                problems.append(f"{acc} should be '{expr}'")
+        pl = d.prop("Placement")
+        row = facetable.FACE_TABLE[face]
+        if pl is not None and pl.placement is not None \
+                and not facetable.same_rotation(pl.placement.q, row.quaternion):
+            problems.append(f"rotation is not the {facetable.display(face)} "
+                            f"row's (quaternion {row.quaternion})")
+        if problems:
+            findings.append(Finding(
+                "datum-declaration", STRICT, d.name, d.label,
+                f"datum on {facetable.display(face)} does not match its "
+                f"face-table row: " + "; ".join(problems)))
+    return findings
 
 
-def _joint_abbrev(vs):
-    """A joint VarSet's Template_Abbrev, or None."""
-    p = vs.prop(naming.TEMPLATE_ABBREV)
-    return p.value if p and p.value else None
+def rule_datum_link_scope(model):
+    """§4.2 strict: pairing is recorded as strings. A link property on a
+    datum cannot reach the mate (another Body) without a scope violation
+    on the next recompute, and links are never needed here."""
+    findings = []
+    for d in model.datums:
+        bad = [p.name for p in d.properties.values()
+               if p.group is not None
+               and p.type_id.startswith(("App::PropertyLink", "App::PropertyXLink"))]
+        if bad:
+            findings.append(Finding(
+                "datum-link-scope", STRICT, d.name, d.label,
+                f"link property(ies) {', '.join(bad)} on a datum — a link "
+                f"cannot cross a Body boundary; pairing uses the MateDatum "
+                f"and Joint strings, mate dimensions the joint VarSet's "
+                f"accessors"))
+    return findings
 
 
-def rule_joint_feature_labels(model):
-    """§3 strict: joint features are descriptive-first and carry the
-    joint's suffix — '<Descriptive>[.<TypeTag>].<Abbrev>.<serial>'.
+def rule_datum_pairing(model):
+    """§4.2 strict: a recorded pairing resolves both ways — the mate
+    exists, points back, both name the same joint VarSet, and that
+    VarSet's Host*/Mate* accessors read exactly these two datums."""
+    findings = []
+    for d in model.datums:
+        mate_p = d.prop(naming.PROP_MATE_DATUM)
+        joint_p = d.prop(naming.PROP_JOINT)
+        mate_name = mate_p.value if mate_p else ""
+        joint_name = joint_p.value if joint_p else ""
+        if not mate_name and not joint_name:
+            continue
+        problems = []
+        mate = model.datum_by_name(mate_name) if mate_name else None
+        if mate is None:
+            problems.append(f"MateDatum {mate_name!r} is not a datum in this document")
+        else:
+            back = mate.prop(naming.PROP_MATE_DATUM)
+            if not back or back.value != d.name:
+                problems.append(f"mate '{mate.label}' does not point back")
+            if model.datum_owner(mate) is model.datum_owner(d):
+                problems.append("mate is on the same timber")
+        vs = model.datum_joint(d)
+        if vs is None:
+            problems.append(f"Joint {joint_name!r} is not a VarSet in this document")
+        else:
+            if mate is not None:
+                mj = mate.prop(naming.PROP_JOINT)
+                if not mj or mj.value != vs.name:
+                    problems.append(f"mate '{mate.label}' names a different joint")
+            host = model.accessor_datum(vs, "Host")
+            mate_acc = model.accessor_datum(vs, "Mate")
+            if {o.name for o in (host, mate_acc) if o is not None} \
+                    != {o.name for o in (d, mate) if o is not None}:
+                problems.append(f"'{vs.label}' Host*/Mate* accessors do not "
+                                f"read this pair of datums")
+            missing = [s + a for s in naming.SIDES for a in naming.ACCESSORS
+                       if vs.prop(s + a) is None]
+            if missing:
+                problems.append(f"'{vs.label}' lacks accessor(s) {', '.join(missing)}")
+        if problems:
+            findings.append(Finding(
+                "datum-pairing", STRICT, d.name, d.label,
+                "pairing does not resolve: " + "; ".join(problems)))
+    return findings
 
-    Not cosmetic: Apply-Joint rewrites the joint suffix when it clones a
-    template, so a template feature missing it keeps its TEMPLATE name in
-    every document it is applied to, and two applications collide on the
-    label. Caught on the wedged half-dovetail template, whose labels
-    reached the applied model unrewritten — which is why this is strict
-    rather than advisory (reworked July 2026).
 
-    A label must also not embed its timber's name: that token is the
-    template's own timber, which does not exist in the target document.
+def rule_component_declaration(model):
+    """§4.3 strict: a component body declares a valid ComponentRole and a
+    ComponentOrder, and its Placement (or its mirroring's) is bound to a
+    datum — that binding is what seats it and what makes it a joint's."""
+    findings = []
+    for comp in model.components:
+        problems = []
+        role = comp.prop(naming.PROP_COMPONENT_ROLE).value
+        if role not in naming.COMPONENT_ROLES:
+            problems.append(f"ComponentRole {role!r}; expected "
+                            f"{' or '.join(naming.COMPONENT_ROLES)}")
+        order = comp.prop(naming.PROP_COMPONENT_ORDER)
+        if order is None or not isinstance(order.value, int):
+            problems.append("no integer ComponentOrder (cutters before adders)")
+        if model.component_datum(comp) is None:
+            problems.append("Placement is not bound to a datum "
+                            "('<<D_...>>.Placement' on the body, or on its "
+                            "mirroring)")
+        if problems:
+            findings.append(Finding(
+                "component-declaration", STRICT, comp.name, comp.label,
+                "; ".join(problems)))
+    return findings
 
-    Joints on the legacy 'Joint_<Kind>_<ID>' scheme stay advisory — those
-    documents predate the convention and are not being rewritten.
-    """
+
+def rule_component_reference_scope(model):
+    """§4.3 strict: joinery references only the datum it is placed on
+    and its joint VarSet — host data through the datum's own accessors,
+    mate data through the VarSet's Mate* accessors, never a timber's
+    Dims, another datum, or another timber's objects. Referencing the
+    mate's datum directly gives the right numbers today and the wrong
+    ones after a re-pair, and makes the template non-portable."""
+    findings = []
+    for comp in model.components:
+        datum = model.component_datum(comp)
+        vs = model.datum_joint(datum) if datum is not None else None
+        allowed = {o.name for o in (datum, vs) if o is not None}
+        members = model.component_members(comp) + model.mirrorings_of(comp)
+        own = {m.name for m in members}
+        for obj in members:
+            for e in obj.expressions:
+                for target, prop in expression_refs(e.expression, model.doc):
+                    if target.name in own or target.name in allowed:
+                        continue
+                    if target.is_type("App::Origin", "App::Plane", "App::Line"):
+                        continue
+                    if vs is None and model.kind.get(target.name) == "joint":
+                        continue        # unpaired template geometry: the joint VarSet is fine
+                    what = ("its own timber's Dims"
+                            if model.kind.get(target.name) == "dims" else
+                            "another datum" if target.name in model.datum_names else
+                            f"'{target.label}'")
+                    findings.append(Finding(
+                        "component-reference-scope", STRICT, obj.name, obj.label,
+                        f"'{e.path}' references {what} ('{target.label}."
+                        f"{prop}') — a component reads only the datum it "
+                        f"is placed on ('{datum.label if datum else '?'}') "
+                        f"and its joint VarSet"))
+    return findings
+
+
+def rule_boolean_operand(model):
+    """§4.3 strict: a PartDesign::Boolean applies exactly one operand,
+    and never an App::Part container — a container operand fails in the
+    GUI with 'Tool shape is null' while passing every headless check."""
+    findings = []
+    for bo in model.doc.of_type("PartDesign::Boolean"):
+        g = bo.prop("Group")
+        links = g.links if g else []
+        if len(links) != 1:
+            findings.append(Finding(
+                "boolean-operand", STRICT, bo.name, bo.label,
+                f"Boolean holds {len(links)} operand(s); one component per "
+                f"Boolean"))
+            continue
+        target = model.doc.objects.get(links[0].obj)
+        if target is not None and target.is_type("App::Part"):
+            findings.append(Finding(
+                "boolean-operand", STRICT, bo.name, bo.label,
+                f"operand '{target.label}' is an App::Part container — "
+                f"Booleans take a Body (or a Part::Mirroring of one)"))
+    return findings
+
+
+# --------------------------------------------------------------------------
+# Advisory rules
+# --------------------------------------------------------------------------
+
+_KIND_OWNER = re.compile(r"^(TDim|Group|Project|Order)_.+$")
+
+
+def rule_naming_conventions(model):
+    """§3 advisory: joint VarSets are J-<Kind>-<serial>; a Dims VarSet is
+    'TDim_<its timber>'; timber bodies end in a separator + serial; datum
+    labels start with 'D_'; component labels are <Descriptive>.<Kind>.
+    <serial> carrying their joint's kind and serial."""
     findings = []
     for vs in model.joint_varsets():
-        legacy = not vs.label.startswith(naming.JOINT_PREFIX)
-        severity = ADVISORY if legacy else STRICT
-        suffix = naming.joint_suffix_for(vs.label, _joint_abbrev(vs))
-        if suffix is None:
-            continue
-        for obj, body in _joint_feature_members(model, vs).values():
-            wrong = []
-            if not obj.label.endswith(suffix):
-                wrong.append(f"end with '{suffix}'")
-            if not legacy and body.label in obj.label:
-                wrong.append(f"not embed its timber's name "
-                             f"('{body.label}' — the tree already nests "
-                             f"this feature under its Body)")
-            if wrong:
-                findings.append(Finding(
-                    "joint-feature-label", severity, obj.name, obj.label,
-                    f"joint feature label should {' and '.join(wrong)} "
-                    f"(convention "
-                    f"'<Descriptive>[.<TypeTag>]{suffix}') — Apply-Joint "
-                    f"rewrites exactly that suffix, so this label would "
-                    f"reach applied models unchanged"))
+        if not naming.is_joint_varset_label(vs.label):
+            findings.append(Finding(
+                "naming-convention", ADVISORY, vs.name, vs.label,
+                "joint VarSet label should read 'J-<Kind>-<serial>' "
+                "('J-HousedMT-001'; a template's own is '...-000')"))
+    for body in model.timbers():
+        if naming.split_serial(body.label)[1] is None:
+            findings.append(Finding(
+                "naming-convention", ADVISORY, body.name, body.label,
+                "body label has no trailing serial (separator + digits, e.g. "
+                "'T-Post-003' or 'T-Post.Balcony.001') — copy tools bump "
+                "the serial and will append one"))
+        dims = model.body_dims(body)
+        if dims is not None and naming.dims_owner(dims.label) != body.label:
+            findings.append(Finding(
+                "naming-convention", ADVISORY, dims.name, dims.label,
+                f"Dims VarSet label should be '{naming.dims_label(body.label)}' "
+                f"to match its timber — tools resolve the binding "
+                f"structurally, but drifted labels invite mistakes"))
+    for d in model.datums:
+        if not d.label.startswith("D_"):
+            findings.append(Finding(
+                "naming-convention", ADVISORY, d.name, d.label,
+                "datum label should start with 'D_' "
+                "('D_T-Post-001_YPos_001', 'D_T-Post-001_A')"))
+    for comp in model.components:
+        parsed = naming.parse_component_label(comp.label)
+        datum = model.component_datum(comp)
+        vs = model.datum_joint(datum) if datum is not None else None
+        want = naming.parse_joint_label(vs.label) if vs is not None else None
+        if parsed is None:
+            findings.append(Finding(
+                "naming-convention", ADVISORY, comp.name, comp.label,
+                "component label should read '<Descriptive>.<Kind>.<serial>' "
+                "('Mortise.HousedMT.001')"))
+        elif want is not None and (parsed[1], parsed[2]) != want:
+            findings.append(Finding(
+                "naming-convention", ADVISORY, comp.name, comp.label,
+                f"component label carries '{parsed[1]}.{parsed[2]}' but its "
+                f"joint is '{vs.label}' — expected "
+                f"'{naming.component_label(parsed[0], *want)}'"))
     return findings
 
 
-def rule_frame_role(model):
-    """§3 strict: every joint frame declares its Tier-2 `Frame_Role`.
-
-    Preview Mated Joint, Assemble Timbers, Duplicate Timbers and the
-    end-B seat flip all locate a joint's landing and mate frames by this
-    property. It replaced a 'JointFrame'/'MateFrame' label-substring
-    match that failed SILENTLY — a renamed frame lint-cleaned and left
-    those four tools quietly inert. Each role needs exactly one Landing
-    frame; a joint carries at most one Mate frame (the half that enters
-    its mate declares the seated pose).
-
-    Legacy documents, whose frames predate the property, are advisory:
-    the label fallback still resolves them.
-    """
+def rule_property_naming(model):
+    """§3 advisory: user-defined properties on VarSets and datums are
+    UpperCamelCase with no separators (FreeCAD's own convention; the
+    Property View inserts display spaces itself)."""
     findings = []
-    for vs in model.joint_varsets():
-        legacy = not vs.label.startswith(naming.JOINT_PREFIX)
-        severity = ADVISORY if legacy else STRICT
-        per_body, mates = {}, []
-        for obj, body in _joint_feature_members(model, vs).values():
-            if not obj.is_type("Part::LocalCoordinateSystem"):
-                continue
-            p = obj.prop(naming.FRAME_ROLE_PROP)
-            role = (p.value if p and p.value
-                    else naming.legacy_frame_role(obj.label))
-            if role not in naming.FRAME_ROLES:
-                findings.append(Finding(
-                    "frame-role", severity, obj.name, obj.label,
-                    f"joint frame declares no {naming.FRAME_ROLE_PROP} "
-                    f"— add a string property naming its role "
-                    f"('{naming.FRAME_ROLE_LANDING}' or "
-                    f"'{naming.FRAME_ROLE_MATE}'); Preview, Assemble and "
-                    f"Duplicate cannot find this frame without it"))
-                continue
-            if role == naming.FRAME_ROLE_MATE:
-                mates.append(obj)
-            else:
-                per_body.setdefault(body.name, []).append(obj)
-        for body_name, frames in per_body.items():
-            if len(frames) > 1:
-                body = model.doc.objects.get(body_name)
-                findings.append(Finding(
-                    "frame-role", severity, frames[1].name, frames[1].label,
-                    f"{len(frames)} frames in "
-                    f"'{body.label if body else body_name}' claim "
-                    f"{naming.FRAME_ROLE_PROP} "
-                    f"'{naming.FRAME_ROLE_LANDING}' — a role lands once"))
-        if len(mates) > 1:
+    for obj in list(model.varsets) + list(model.datums):
+        bad = sorted(p.name for p in obj.properties.values()
+                     if p.group is not None and not naming.is_camel_case(p.name))
+        if bad:
             findings.append(Finding(
-                "frame-role", severity, mates[1].name, mates[1].label,
-                f"{len(mates)} frames claim {naming.FRAME_ROLE_PROP} "
-                f"'{naming.FRAME_ROLE_MATE}' — only the half that enters "
-                f"its mate declares the seated pose"))
-    return findings
-
-
-def _mate_frames(model):
-    """{name: LCS} for every frame declaring Frame_Role = Mate.
-
-    Scanned over the whole document rather than through
-    `_joint_feature_members`, so a mate frame the membership closure
-    does not reach is still covered — the rule is about what may attach
-    to the frame, which does not depend on how the frame was found.
-    """
-    mates = {}
-    for lcs in model.doc.of_type("Part::LocalCoordinateSystem"):
-        p = lcs.prop(naming.FRAME_ROLE_PROP)
-        role = (p.value if p and p.value
-                else naming.legacy_frame_role(lcs.label))
-        if role == naming.FRAME_ROLE_MATE:
-            mates[lcs.name] = lcs
-    return mates
-
-
-def rule_mate_frame_attachment(model):
-    """Strict: nothing attaches to a mate frame.
-
-    A mate frame is a **declaration**, not a datum: it says "these two
-    frames coincide when engaged" and carries no geometry of its own.
-    Its offset from the stick end is the joint's clear-span allowance
-    (frames-at-face, August 2026), so it MOVES whenever the allowance
-    changes — and anything hanging off it moves too.
-
-    `Joint_WedgedHalfDovetail` had exactly this: `Cheeks.Skt` was
-    attached to `Mate.Lcs`, so converting the template to frames-at-face
-    pushed the mate frame out by `Housing_Depth` and dragged the cheek
-    cut with it — cutting from `Housing_Depth` to
-    `Tenon_Length + Housing_Depth` instead of `0` to `Tenon_Length`,
-    leaving the tenon tip uncut and biting into the shoulder. It lints
-    clean, recomputes clean, and is wrong. `Joint_HousedMT` never had
-    the problem: its tenon sketch hangs off the landing frame and its
-    shoulder is a separate `ShoulderA.Dtm`.
-
-    Geometry hangs off the **landing** frame, with its own datum for a
-    shoulder. Attaching to a mate frame's child plane counts too — same
-    dependency, and `lcs-child-plane-reference` catches only the
-    reference *form*, not the choice of target.
-    """
-    mates = _mate_frames(model)
-    if not mates:
-        return []
-    child_of = {}                    # child object name -> owning LCS name
-    for name, lcs in mates.items():
-        feats = lcs.prop("OriginFeatures")
-        for link in (feats.links if feats else []):
-            child_of[link.obj] = name
-
-    findings = []
-    for obj in model.doc.objects.values():
-        if obj.name in mates or obj.name in child_of:
-            continue            # a mate frame's own children are not attachers
-        sup = obj.prop("AttachmentSupport") or obj.prop("Support")
-        if sup is None:
-            continue
-        for link in sup.links:
-            target = mates.get(link.obj) or mates.get(child_of.get(link.obj))
-            if target is None:
-                continue
-            via = ("" if link.obj in mates
-                   else f" (via its child '{link.obj}')")
-            findings.append(Finding(
-                "mate-frame-attachment", STRICT, obj.name, obj.label,
-                f"attaches to mate frame '{target.label}'{via} — a mate "
-                f"frame is a declaration, not a datum: its offset from "
-                f"the stick end is the joint's clear-span allowance, so "
-                f"it moves whenever the joinery changes and takes this "
-                f"with it. Attach to the landing frame instead, with "
-                f"its own datum for a shoulder"))
-            break
-    return findings
-
-
-def rule_template_abbrev(model):
-    """§3 advisory: a joint VarSet declares Template_Abbrev, the short
-    kind token its feature labels carry ('WHD'). Without one the labels
-    fall back to the long '_J-<Kind>-<serial>' suffix — correct, but the
-    verbose form this scheme exists to retire. Two joints sharing an
-    abbrev across different kinds are flagged: their feature labels
-    would collide in a document holding both."""
-    findings = []
-    by_abbrev = {}
-    for vs in model.joint_varsets():
-        abbrev = _joint_abbrev(vs)
-        if abbrev is None:
-            findings.append(Finding(
-                "template-abbrev", ADVISORY, vs.name, vs.label,
-                f"no {naming.TEMPLATE_ABBREV} property — feature labels "
-                f"fall back to the long "
-                f"'{naming.member_suffix(vs.label) or vs.label}' suffix; "
-                f"declare a short kind token to shorten them"))
-            continue
-        kind = naming.parse_joint_label(vs.label)
-        by_abbrev.setdefault(abbrev, []).append(
-            (vs, kind[0] if kind else vs.label))
-    for abbrev, entries in by_abbrev.items():
-        kinds = {k for _vs, k in entries}
-        if len(kinds) > 1:
-            vs = entries[-1][0]
-            findings.append(Finding(
-                "template-abbrev", ADVISORY, vs.name, vs.label,
-                f"{naming.TEMPLATE_ABBREV} '{abbrev}' is used by more "
-                f"than one joint kind ({', '.join(sorted(kinds))}) — "
-                f"their feature labels collide; give each kind its own "
-                f"token"))
+                "property-naming", ADVISORY, obj.name, obj.label,
+                f"property name(s) not UpperCamelCase: {', '.join(bad)} "
+                f"('TenonLength', not 'Tenon_Length')"))
     return findings
 
 
 def rule_duplicate_labels(model):
-    """§3 advisory: two VarSets or two joint features share a Label.
-
-    FreeCAD tolerates duplicates, but '<<Label>>' expression references
-    resolve to only one of them, and the tree becomes ambiguous. This
-    reaches the one collision the descriptive-first scheme introduces:
-    with the timber name gone from feature labels, a template whose two
-    halves both name a feature 'Housing' collides the moment it is
-    applied — hence the authoring rule that a template's feature labels
-    are unique ACROSS both halves.
-
-    Base features are excluded: they are not joint members, and they
-    carry their own timber's name ('Stick.T.Joist.003') precisely so
-    they never collide.
-    """
+    """§3 advisory: two expression-targetable objects share a Label —
+    '<<Label>>' resolves to only one of them."""
     findings = []
     seen = {}
-    for vs in model.varsets:
-        seen.setdefault(vs.label, []).append(vs)
-    for vs in model.joint_varsets():
-        for obj, _body in _joint_feature_members(model, vs).values():
-            seen.setdefault(obj.label, []).append(obj)
+    for obj in list(model.varsets) + list(model.datums) + list(model.components):
+        seen.setdefault(obj.label, []).append(obj)
     for label, objs in seen.items():
         names = sorted({o.name for o in objs})
         if len(names) > 1:
             findings.append(Finding(
                 "duplicate-label", ADVISORY, names[1], label,
-                f"{len(names)} objects share this label "
-                f"({', '.join(names)}) — '<<{label}>>' expression "
-                f"references resolve to only one of them; within a joint "
-                f"template, feature labels must be unique across both "
-                f"halves"))
+                f"{len(names)} objects share this label ({', '.join(names)}) "
+                f"— '<<{label}>>' expression references resolve to only one"))
     return findings
 
 
 def rule_symmetry_constraint(model):
-    """§6 advisory: centerline + half-width in place of Symmetry.
-
-    The Symmetry constraint is order- and target-sensitive (finding #13);
-    the adopted method is a centerline construction line with half-width
-    distance constraints.
-    """
+    """§6 advisory: centreline + half-width in place of Symmetric
+    (finding #13)."""
     findings = []
     for sketch in model.doc.of_type("Sketcher::SketchObject"):
         cons = sketch.prop("Constraints")
         if cons is None:
             continue
-        count = sum(1 for c in cons.constraints
-                    if c.type_id == Constraint.SYMMETRIC)
+        count = sum(1 for c in cons.constraints if c.type_id == Constraint.SYMMETRIC)
         if count:
             findings.append(Finding(
                 "symmetry-constraint", ADVISORY, sketch.name, sketch.label,
                 f"uses {count} Symmetric constraint(s); replace with "
-                f"centerline construction line + half-width constraints"))
-    return findings
-
-
-def rule_caution_threshold(model):
-    """§6 advisory: parameter values past the 35 % caution threshold."""
-    findings = []
-    seen = set()
-    for (feature, sketch, body, varset, propname,
-         value, extent, limit) in _severing_ratios(model):
-        ratio = value / extent
-        key = (feature.name, varset.name, propname)
-        if CAUTION_LIMIT + 1e-9 < ratio <= limit + 1e-9 and key not in seen:
-            seen.add(key)
-            findings.append(Finding(
-                "caution-threshold", ADVISORY, feature.name, feature.label,
-                f"'{varset.label}.{propname}' = {value:.1f} mm is "
-                f"{ratio:.0%} of '{body.label}' section extent "
-                f"({extent:.1f} mm); past the 35% caution threshold"))
+                f"half-width constraints measured from the origin"))
     return findings
 
 
 def rule_group_binding_deviation(model):
-    """§6 advisory: instances deviating from their group bindings.
-
-    When sibling VarSets bind a same-named property to a group VarSet and
-    one holds a literal instead, that instance silently deviates from its
-    group. (Full group membership arrives with Phase 1 tooling; this
-    detects the expression-visible case.)
-    """
+    """§4.7 advisory: sibling joint VarSets bind a same-named property to
+    a group VarSet and this one holds a literal — deliberate override?"""
     findings = []
-    bound = {}     # propname -> set of varset names binding it to a group
-    for (obj, e, target, prop) in model.refs:
+    bound = {}
+    for (obj, e, target, _prop) in model.refs:
         if obj.is_type("App::VarSet") and model.kind.get(target.name) == "group":
-            bound.setdefault(e.path, set()).add(obj.name)
+            bound.setdefault(e.path.lstrip("."), set()).add(obj.name)
     for propname, binders in bound.items():
         for vs in model.joint_varsets():
             if vs.name in binders or vs.prop(propname) is None:
@@ -1055,21 +664,14 @@ def rule_group_binding_deviation(model):
             findings.append(Finding(
                 "group-binding-deviation", ADVISORY, vs.name, vs.label,
                 f"property '{propname}' is a literal here but bound to a "
-                f"group VarSet on sibling(s) "
-                f"{', '.join(sorted(binders))} — deliberate override?"))
+                f"group VarSet on sibling(s) {', '.join(sorted(binders))} — "
+                f"deliberate override?"))
     return findings
 
 
 def rule_stale_attachment_offset(model):
-    """§5/§6 advisory: stale attachment-offset components.
-
-    Attachment offsets must be read in full — stray *translation* values
-    hide in unexamined components and send geometry to unexpected places
-    (finding #10, a translation along a rotated axis). Flag nonzero Base
-    components no expression drives. Rotation is not flagged: a literal
-    orientation on a datum is normal practice (e.g. the 180° flip
-    Apply-Joint writes on an end-B mate frame), not cruft.
-    """
+    """§5 advisory: nonzero AttachmentOffset translations no expression
+    drives hide in unexamined components (finding #10)."""
     findings = []
     for obj in model.doc.objects.values():
         p = obj.prop("AttachmentOffset")
@@ -1077,8 +679,7 @@ def rule_stale_attachment_offset(model):
             continue
         pl = p.placement
         driven = {e.path.split(".")[-1].lower()
-                  for e in obj.expressions
-                  if "AttachmentOffset" in e.path}
+                  for e in obj.expressions if "AttachmentOffset" in e.path}
         stray = [f"Base.{comp}={val:.3f}"
                  for comp, val in (("x", pl.px), ("y", pl.py), ("z", pl.pz))
                  if abs(val) > 1e-9 and comp not in driven]
@@ -1093,35 +694,30 @@ def rule_stale_attachment_offset(model):
 
 _AUTO_LABEL = re.compile(
     r"^(Sketch|Pad|Pocket|Hole|Body|VarSet|DatumPlane|DatumLine|DatumPoint|"
-    r"Fixed|Revolution|Groove|Chamfer|Fillet|Local_CS)\d*$")
-_NAMEABLE = ("PartDesign::", "Sketcher::", "Part::Datum", "App::VarSet")
+    r"Local_CS|LocalCoordinateSystem|Boolean|Mirroring|Revolution|Groove|"
+    r"Chamfer|Fillet)\d*$")
+_NAMEABLE = ("PartDesign::", "Sketcher::", "Part::Datum", "Part::Local",
+             "Part::Mirroring", "App::VarSet")
 
 
 def rule_auto_labels(model):
-    """§6 advisory: unrenamed auto-labeled features.
-
-    A label identical to FreeCAD's auto-generated name means the object
-    was never named per convention. §7 debt 4 (Hole001 on Post2).
-    """
+    """§3 advisory: a label identical to FreeCAD's auto-generated name
+    means the object was never named."""
     findings = []
     for obj in model.doc.objects.values():
-        if not obj.is_type(*_NAMEABLE) and not (
-                obj.is_type("App::FeaturePython") and obj.name.startswith("Joint")):
+        if not obj.is_type(*_NAMEABLE):
             continue
         if _AUTO_LABEL.match(obj.label):
             findings.append(Finding(
                 "auto-generated-label", ADVISORY, obj.name, obj.label,
-                f"label is FreeCAD's auto-generated name — rename per "
-                f"convention ('<Descriptive>[.<TypeTag>].<Abbrev>."
-                f"<serial>' for joint features)"))
+                "label is FreeCAD's auto-generated name — rename it "
+                "('Mortise.HousedMT.001', 'D_T-Post-001_YPos_001')"))
     return findings
 
 
 def rule_duplicate_tooltips(model):
     """§3 advisory: identical tooltip text on two properties of one
-    VarSet is almost always a copy-paste error (caught live during the
-    first template build: Tenon_Thickness carrying Housing_Depth's
-    tooltip). Tooltips are written per property."""
+    VarSet is almost always a copy-paste error."""
     findings = []
     for vs in model.varsets:
         by_text = {}
@@ -1141,16 +737,12 @@ def rule_duplicate_tooltips(model):
 
 
 def rule_missing_tooltips(model):
-    """§3 advisory: tooltips mandatory on every template-defined property.
-
-    Full-sentence context, including which face/end the value measures
-    from, written by the template author.
-    """
+    """§3 advisory: tooltips are mandatory on every template-defined
+    property (which face/end it measures from, in framing terms)."""
     findings = []
     for vs in model.varsets:
-        missing = sorted(
-            p.name for p in vs.properties.values()
-            if p.group is not None and not (p.doc or "").strip())
+        missing = sorted(p.name for p in vs.properties.values()
+                         if p.group is not None and not (p.doc or "").strip())
         if missing:
             findings.append(Finding(
                 "missing-tooltip", ADVISORY, vs.name, vs.label,
@@ -1159,43 +751,73 @@ def rule_missing_tooltips(model):
     return findings
 
 
+def rule_component_order(model):
+    """§4.4 advisory: within one timber, a joint's cutters apply before
+    its adders (the two orders do not commute — round 3 T5: applied
+    second, a shoulder cutter saws the tenon off)."""
+    findings = []
+    by_joint = {}
+    for comp in model.components:
+        datum = model.component_datum(comp)
+        vs = model.datum_joint(datum) if datum is not None else None
+        if datum is None:
+            continue
+        key = (vs.name if vs else "", model.datum_owner(datum).name
+               if model.datum_owner(datum) else "")
+        by_joint.setdefault(key, []).append(comp)
+    for comps in by_joint.values():
+        ordered = sorted(comps, key=lambda c: (c.prop(naming.PROP_COMPONENT_ORDER).value
+                                               if c.prop(naming.PROP_COMPONENT_ORDER)
+                                               and isinstance(c.prop(naming.PROP_COMPONENT_ORDER).value, int)
+                                               else 0))
+        seen_adder = False
+        for c in ordered:
+            role = c.prop(naming.PROP_COMPONENT_ROLE).value
+            if role == naming.COMPONENT_ADDER:
+                seen_adder = True
+            elif role == naming.COMPONENT_CUTTER and seen_adder:
+                findings.append(Finding(
+                    "component-order", ADVISORY, c.name, c.label,
+                    "cutter ordered after an adder on the same timber — "
+                    "unless the cutter deliberately trims the adder, give "
+                    "cutters the lower ComponentOrder"))
+    return findings
+
+
 # --------------------------------------------------------------------------
 # Runner
 # --------------------------------------------------------------------------
 
 STRICT_RULES = [
-    rule_joint_varset_single_instance,
-    rule_multi_instance_sketch,
-    rule_cross_timber_dims,
     rule_solid_face_references,
-    rule_island_interior,
-    rule_lcs_child_plane_reference,
-    rule_severing_limits,
-    rule_joint_fits_footprint,
     rule_label_reserved_characters,
-    rule_joint_feature_labels,
-    rule_frame_role,
-    rule_mate_frame_attachment,
+    rule_lcs_child_plane_reference,
+    rule_datum_not_attached,
+    rule_datum_declaration,
+    rule_datum_link_scope,
+    rule_datum_pairing,
+    rule_component_declaration,
+    rule_component_reference_scope,
+    rule_boolean_operand,
 ]
 
 ADVISORY_RULES = [
     rule_naming_conventions,
-    rule_template_abbrev,
+    rule_property_naming,
     rule_duplicate_labels,
     rule_symmetry_constraint,
-    rule_caution_threshold,
     rule_group_binding_deviation,
     rule_stale_attachment_offset,
     rule_auto_labels,
     rule_duplicate_tooltips,
     rule_missing_tooltips,
+    rule_component_order,
 ]
 
 
 def lint(path):
     """Lint one FCStd file; returns a list of Findings."""
-    doc = FcstdDocument.from_file(path)
-    return lint_document(doc)
+    return lint_document(FcstdDocument.from_file(path))
 
 
 def lint_document(doc):

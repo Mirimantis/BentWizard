@@ -1,0 +1,283 @@
+# Macro Begin: C:\Users\Adam\Documents\Projects\BentWizard\devBuildMacros\SpikeCutter_AppPart.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+import PartDesignGui
+
+# Gui.runCommand('Std_DlgMacroRecord',0)
+# Gui.Selection.clearSelection()
+### Begin command Std_VarSet
+App.activeDocument().addObject('App::VarSet','VarSet')
+App.ActiveDocument.getObject('VarSet').ViewObject.doubleClicked()
+### Begin command Std_Delete
+App.getDocument('Unnamed').removeObject('VarSet')
+App.getDocument('Unnamed').recompute()
+### End command Std_Delete
+# Gui.Selection.addSelection('Unnamed','Body')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body')
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody', None)
+# Gui.Selection.clearSelection()
+### Begin command Std_VarSet
+App.activeDocument().addObject('App::VarSet','VarSet')
+App.ActiveDocument.getObject('VarSet').ViewObject.doubleClicked()
+App.getDocument('Unnamed').VarSet.addProperty('App::PropertyLength', 'MortiseThickness', 'Base', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').MortiseThickness = '50.8 mm'
+
+App.getDocument('Unnamed').VarSet.addProperty('App::PropertyLength', 'MortiseWidth', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').MortiseWidth = '152.4 mm'
+
+App.getDocument('Unnamed').VarSet.addProperty('App::PropertyLength', 'MortiseDepth', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').MortiseDepth = '107.95 mm'
+
+App.getDocument('Unnamed').VarSet.addProperty('App::PropertyLength', 'HousingDepth', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').HousingDepth = '12.7 mm'
+
+App.getDocument('Unnamed').VarSet.addProperty('App::PropertyLength', 'HousingWidth', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').HousingWidth = '203.2 mm'
+
+App.getDocument('Unnamed').VarSet.addProperty('App::PropertyLength', 'HousingHeight', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').HousingHeight = '203.2 mm'
+
+App.getDocument('Unnamed').VarSet.addProperty('App::PropertyLength', 'SetbackFace1', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').SetbackFace1 = '50.8 mm'
+
+App.getDocument('Unnamed').VarSet.addProperty('App::PropertyLength', 'SetbackFace2', 'Joint', '')
+FreeCAD.getDocument('Unnamed').getObject('VarSet').SetbackFace2 = '25.4 mm'
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Pad.Sketch.')
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Unnamed').getObject('Sketch')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Unnamed').getObject('Body'), 'Pad.Sketch.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Unnamed').getObject('Sketch').setVisibility([0,1,2,3,4,5,6,7,8,9,10], True)
+# ActiveSketch = App.getDocument('Unnamed').getObject('Sketch')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.addSelection('Unnamed','Body','Pad.Sketch.Constraint11',103.312,230.775,0.014,False)
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Unnamed').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Unnamed').getObject('Sketch')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Unnamed','Body','Pad.Sketch.')
+App.getDocument('Unnamed').recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','VarSet')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Pad.Sketch.')
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Unnamed').getObject('Sketch')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Unnamed').getObject('Body'), 'Pad.Sketch.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Unnamed').getObject('Sketch').setVisibility([0,1,2,3,4,5,6,7,8,9,10], True)
+# ActiveSketch = App.getDocument('Unnamed').getObject('Sketch')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.addSelection('Unnamed','Body','Pad.Sketch.Constraint11',103.312,228.4,0.014,False)
+App.getDocument('Unnamed').Sketch.setExpression('Constraints[10]', u'<<JointParams>>.HousingWidth')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Pad.Sketch.Constraint10',-10.0072,103.206,0.014,False)
+App.getDocument('Unnamed').Sketch.setExpression('Constraints[9]', u'<<JointParams>>.HousingHeight')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Unnamed').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Unnamed').getObject('Sketch')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Unnamed','Body','Pad.Sketch.')
+App.getDocument('Unnamed').recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Pad001.Sketch001.')
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Unnamed').getObject('Sketch001')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Unnamed').getObject('Body'), 'Pad001.Sketch001.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Unnamed').getObject('Sketch001').setVisibility([0,1,2,3,4,5,6,7,8,9,10,11], True)
+# ActiveSketch = App.getDocument('Unnamed').getObject('Sketch001')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.addSelection('Unnamed','Body','Pad001.Sketch001.Constraint9',82.9555,240.275,0.014,False)
+# Gui.Selection.removeSelection('Unnamed','Body','Pad001.Sketch001.Constraint9')
+App.getDocument('Unnamed').Sketch001.setExpression('Constraints[8]', u'<<JointParams>>.MortiseThickness')
+# Gui.Selection.addSelection('Unnamed','Body','Pad001.Sketch001.Constraint10',201.364,95.4024,0.014,False)
+App.getDocument('Unnamed').Sketch001.setExpression('Constraints[9]', u'<<JointParams>>.MortiseWidth')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Pad001.Sketch001.Constraint12',-46.3102,10.9216,0.014,False)
+App.getDocument('Unnamed').Sketch001.setExpression('Constraints[11]', u'<<JointParams>>.SetbackFace2')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Pad001.Sketch001.Constraint11',28.3314,-28.7742,0.014,False)
+App.getDocument('Unnamed').Sketch001.setExpression('Constraints[10]', u'<<JointParams>>.SetbackFace1')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Unnamed').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Unnamed').getObject('Sketch001')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Unnamed','Body','Pad001.Sketch001.')
+App.getDocument('Unnamed').recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Pad.')
+# Gui.ActiveDocument.setEdit(App.getDocument('Unnamed').getObject('Pad'), 0)
+# Gui.Selection.clearSelection()
+App.getDocument('Unnamed').Pad.setExpression('Length', u'<<JointParams>>.HousingDepth')
+App.getDocument('Unnamed').getObject('Pad').TaperAngle = 0.000000
+App.getDocument('Unnamed').getObject('Pad').UseCustomVector = 0
+App.getDocument('Unnamed').getObject('Pad').Direction = (0, 0, 1)
+App.getDocument('Unnamed').getObject('Pad').ReferenceAxis = (App.getDocument('Unnamed').getObject('Sketch'), ['N_Axis'])
+App.getDocument('Unnamed').getObject('Pad').AlongSketchNormal = 1
+App.getDocument('Unnamed').getObject('Pad').SideType = 0
+App.getDocument('Unnamed').getObject('Pad').Type = 0
+App.getDocument('Unnamed').getObject('Pad').Type2 = 0
+App.getDocument('Unnamed').getObject('Pad').UpToFace = None
+App.getDocument('Unnamed').getObject('Pad').UpToFace2 = None
+App.getDocument('Unnamed').getObject('Pad').Reversed = 0
+App.getDocument('Unnamed').getObject('Pad').Offset = 0
+App.getDocument('Unnamed').getObject('Pad').Offset2 = 0
+App.getDocument('Unnamed').purgeTouched()
+App.getDocument('Unnamed').recompute()
+# Gui.getDocument('Unnamed').resetEdit()
+App.getDocument('Unnamed').getObject('Sketch').Visibility = False
+# Gui.Selection.addSelection('Unnamed','Body','Pad001.')
+# Gui.ActiveDocument.setEdit(App.getDocument('Unnamed').getObject('Pad001'), 0)
+# Gui.Selection.clearSelection()
+App.getDocument('Unnamed').Pad001.setExpression('Length', u'<<JointParams>>.MortiseDepth')
+App.getDocument('Unnamed').getObject('Pad001').TaperAngle = 0.000000
+App.getDocument('Unnamed').getObject('Pad001').UseCustomVector = 0
+App.getDocument('Unnamed').getObject('Pad001').Direction = (0, 0, 1)
+App.getDocument('Unnamed').getObject('Pad001').ReferenceAxis = (App.getDocument('Unnamed').getObject('Sketch001'), ['N_Axis'])
+App.getDocument('Unnamed').getObject('Pad001').AlongSketchNormal = 1
+App.getDocument('Unnamed').getObject('Pad001').SideType = 0
+App.getDocument('Unnamed').getObject('Pad001').Type = 0
+App.getDocument('Unnamed').getObject('Pad001').Type2 = 0
+App.getDocument('Unnamed').getObject('Pad001').UpToFace = None
+App.getDocument('Unnamed').getObject('Pad001').UpToFace2 = None
+App.getDocument('Unnamed').getObject('Pad001').Reversed = 0
+App.getDocument('Unnamed').getObject('Pad001').Offset = 0
+App.getDocument('Unnamed').getObject('Pad001').Offset2 = 0
+App.getDocument('Unnamed').purgeTouched()
+App.getDocument('Unnamed').recompute()
+App.getDocument('Unnamed').getObject('Pad').Visibility = False
+# Gui.getDocument('Unnamed').resetEdit()
+App.getDocument('Unnamed').getObject('Sketch001').Visibility = False
+# Gui.Selection.addSelection('Unnamed','Body')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body')
+# Gui.Selection.addSelection('Unnamed','VarSet')
+### Begin command Std_Part
+App.activeDocument().Tip = App.activeDocument().addObject('App::Part','Part')
+App.activeDocument().Part.Label = 'Part'
+selected_objects = Gui.Selection.getSelection()
+if len(selected_objects) > 1:
+    for obj in selected_objects:
+        # Add subobjects if obj is a container
+        if hasattr(obj, 'OutList') and len(obj.OutList) > 0:
+            for child in obj.OutList:
+                App.activeDocument().Part.addObject(child)
+        App.activeDocument().Part.addObject(obj)
+
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.clearSelection()
+### Begin command Std_Part
+App.activeDocument().Tip = App.activeDocument().addObject('App::Part','Part')
+App.activeDocument().Part.Label = 'Part'
+selected_objects = Gui.Selection.getSelection()
+if len(selected_objects) > 1:
+    for obj in selected_objects:
+        # Add subobjects if obj is a container
+        if hasattr(obj, 'OutList') and len(obj.OutList) > 0:
+            for child in obj.OutList:
+                App.activeDocument().Part.addObject(child)
+        App.activeDocument().Part.addObject(obj)
+
+# Gui.activateView('Gui::View3DInventor', True)
+# Gui.activeView().setActiveObject('part', App.activeDocument().Part)
+App.ActiveDocument.recompute()
+### End command Std_Part
+# Gui.Selection.addSelection('Unnamed','Body')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Part')
+# App.getDocument('Unnamed').getObject('Body').adjustRelativeLinks(App.getDocument('Unnamed').getObject('Part'))
+App.getDocument("Unnamed").getObject("Part").addObject(App.getDocument("Unnamed").getObject("Body"))
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Part','Body.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','VarSet')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Part')
+# App.getDocument('Unnamed').getObject('VarSet').adjustRelativeLinks(App.getDocument('Unnamed').getObject('Part'))
+App.getDocument("Unnamed").getObject("Part").addObject(App.getDocument("Unnamed").getObject("VarSet"))
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Part','VarSet.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Part')
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Unnamed").save()
+### End command Std_Save
+# Macro End: C:\Users\Adam\Documents\Projects\BentWizard\devBuildMacros\SpikeCutter_AppPart.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++

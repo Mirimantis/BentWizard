@@ -1,0 +1,889 @@
+# Macro Begin: C:\Users\Adam\Documents\Projects\BentWizard\devBuildMacros\Accessors C.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+import PartDesign
+import PartDesignGui
+import Sketcher
+
+# Gui.runCommand('Std_DlgMacroRecord',0)
+### Begin command Std_VarSet
+App.activeDocument().addObject('App::VarSet','VarSet003')
+App.ActiveDocument.getObject('VarSet003').ViewObject.doubleClicked()
+App.getDocument('Frame_Accessors').VarSet003.addProperty('App::PropertyLength', 'HousingDepth', 'Joint', '')
+FreeCAD.getDocument('Frame_Accessors').getObject('VarSet003').HousingDepth = '12.7 mm'
+
+App.getDocument('Frame_Accessors').VarSet003.addProperty('App::PropertyLength', 'TenonLength', 'Joint', '')
+FreeCAD.getDocument('Frame_Accessors').getObject('VarSet003').TenonLength = '101.6 mm'
+
+App.getDocument('Frame_Accessors').VarSet003.addProperty('App::PropertyLength', 'MortiseThickness', 'Joint', '')
+FreeCAD.getDocument('Frame_Accessors').getObject('VarSet003').MortiseThickness = '50.8 mm'
+
+App.getDocument('Frame_Accessors').VarSet003.addProperty('App::PropertyLength', 'MortiseWidthY', 'Joint', '')
+FreeCAD.getDocument('Frame_Accessors').getObject('VarSet003').MortiseWidthY = '76.19999999999999 mm'
+
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').moveObject(App.getDocument('Frame_Accessors').getObject('VarSet003'), True)
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').moveObject(App.getDocument('Frame_Accessors').getObject('VarSet003'), True)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','VarSet001')
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').moveObject(App.getDocument('Frame_Accessors').getObject('VarSet001'), True)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','VarSet001')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','VarSet003')
+App.getDocument('Frame_Accessors').VarSet003.addProperty('App::PropertyLength', 'MortiseFIt', 'Joint', '')
+FreeCAD.getDocument('Frame_Accessors').getObject('VarSet003').MortiseFIt = '6.35 mm'
+
+# Gui.Selection.clearSelection()
+### Begin command Std_Workbench
+# Gui.activateWorkbench("PartDesignWorkbench")
+### End command Std_Workbench
+### Begin command PartDesign_Body
+App.activeDocument().addObject('PartDesign::Body','Body002')
+App.ActiveDocument.getObject('Body002').Label = 'Body'
+App.ActiveDocument.getObject('Body002').AllowCompound = True
+# import PartDesignGui
+# Gui.activateView('Gui::View3DInventor', True)
+# Gui.activeView().setActiveObject('pdbody', App.activeDocument().Body002)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.ActiveDocument.Body002)
+App.ActiveDocument.recompute()
+### End command PartDesign_Body
+# Gui.Selection.addSelection('Frame_Accessors','Body002')
+# Gui.runCommand('PartDesign_CompSketches',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Origin009.XY_Plane007.')
+App.getDocument('Frame_Accessors').getObject('Body002').newObject('Sketcher::SketchObject','Sketch002')
+App.getDocument('Frame_Accessors').getObject('Sketch002').AttachmentSupport = (App.getDocument('Frame_Accessors').getObject('Origin009'),['XY_Plane007'])
+App.getDocument('Frame_Accessors').getObject('Sketch002').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Frame_Accessors').setEdit(App.getDocument('Frame_Accessors').getObject('Body002'), 0, 'Sketch002.')
+# import Show
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch002')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Frame_Accessors').getObject('Body002'), 'Sketch002.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch002')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CreateRectangle_Center',0)
+# Gui.runCommand('Sketcher_CompCreateRectangles',1)
+ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch002')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.LineSegment(App.Vector(-173.036942, 174.967361, 0.000000),App.Vector(-173.036942, -174.967361, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(-173.036942, -174.967361, 0.000000),App.Vector(173.036942, -174.967361, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(173.036942, -174.967361, 0.000000),App.Vector(173.036942, 174.967361, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(173.036942, 174.967361, 0.000000),App.Vector(-173.036942, 174.967361, 0.000000)))
+App.getDocument('Frame_Accessors').getObject('Sketch002').addGeometry(geoList,False)
+del geoList
+
+constrGeoList = []
+constrGeoList.append(Part.Point(App.Vector(0.000000, 0.000000, 0.000000)))
+App.getDocument('Frame_Accessors').getObject('Sketch002').addGeometry(constrGeoList,True)
+del constrGeoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 0, 2, 1, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 1, 2, 2, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 2, 2, 3, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 3, 2, 0, 1))
+constraintList.append(Sketcher.Constraint('Vertical', 0))
+constraintList.append(Sketcher.Constraint('Vertical', 2))
+constraintList.append(Sketcher.Constraint('Horizontal', 1))
+constraintList.append(Sketcher.Constraint('Horizontal', 3))
+constraintList.append(Sketcher.Constraint('Symmetric', 2, 1, 0, 1, 4, 1))
+App.getDocument('Frame_Accessors').getObject('Sketch002').addConstraint(constraintList)
+del constraintList
+
+App.getDocument('Frame_Accessors').getObject('Sketch002').addConstraint(Sketcher.Constraint('Coincident', 4, 1, -1, 1))
+
+
+# Gui.runCommand('Sketcher_CompDimensionTools',0)
+App.getDocument('Frame_Accessors').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',3,1,3,2,346.073884)) 
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Sketch002.Edge4',-44.3015,174.967,0,False)
+App.getDocument('Frame_Accessors').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceX',3,2,3,1,346.073884)) 
+App.getDocument('Frame_Accessors').Sketch002.setExpression('Constraints[10]', u'<<F_Post_J1>>.MateWidthU')
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch002').addConstraint(Sketcher.Constraint('Distance',2,1,2,2,349.934722)) 
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Sketch002.Edge3',50.8,86.5756,0,False)
+App.getDocument('Frame_Accessors').getObject('Sketch002').addConstraint(Sketcher.Constraint('DistanceY',2,1,2,2,349.934722)) 
+App.getDocument('Frame_Accessors').Sketch002.setExpression('Constraints[11]', u'<<F_Post_J1>>.MateWidthV')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Frame_Accessors').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch002')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Sketch002.')
+App.getDocument('Frame_Accessors').recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Sketch002.')
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch002')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Frame_Accessors').getObject('Body002'), 'Sketch002.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Frame_Accessors').getObject('Sketch002').setVisibility([0,1,2,3,4,5,6,7,8,9,10,11], True)
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch002')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.getDocument('Frame_Accessors').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch002')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Sketch002.')
+App.getDocument('Frame_Accessors').recompute()
+# Gui.Selection.clearSelection()
+# Gui.runCommand('PartDesign_CompSketches',0)
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Origin009.XY_Plane007.')
+App.getDocument('Frame_Accessors').getObject('Body002').newObject('Sketcher::SketchObject','Sketch003')
+App.getDocument('Frame_Accessors').getObject('Sketch003').AttachmentSupport = (App.getDocument('Frame_Accessors').getObject('Origin009'),['XY_Plane007'])
+App.getDocument('Frame_Accessors').getObject('Sketch003').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Frame_Accessors').setEdit(App.getDocument('Frame_Accessors').getObject('Body002'), 0, 'Sketch003.')
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch003')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Frame_Accessors').getObject('Body002'), 'Sketch003.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch003')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CompCreateRectangles',1)
+ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch003')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.LineSegment(App.Vector(-36.232778, -61.647461, 0.000000),App.Vector(33.081253, -61.647461, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(33.081253, -61.647461, 0.000000),App.Vector(33.081253, 61.647461, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(33.081253, 61.647461, 0.000000),App.Vector(-36.232778, 61.647461, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(-36.232778, 61.647461, 0.000000),App.Vector(-36.232778, -61.647461, 0.000000)))
+App.getDocument('Frame_Accessors').getObject('Sketch003').addGeometry(geoList,False)
+del geoList
+
+constrGeoList = []
+constrGeoList.append(Part.Point(App.Vector(-1.575763, 0.000000, 0.000000)))
+App.getDocument('Frame_Accessors').getObject('Sketch003').addGeometry(constrGeoList,True)
+del constrGeoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 0, 2, 1, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 1, 2, 2, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 2, 2, 3, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 3, 2, 0, 1))
+constraintList.append(Sketcher.Constraint('Horizontal', 0))
+constraintList.append(Sketcher.Constraint('Horizontal', 2))
+constraintList.append(Sketcher.Constraint('Vertical', 1))
+constraintList.append(Sketcher.Constraint('Vertical', 3))
+constraintList.append(Sketcher.Constraint('Symmetric', 2, 1, 0, 1, 4, 1))
+App.getDocument('Frame_Accessors').getObject('Sketch003').addConstraint(constraintList)
+del constraintList
+
+App.getDocument('Frame_Accessors').getObject('Sketch003').addConstraint(Sketcher.Constraint('PointOnObject', 4, 1, -1))
+
+
+# Gui.runCommand('Sketcher_CompDimensionTools',0)
+App.getDocument('Frame_Accessors').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',2,1,2,2,69.314031)) 
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Sketch003.Edge3',-6.19671,61.6475,0,False)
+App.getDocument('Frame_Accessors').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceX',2,2,2,1,69.314031)) 
+App.getDocument('Frame_Accessors').Sketch003.setExpression('Constraints[10]', u'<<J-MT-001>>.TenonWidthX')
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch003').addConstraint(Sketcher.Constraint('Distance',1,1,1,2,123.294922)) 
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Sketch003.Edge2',24.5253,14.2829,0,False)
+App.getDocument('Frame_Accessors').getObject('Sketch003').addConstraint(Sketcher.Constraint('DistanceY',1,1,1,2,123.294922)) 
+App.getDocument('Frame_Accessors').Sketch003.setExpression('Constraints[11]', u'<<J-MT-001>>.TenonWidthY')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Frame_Accessors').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch003')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Sketch003.')
+App.getDocument('Frame_Accessors').recompute()
+### Begin command PartDesign_Pad
+App.getDocument('Frame_Accessors').getObject('Body002').newObject('PartDesign::Pad','Pad002')
+App.getDocument('Frame_Accessors').getObject('Pad002').Profile = (App.getDocument('Frame_Accessors').getObject('Sketch003'), ['',])
+App.getDocument('Frame_Accessors').getObject('Pad002').Length = 10
+App.ActiveDocument.recompute()
+App.getDocument('Frame_Accessors').getObject('Pad002').ReferenceAxis = (App.getDocument('Frame_Accessors').getObject('Sketch003'),['N_Axis'])
+App.getDocument('Frame_Accessors').getObject('Sketch003').Visibility = False
+App.ActiveDocument.recompute()
+# App.getDocument('Frame_Accessors').getObject('Pad002').ViewObject.ShapeAppearance=getattr(App.getDocument('Frame_Accessors').getObject('Body002').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Frame_Accessors').getObject('Pad002').ViewObject.ShapeAppearance)
+# App.getDocument('Frame_Accessors').getObject('Pad002').ViewObject.LineColor=getattr(App.getDocument('Frame_Accessors').getObject('Body002').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Frame_Accessors').getObject('Pad002').ViewObject.LineColor)
+# App.getDocument('Frame_Accessors').getObject('Pad002').ViewObject.PointColor=getattr(App.getDocument('Frame_Accessors').getObject('Body002').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Frame_Accessors').getObject('Pad002').ViewObject.PointColor)
+# App.getDocument('Frame_Accessors').getObject('Pad002').ViewObject.Transparency=getattr(App.getDocument('Frame_Accessors').getObject('Body002').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Frame_Accessors').getObject('Pad002').ViewObject.Transparency)
+# App.getDocument('Frame_Accessors').getObject('Pad002').ViewObject.DisplayMode=getattr(App.getDocument('Frame_Accessors').getObject('Body002').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Frame_Accessors').getObject('Pad002').ViewObject.DisplayMode)
+# Gui.getDocument('Frame_Accessors').setEdit(App.getDocument('Frame_Accessors').getObject('Body002'), 0, 'Pad002.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Pad
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').Pad002.setExpression('Length', u'<<J-MT-001>>.TenonLengthZ + <<J-MT-001>>.HousingDepth + <<J-MT-001>>.MortiseFIt')
+App.getDocument('Frame_Accessors').getObject('Pad002').TaperAngle = 0.000000
+App.getDocument('Frame_Accessors').getObject('Pad002').UseCustomVector = 0
+App.getDocument('Frame_Accessors').getObject('Pad002').Direction = (0, 0, 1)
+App.getDocument('Frame_Accessors').getObject('Pad002').ReferenceAxis = (App.getDocument('Frame_Accessors').getObject('Sketch003'), ['N_Axis'])
+App.getDocument('Frame_Accessors').getObject('Pad002').AlongSketchNormal = 1
+App.getDocument('Frame_Accessors').getObject('Pad002').SideType = 0
+App.getDocument('Frame_Accessors').getObject('Pad002').Type = 0
+App.getDocument('Frame_Accessors').getObject('Pad002').Type2 = 0
+App.getDocument('Frame_Accessors').getObject('Pad002').UpToFace = None
+App.getDocument('Frame_Accessors').getObject('Pad002').UpToFace2 = None
+App.getDocument('Frame_Accessors').getObject('Pad002').Reversed = 1
+App.getDocument('Frame_Accessors').getObject('Pad002').Offset = 0
+App.getDocument('Frame_Accessors').getObject('Pad002').Offset2 = 0
+App.getDocument('Frame_Accessors').purgeTouched()
+App.getDocument('Frame_Accessors').recompute()
+# Gui.getDocument('Frame_Accessors').resetEdit()
+App.getDocument('Frame_Accessors').getObject('Sketch003').Visibility = False
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Sketch002.')
+### Begin command PartDesign_Pad
+App.getDocument('Frame_Accessors').getObject('Body002').newObject('PartDesign::Pad','Pad003')
+App.getDocument('Frame_Accessors').getObject('Pad003').Profile = (App.getDocument('Frame_Accessors').getObject('Sketch002'), ['',])
+App.getDocument('Frame_Accessors').getObject('Pad003').Length = 10
+App.ActiveDocument.recompute()
+App.getDocument('Frame_Accessors').getObject('Pad003').ReferenceAxis = (App.getDocument('Frame_Accessors').getObject('Sketch002'),['N_Axis'])
+App.getDocument('Frame_Accessors').getObject('Sketch002').Visibility = False
+App.ActiveDocument.recompute()
+# App.getDocument('Frame_Accessors').getObject('Pad003').ViewObject.ShapeAppearance=getattr(App.getDocument('Frame_Accessors').getObject('Pad002').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Frame_Accessors').getObject('Pad003').ViewObject.ShapeAppearance)
+# App.getDocument('Frame_Accessors').getObject('Pad003').ViewObject.LineColor=getattr(App.getDocument('Frame_Accessors').getObject('Pad002').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Frame_Accessors').getObject('Pad003').ViewObject.LineColor)
+# App.getDocument('Frame_Accessors').getObject('Pad003').ViewObject.PointColor=getattr(App.getDocument('Frame_Accessors').getObject('Pad002').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Frame_Accessors').getObject('Pad003').ViewObject.PointColor)
+# App.getDocument('Frame_Accessors').getObject('Pad003').ViewObject.Transparency=getattr(App.getDocument('Frame_Accessors').getObject('Pad002').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Frame_Accessors').getObject('Pad003').ViewObject.Transparency)
+# App.getDocument('Frame_Accessors').getObject('Pad003').ViewObject.DisplayMode=getattr(App.getDocument('Frame_Accessors').getObject('Pad002').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Frame_Accessors').getObject('Pad003').ViewObject.DisplayMode)
+# Gui.getDocument('Frame_Accessors').setEdit(App.getDocument('Frame_Accessors').getObject('Body002'), 0, 'Pad003.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Pad
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').Pad003.setExpression('Length', u'<<J-MT-001>>.HousingDepth')
+App.getDocument('Frame_Accessors').getObject('Pad003').TaperAngle = 0.000000
+App.getDocument('Frame_Accessors').getObject('Pad003').UseCustomVector = 0
+App.getDocument('Frame_Accessors').getObject('Pad003').Direction = (0, 0, 1)
+App.getDocument('Frame_Accessors').getObject('Pad003').ReferenceAxis = (App.getDocument('Frame_Accessors').getObject('Sketch002'), ['N_Axis'])
+App.getDocument('Frame_Accessors').getObject('Pad003').AlongSketchNormal = 1
+App.getDocument('Frame_Accessors').getObject('Pad003').SideType = 0
+App.getDocument('Frame_Accessors').getObject('Pad003').Type = 0
+App.getDocument('Frame_Accessors').getObject('Pad003').Type2 = 0
+App.getDocument('Frame_Accessors').getObject('Pad003').UpToFace = None
+App.getDocument('Frame_Accessors').getObject('Pad003').UpToFace2 = None
+App.getDocument('Frame_Accessors').getObject('Pad003').Reversed = 1
+App.getDocument('Frame_Accessors').getObject('Pad003').Offset = 0
+App.getDocument('Frame_Accessors').getObject('Pad003').Offset2 = 0
+App.getDocument('Frame_Accessors').purgeTouched()
+App.getDocument('Frame_Accessors').recompute()
+App.getDocument('Frame_Accessors').getObject('Pad002').Visibility = False
+# Gui.getDocument('Frame_Accessors').resetEdit()
+App.getDocument('Frame_Accessors').getObject('Sketch002').Visibility = False
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Pad002.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Pad003.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Pad002.')
+# Gui.ActiveDocument.setEdit(App.getDocument('Frame_Accessors').getObject('Pad002'), 0)
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').recompute()
+# Gui.getDocument('Frame_Accessors').resetEdit()
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Pad002.Sketch003.')
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch003')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Frame_Accessors').getObject('Body002'), 'Pad002.Sketch003.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Frame_Accessors').getObject('Sketch003').setVisibility([0,1,2,3,4,5,6,7,8,9,10,11], True)
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch003')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Pad002.Sketch003.Constraint12',112.461,14.7306,0.014,False)
+# Gui.Selection.removeSelection('Frame_Accessors','Body002','Pad002.Sketch003.Constraint12')
+# Gui.getDocument('Frame_Accessors').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch003')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Frame_Accessors','Body002','Pad002.Sketch003.')
+App.getDocument('Frame_Accessors').recompute()
+# Gui.Selection.clearSelection()
+### Begin command PartDesign_Body
+App.activeDocument().addObject('PartDesign::Body','Body003')
+App.ActiveDocument.getObject('Body003').Label = 'Body'
+App.ActiveDocument.getObject('Body003').AllowCompound = True
+# Gui.activateView('Gui::View3DInventor', True)
+# Gui.activeView().setActiveObject('pdbody', App.activeDocument().Body003)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.ActiveDocument.Body003)
+App.ActiveDocument.recompute()
+### End command PartDesign_Body
+# Gui.Selection.addSelection('Frame_Accessors','Body003')
+# Gui.runCommand('PartDesign_CompSketches',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Origin011.XY_Plane008.')
+App.getDocument('Frame_Accessors').getObject('Body003').newObject('Sketcher::SketchObject','Sketch004')
+App.getDocument('Frame_Accessors').getObject('Sketch004').AttachmentSupport = (App.getDocument('Frame_Accessors').getObject('Origin011'),['XY_Plane008'])
+App.getDocument('Frame_Accessors').getObject('Sketch004').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Frame_Accessors').setEdit(App.getDocument('Frame_Accessors').getObject('Body003'), 0, 'Sketch004.')
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch004')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Frame_Accessors').getObject('Body003'), 'Sketch004.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch004')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CompCreateRectangles',1)
+ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch004')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.LineSegment(App.Vector(-75.238134, -111.683815, 0.000000),App.Vector(68.738968, -111.683815, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(68.738968, -111.683815, 0.000000),App.Vector(68.738968, 111.683815, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(68.738968, 111.683815, 0.000000),App.Vector(-75.238134, 111.683815, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(-75.238134, 111.683815, 0.000000),App.Vector(-75.238134, -111.683815, 0.000000)))
+App.getDocument('Frame_Accessors').getObject('Sketch004').addGeometry(geoList,False)
+del geoList
+
+constrGeoList = []
+constrGeoList.append(Part.Point(App.Vector(-3.249583, 0.000000, 0.000000)))
+App.getDocument('Frame_Accessors').getObject('Sketch004').addGeometry(constrGeoList,True)
+del constrGeoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 0, 2, 1, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 1, 2, 2, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 2, 2, 3, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 3, 2, 0, 1))
+constraintList.append(Sketcher.Constraint('Horizontal', 0))
+constraintList.append(Sketcher.Constraint('Horizontal', 2))
+constraintList.append(Sketcher.Constraint('Vertical', 1))
+constraintList.append(Sketcher.Constraint('Vertical', 3))
+constraintList.append(Sketcher.Constraint('Symmetric', 2, 1, 0, 1, 4, 1))
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(constraintList)
+del constraintList
+
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(Sketcher.Constraint('PointOnObject', 4, 1, -1))
+
+
+# Gui.runCommand('Sketcher_CompDimensionTools',0)
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(Sketcher.Constraint('Distance',2,1,2,2,143.977102)) 
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Sketch004.Edge3',-14.1764,111.684,0,False)
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(Sketcher.Constraint('DistanceX',2,2,2,1,143.977102)) 
+App.getDocument('Frame_Accessors').Sketch004.setExpression('Constraints[10]', u'<<J-MT-001>>.TenonWidthX')
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(Sketcher.Constraint('Distance',1,1,1,2,223.367630)) 
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Sketch004.Edge2',43.0003,45.48,0,False)
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(Sketcher.Constraint('DistanceY',1,1,1,2,223.367630)) 
+App.getDocument('Frame_Accessors').Sketch004.setExpression('Constraints[11]', u'<<J-MT-001>>.TenonWidthY')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Frame_Accessors').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch004')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Sketch004.')
+App.getDocument('Frame_Accessors').recompute()
+### Begin command PartDesign_Pad
+App.getDocument('Frame_Accessors').getObject('Body003').newObject('PartDesign::Pad','Pad004')
+App.getDocument('Frame_Accessors').getObject('Pad004').Profile = (App.getDocument('Frame_Accessors').getObject('Sketch004'), ['',])
+App.getDocument('Frame_Accessors').getObject('Pad004').Length = 10
+App.ActiveDocument.recompute()
+App.getDocument('Frame_Accessors').getObject('Pad004').ReferenceAxis = (App.getDocument('Frame_Accessors').getObject('Sketch004'),['N_Axis'])
+App.getDocument('Frame_Accessors').getObject('Sketch004').Visibility = False
+App.ActiveDocument.recompute()
+# App.getDocument('Frame_Accessors').getObject('Pad004').ViewObject.ShapeAppearance=getattr(App.getDocument('Frame_Accessors').getObject('Body003').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Frame_Accessors').getObject('Pad004').ViewObject.ShapeAppearance)
+# App.getDocument('Frame_Accessors').getObject('Pad004').ViewObject.LineColor=getattr(App.getDocument('Frame_Accessors').getObject('Body003').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Frame_Accessors').getObject('Pad004').ViewObject.LineColor)
+# App.getDocument('Frame_Accessors').getObject('Pad004').ViewObject.PointColor=getattr(App.getDocument('Frame_Accessors').getObject('Body003').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Frame_Accessors').getObject('Pad004').ViewObject.PointColor)
+# App.getDocument('Frame_Accessors').getObject('Pad004').ViewObject.Transparency=getattr(App.getDocument('Frame_Accessors').getObject('Body003').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Frame_Accessors').getObject('Pad004').ViewObject.Transparency)
+# App.getDocument('Frame_Accessors').getObject('Pad004').ViewObject.DisplayMode=getattr(App.getDocument('Frame_Accessors').getObject('Body003').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Frame_Accessors').getObject('Pad004').ViewObject.DisplayMode)
+# Gui.getDocument('Frame_Accessors').setEdit(App.getDocument('Frame_Accessors').getObject('Body003'), 0, 'Pad004.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Pad
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').Pad004.setExpression('Length', u'<<J-MT-001>>.TenonLengthZ + <<J-MT-001>>.HousingDepth')
+App.getDocument('Frame_Accessors').getObject('Pad004').TaperAngle = 0.000000
+App.getDocument('Frame_Accessors').getObject('Pad004').UseCustomVector = 0
+App.getDocument('Frame_Accessors').getObject('Pad004').Direction = (0, 0, 1)
+App.getDocument('Frame_Accessors').getObject('Pad004').ReferenceAxis = (App.getDocument('Frame_Accessors').getObject('Sketch004'), ['N_Axis'])
+App.getDocument('Frame_Accessors').getObject('Pad004').AlongSketchNormal = 1
+App.getDocument('Frame_Accessors').getObject('Pad004').SideType = 0
+App.getDocument('Frame_Accessors').getObject('Pad004').Type = 0
+App.getDocument('Frame_Accessors').getObject('Pad004').Type2 = 0
+App.getDocument('Frame_Accessors').getObject('Pad004').UpToFace = None
+App.getDocument('Frame_Accessors').getObject('Pad004').UpToFace2 = None
+App.getDocument('Frame_Accessors').getObject('Pad004').Reversed = 0
+App.getDocument('Frame_Accessors').getObject('Pad004').Offset = 0
+App.getDocument('Frame_Accessors').getObject('Pad004').Offset2 = 0
+App.getDocument('Frame_Accessors').purgeTouched()
+App.getDocument('Frame_Accessors').recompute()
+# Gui.getDocument('Frame_Accessors').resetEdit()
+App.getDocument('Frame_Accessors').getObject('Sketch004').Visibility = False
+# Gui.runCommand('PartDesign_CompSketches',0)
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Origin011.XY_Plane008.')
+App.getDocument('Frame_Accessors').getObject('Body003').newObject('Sketcher::SketchObject','Sketch005')
+App.getDocument('Frame_Accessors').getObject('Sketch005').AttachmentSupport = (App.getDocument('Frame_Accessors').getObject('Origin011'),['XY_Plane008'])
+App.getDocument('Frame_Accessors').getObject('Sketch005').MapMode = 'FlatFace'
+App.ActiveDocument.recompute()
+# Gui.getDocument('Frame_Accessors').setEdit(App.getDocument('Frame_Accessors').getObject('Body003'), 0, 'Sketch005.')
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch005')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Frame_Accessors').getObject('Body003'), 'Sketch005.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch005')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Sketcher_CompCreateRectangles',1)
+ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch005')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.LineSegment(App.Vector(-61.963184, -72.992279, 0.000000),App.Vector(61.963184, -72.992279, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(61.963184, -72.992279, 0.000000),App.Vector(61.963184, 72.992279, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(61.963184, 72.992279, 0.000000),App.Vector(-61.963184, 72.992279, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(-61.963184, 72.992279, 0.000000),App.Vector(-61.963184, -72.992279, 0.000000)))
+App.getDocument('Frame_Accessors').getObject('Sketch005').addGeometry(geoList,False)
+del geoList
+
+constrGeoList = []
+constrGeoList.append(Part.Point(App.Vector(0.000000, 0.000000, 0.000000)))
+App.getDocument('Frame_Accessors').getObject('Sketch005').addGeometry(constrGeoList,True)
+del constrGeoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 0, 2, 1, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 1, 2, 2, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 2, 2, 3, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 3, 2, 0, 1))
+constraintList.append(Sketcher.Constraint('Horizontal', 0))
+constraintList.append(Sketcher.Constraint('Horizontal', 2))
+constraintList.append(Sketcher.Constraint('Vertical', 1))
+constraintList.append(Sketcher.Constraint('Vertical', 3))
+constraintList.append(Sketcher.Constraint('Symmetric', 2, 1, 0, 1, 4, 1))
+App.getDocument('Frame_Accessors').getObject('Sketch005').addConstraint(constraintList)
+del constraintList
+
+App.getDocument('Frame_Accessors').getObject('Sketch005').addConstraint(Sketcher.Constraint('Coincident', 4, 1, -1, 1))
+
+
+# Gui.runCommand('Sketcher_CompDimensionTools',0)
+App.getDocument('Frame_Accessors').getObject('Sketch005').addConstraint(Sketcher.Constraint('Distance',2,1,2,2,123.926368)) 
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Sketch005.Edge3',28.7502,72.9923,0,False)
+App.getDocument('Frame_Accessors').getObject('Sketch005').addConstraint(Sketcher.Constraint('DistanceX',2,2,2,1,123.926368)) 
+App.getDocument('Frame_Accessors').getObject('Sketch005').addConstraint(Sketcher.Constraint('Angle',-2,2,2,2,1.570796)) 
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Sketch005.V_Axis',0,116.314,0,False)
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch005').addConstraint(Sketcher.Constraint('Distance',2,1,2,2,123.926368)) 
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Sketch005.Edge3',22.6852,72.9923,0,False)
+App.getDocument('Frame_Accessors').getObject('Sketch005').addConstraint(Sketcher.Constraint('DistanceX',2,2,2,1,123.926368)) 
+App.getDocument('Frame_Accessors').Sketch005.setExpression('Constraints[10]', u'<<F_Post_J1>>.MateWidthU')
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch005').addConstraint(Sketcher.Constraint('Distance',1,1,1,2,145.984558)) 
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Sketch005.Edge2',50.8,20.4291,0,False)
+App.getDocument('Frame_Accessors').getObject('Sketch005').addConstraint(Sketcher.Constraint('DistanceY',1,1,1,2,145.984558)) 
+App.getDocument('Frame_Accessors').Sketch005.setExpression('Constraints[11]', u'<<F_Post_J1>>.MateWidthV')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Frame_Accessors').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch005')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Sketch005.')
+App.getDocument('Frame_Accessors').recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.')
+# Gui.Selection.clearSelection()
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch004')
+# tv = Show.TempoVis(App.ActiveDocument, tag= ActiveSketch.ViewObject.TypeId)
+# ActiveSketch.ViewObject.TempoVis = tv
+# if ActiveSketch.ViewObject.EditingWorkbench:
+#   tv.activateWorkbench(ActiveSketch.ViewObject.EditingWorkbench)
+# if ActiveSketch.ViewObject.HideDependent:
+#   tv.hide(tv.get_all_dependent(App.getDocument('Frame_Accessors').getObject('Body003'), 'Pad004.Sketch004.'))
+# if ActiveSketch.ViewObject.ShowSupport:
+#   tv.show([ref[0] for ref in ActiveSketch.AttachmentSupport if not (ref[0].isDerivedFrom("App::Plane") or ref[0].isDerivedFrom("App::LocalCoordinateSystem"))])
+# if ActiveSketch.ViewObject.ShowLinks:
+#   tv.show([ref[0] for ref in ActiveSketch.ExternalGeometry])
+# tv.sketchClipPlane(ActiveSketch, ActiveSketch.ViewObject.SectionView)
+# tv.hide(ActiveSketch)
+# del(tv)
+# del(ActiveSketch)
+# 
+App.getDocument('Frame_Accessors').getObject('Sketch004').setVisibility([0,1,2,3,4,5,6,7,8,9,10,11], True)
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch004')
+# if ActiveSketch.ViewObject.RestoreCamera:
+#   ActiveSketch.ViewObject.TempoVis.saveCamera()
+#   if ActiveSketch.ViewObject.ForceOrtho:
+#     ActiveSketch.ViewObject.Document.ActiveView.setCameraType('Orthographic')
+# 
+App.getDocument('Frame_Accessors').getObject('Sketch004').moveGeometries([(4, 1)], App.Vector(10.6812, 6.77881, 0))
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.RootPoint',0,0,0.01,False)
+# Gui.runCommand('Sketcher_ConstrainCoincidentUnified',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.RootPoint',0,0,0.01,False)
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Vertex9',10.6812,-2.46519e-32,0.014,False)
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Constraint9',9.72503,-0.445975,0.00402832,False)
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Frame_Accessors').getObject('Sketch004'),['Constraint1'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Frame_Accessors').getObject('Sketch004'),['Constraint2'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Frame_Accessors').getObject('Sketch004'),['Constraint1'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Frame_Accessors').getObject('Sketch004'),['Constraint2'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Frame_Accessors').getObject('Sketch004'),['Constraint3'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Frame_Accessors').getObject('Sketch004'),['Constraint4'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Frame_Accessors').getObject('Sketch004'),['Constraint5'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Frame_Accessors').getObject('Sketch004'),['Constraint6'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Frame_Accessors').getObject('Sketch004'),['Constraint9'])
+App.getDocument('Frame_Accessors').getObject('Sketch004').setVirtualSpace([8], True)
+App.getDocument('Frame_Accessors').getObject('Sketch004').setVirtualSpace([8], False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Frame_Accessors').getObject('Sketch004'),['Constraint10'])
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Constraint9',18.1185,-0.233478,0.00402832,False)
+# Gui.Selection.removeSelection('Frame_Accessors','Body003','Pad004.Sketch004.Constraint9')
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Vertex4',43.0003,38.1,0.014,False)
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Vertex6',-7.79972,38.1,0.014,False)
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.V_Axis',0,24.4158,0.002,False)
+### Begin command Sketcher_ConstrainSymmetric
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(Sketcher.Constraint('Symmetric',1,2,2,2,-2))
+### End command Sketcher_ConstrainSymmetric
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.addSelection(App.getDocument('Frame_Accessors').getObject('Sketch004'),['Constraint9'])
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch004').delConstraint(8)
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Constraint9',17.906,-0.87096,0.00402832,False)
+# Gui.Selection.removeSelection('Frame_Accessors','Body003','Pad004.Sketch004.Constraint9')
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Constraint9',17.906,-0.87096,0.00402832,False)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection(App.getDocument('Frame_Accessors').getObject('Sketch004'),['Constraint10'])
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch004').delConstraint(9)
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Constraint9',17.906,-0.658467,0.00402832,False)
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.RootPoint',0,0,0.01,False)
+# Gui.runCommand('Sketcher_ConstrainCoincidentUnified',0)
+# Gui.Selection.clearSelection()
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Constraint11',15.6159,147.311,0.014,False)
+# Gui.Selection.removeSelection('Frame_Accessors','Body003','Pad004.Sketch004.Constraint11')
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Edge3',21.6809,38.1,0.008,False)
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch004').delGeometries([2])
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Edge2',43.0003,12.4371,0.008,False)
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch004').delGeometries([1])
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Edge1',22.2585,-38.1,0.008,False)
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch004').delGeometries([0])
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Edge1',-7.79972,-21.9311,0.008,False)
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch004').delGeometries([0])
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Vertex1',17.6003,-1.53757e-15,0.014,False)
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch004').delGeometries([0])
+# Gui.runCommand('Sketcher_CompCreateRectangles',1)
+# Gui.runCommand('Sketcher_CompCreateRectangles',1)
+ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch004')
+
+lastGeoId = len(ActiveSketch.Geometry)
+
+geoList = []
+geoList.append(Part.LineSegment(App.Vector(-24.697323, -42.125301, 0.000000),App.Vector(24.697323, -42.125301, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(24.697323, -42.125301, 0.000000),App.Vector(24.697323, 42.125301, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(24.697323, 42.125301, 0.000000),App.Vector(-24.697323, 42.125301, 0.000000)))
+geoList.append(Part.LineSegment(App.Vector(-24.697323, 42.125301, 0.000000),App.Vector(-24.697323, -42.125301, 0.000000)))
+App.getDocument('Frame_Accessors').getObject('Sketch004').addGeometry(geoList,False)
+del geoList
+
+constrGeoList = []
+constrGeoList.append(Part.Point(App.Vector(0.000000, 0.000000, 0.000000)))
+App.getDocument('Frame_Accessors').getObject('Sketch004').addGeometry(constrGeoList,True)
+del constrGeoList
+
+constraintList = []
+constraintList.append(Sketcher.Constraint('Coincident', 0, 2, 1, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 1, 2, 2, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 2, 2, 3, 1))
+constraintList.append(Sketcher.Constraint('Coincident', 3, 2, 0, 1))
+constraintList.append(Sketcher.Constraint('Horizontal', 0))
+constraintList.append(Sketcher.Constraint('Horizontal', 2))
+constraintList.append(Sketcher.Constraint('Vertical', 1))
+constraintList.append(Sketcher.Constraint('Vertical', 3))
+constraintList.append(Sketcher.Constraint('Symmetric', 2, 1, 0, 1, 4, 1))
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(constraintList)
+del constraintList
+
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(Sketcher.Constraint('Coincident', 4, 1, -1, 1))
+
+
+# Gui.runCommand('Sketcher_CompDimensionTools',0)
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(Sketcher.Constraint('Distance',2,1,2,2,49.394646)) 
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Edge3',-8.91311,42.1253,0,False)
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(Sketcher.Constraint('DistanceX',2,2,2,1,49.394646)) 
+App.getDocument('Frame_Accessors').Sketch004.setExpression('Constraints[10]', u'<<J-MT-001>>.TenonWidthX')
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(Sketcher.Constraint('Distance',3,1,3,2,84.250602)) 
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.Edge4',-25.4,-20.5536,0,False)
+App.getDocument('Frame_Accessors').getObject('Sketch004').addConstraint(Sketcher.Constraint('DistanceY',3,2,3,1,84.250602)) 
+App.getDocument('Frame_Accessors').Sketch004.setExpression('Constraints[11]', u'<<J-MT-001>>.TenonWidthY')
+# Gui.Selection.clearSelection()
+# Gui.getDocument('Frame_Accessors').resetEdit()
+App.ActiveDocument.recompute()
+# ActiveSketch = App.getDocument('Frame_Accessors').getObject('Sketch004')
+# tv = ActiveSketch.ViewObject.TempoVis
+# if tv:
+#   tv.restore()
+# ActiveSketch.ViewObject.TempoVis = None
+# del(tv)
+# del(ActiveSketch)
+# 
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Pad004.Sketch004.')
+App.getDocument('Frame_Accessors').recompute()
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','Body003','Sketch005.')
+### Begin command PartDesign_Pad
+App.getDocument('Frame_Accessors').getObject('Body003').newObject('PartDesign::Pad','Pad005')
+App.getDocument('Frame_Accessors').getObject('Pad005').Profile = (App.getDocument('Frame_Accessors').getObject('Sketch005'), ['',])
+App.getDocument('Frame_Accessors').getObject('Pad005').Length = 10
+App.ActiveDocument.recompute()
+App.getDocument('Frame_Accessors').getObject('Pad005').ReferenceAxis = (App.getDocument('Frame_Accessors').getObject('Sketch005'),['N_Axis'])
+App.getDocument('Frame_Accessors').getObject('Sketch005').Visibility = False
+App.ActiveDocument.recompute()
+# App.getDocument('Frame_Accessors').getObject('Pad005').ViewObject.ShapeAppearance=getattr(App.getDocument('Frame_Accessors').getObject('Pad004').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Frame_Accessors').getObject('Pad005').ViewObject.ShapeAppearance)
+# App.getDocument('Frame_Accessors').getObject('Pad005').ViewObject.LineColor=getattr(App.getDocument('Frame_Accessors').getObject('Pad004').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Frame_Accessors').getObject('Pad005').ViewObject.LineColor)
+# App.getDocument('Frame_Accessors').getObject('Pad005').ViewObject.PointColor=getattr(App.getDocument('Frame_Accessors').getObject('Pad004').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Frame_Accessors').getObject('Pad005').ViewObject.PointColor)
+# App.getDocument('Frame_Accessors').getObject('Pad005').ViewObject.Transparency=getattr(App.getDocument('Frame_Accessors').getObject('Pad004').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Frame_Accessors').getObject('Pad005').ViewObject.Transparency)
+# App.getDocument('Frame_Accessors').getObject('Pad005').ViewObject.DisplayMode=getattr(App.getDocument('Frame_Accessors').getObject('Pad004').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Frame_Accessors').getObject('Pad005').ViewObject.DisplayMode)
+# Gui.getDocument('Frame_Accessors').setEdit(App.getDocument('Frame_Accessors').getObject('Body003'), 0, 'Pad005.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Pad
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').Pad005.setExpression('Length', u'<<J-MT-001>>.HousingDepth')
+App.getDocument('Frame_Accessors').getObject('Pad005').TaperAngle = 0.000000
+App.getDocument('Frame_Accessors').getObject('Pad005').UseCustomVector = 0
+App.getDocument('Frame_Accessors').getObject('Pad005').Direction = (0, 0, 1)
+App.getDocument('Frame_Accessors').getObject('Pad005').ReferenceAxis = (App.getDocument('Frame_Accessors').getObject('Sketch005'), ['N_Axis'])
+App.getDocument('Frame_Accessors').getObject('Pad005').AlongSketchNormal = 1
+App.getDocument('Frame_Accessors').getObject('Pad005').SideType = 0
+App.getDocument('Frame_Accessors').getObject('Pad005').Type = 0
+App.getDocument('Frame_Accessors').getObject('Pad005').Type2 = 0
+App.getDocument('Frame_Accessors').getObject('Pad005').UpToFace = None
+App.getDocument('Frame_Accessors').getObject('Pad005').UpToFace2 = None
+App.getDocument('Frame_Accessors').getObject('Pad005').Reversed = 0
+App.getDocument('Frame_Accessors').getObject('Pad005').Offset = 0
+App.getDocument('Frame_Accessors').getObject('Pad005').Offset2 = 0
+App.getDocument('Frame_Accessors').purgeTouched()
+App.getDocument('Frame_Accessors').recompute()
+App.getDocument('Frame_Accessors').getObject('Pad004').Visibility = False
+# Gui.getDocument('Frame_Accessors').resetEdit()
+App.getDocument('Frame_Accessors').getObject('Sketch005').Visibility = False
+# Gui.Selection.addSelection('Frame_Accessors','Body003')
+# Gui.runCommand('Std_SetAppearance',0)
+# Gui.runCommand('Std_RandomColor',0)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','Body002')
+# Gui.runCommand('Std_RandomColor',0)
+# Gui.Selection.clearSelection()
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Frame_Accessors").save()
+### End command Std_Save
+App.activeDocument().recompute(None,True,True)
+# Gui.Selection.addSelection('Frame_Accessors','Body')
+# Gui.Selection.addSelection('Frame_Accessors','Body002')
+### Begin command PartDesign_Boolean
+App.getDocument('Frame_Accessors').getObject('Body003').newObject('PartDesign::Boolean','Boolean')
+App.getDocument('Frame_Accessors').getObject('Boolean').addObjects([App.getDocument('Frame_Accessors').getObject('Body'),App.getDocument('Frame_Accessors').getObject('Body002'),])
+App.ActiveDocument.recompute()
+# App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.ShapeAppearance=getattr(App.getDocument('Frame_Accessors').getObject('Pad005').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.ShapeAppearance)
+# App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.LineColor=getattr(App.getDocument('Frame_Accessors').getObject('Pad005').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.LineColor)
+# App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.PointColor=getattr(App.getDocument('Frame_Accessors').getObject('Pad005').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.PointColor)
+# App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.Transparency=getattr(App.getDocument('Frame_Accessors').getObject('Pad005').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.Transparency)
+# App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.DisplayMode=getattr(App.getDocument('Frame_Accessors').getObject('Pad005').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.DisplayMode)
+# Gui.getDocument('Frame_Accessors').setEdit(App.getDocument('Frame_Accessors').getObject('Body003'), 0, 'Boolean.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Boolean
+# Gui.Selection.clearSelection()
+# Gui.activeDocument().resetEdit()
+# Gui.Selection.addSelection('Frame_Accessors','Body')
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody',App.getDocument('Frame_Accessors').getObject('Body'))
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','Body002')
+### Begin command PartDesign_Boolean
+App.getDocument('Frame_Accessors').getObject('Body').newObject('PartDesign::Boolean','Boolean')
+App.getDocument('Frame_Accessors').getObject('Boolean').addObjects([App.getDocument('Frame_Accessors').getObject('Body002'),])
+App.ActiveDocument.recompute()
+# App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.ShapeAppearance=getattr(App.getDocument('Frame_Accessors').getObject('Pad').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.ShapeAppearance)
+# App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.LineColor=getattr(App.getDocument('Frame_Accessors').getObject('Pad').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.LineColor)
+# App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.PointColor=getattr(App.getDocument('Frame_Accessors').getObject('Pad').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.PointColor)
+# App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.Transparency=getattr(App.getDocument('Frame_Accessors').getObject('Pad').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.Transparency)
+# App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.DisplayMode=getattr(App.getDocument('Frame_Accessors').getObject('Pad').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Frame_Accessors').getObject('Boolean').ViewObject.DisplayMode)
+# Gui.getDocument('Frame_Accessors').setEdit(App.getDocument('Frame_Accessors').getObject('Body'), 0, 'Boolean.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Boolean
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Boolean').setObjects( [App.getDocument('Frame_Accessors').getObject('Body002'),])
+App.getDocument('Frame_Accessors').getObject('Boolean').Type = 1
+App.ActiveDocument.recompute()
+# Gui.activeDocument().resetEdit()
+# Gui.Selection.addSelection('Frame_Accessors','Body001')
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody',App.getDocument('Frame_Accessors').getObject('Body001'))
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Frame_Accessors','Body003')
+### Begin command PartDesign_Boolean
+App.getDocument('Frame_Accessors').getObject('Body001').newObject('PartDesign::Boolean','Boolean001')
+App.getDocument('Frame_Accessors').getObject('Boolean001').addObjects([App.getDocument('Frame_Accessors').getObject('Body003'),])
+App.ActiveDocument.recompute()
+# App.getDocument('Frame_Accessors').getObject('Boolean001').ViewObject.ShapeAppearance=getattr(App.getDocument('Frame_Accessors').getObject('Pad001').getLinkedObject(True).ViewObject,'ShapeAppearance',App.getDocument('Frame_Accessors').getObject('Boolean001').ViewObject.ShapeAppearance)
+# App.getDocument('Frame_Accessors').getObject('Boolean001').ViewObject.LineColor=getattr(App.getDocument('Frame_Accessors').getObject('Pad001').getLinkedObject(True).ViewObject,'LineColor',App.getDocument('Frame_Accessors').getObject('Boolean001').ViewObject.LineColor)
+# App.getDocument('Frame_Accessors').getObject('Boolean001').ViewObject.PointColor=getattr(App.getDocument('Frame_Accessors').getObject('Pad001').getLinkedObject(True).ViewObject,'PointColor',App.getDocument('Frame_Accessors').getObject('Boolean001').ViewObject.PointColor)
+# App.getDocument('Frame_Accessors').getObject('Boolean001').ViewObject.Transparency=getattr(App.getDocument('Frame_Accessors').getObject('Pad001').getLinkedObject(True).ViewObject,'Transparency',App.getDocument('Frame_Accessors').getObject('Boolean001').ViewObject.Transparency)
+# App.getDocument('Frame_Accessors').getObject('Boolean001').ViewObject.DisplayMode=getattr(App.getDocument('Frame_Accessors').getObject('Pad001').getLinkedObject(True).ViewObject,'DisplayMode',App.getDocument('Frame_Accessors').getObject('Boolean001').ViewObject.DisplayMode)
+# Gui.getDocument('Frame_Accessors').setEdit(App.getDocument('Frame_Accessors').getObject('Body001'), 0, 'Boolean001.')
+# Gui.Selection.clearSelection()
+### End command PartDesign_Boolean
+# Gui.Selection.clearSelection()
+App.getDocument('Frame_Accessors').getObject('Boolean001').setObjects( [App.getDocument('Frame_Accessors').getObject('Body003'),])
+App.getDocument('Frame_Accessors').getObject('Boolean001').Type = 0
+App.ActiveDocument.recompute()
+# Gui.activeDocument().resetEdit()
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Frame_Accessors").save()
+### End command Std_Save
+# Macro End: C:\Users\Adam\Documents\Projects\BentWizard\devBuildMacros\Accessors C.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++

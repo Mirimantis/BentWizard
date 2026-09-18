@@ -1,5 +1,15 @@
 # Session recipe — frame accessors, mate resolution, face move
 
+> **Terminology note (2026-09-18).** Everything this session calls a
+> *frame* (`F_Post_J1`, mate frame, frame accessors) is a **datum** in the
+> workbench that was built from it (`D_T-Post-001_YPos_001`, mate datum,
+> datum accessors) — "frame" is reserved for the wooden structure. One
+> result was revised in the build: the `Mate*` accessors of step 9 live
+> on the **joint VarSet** (`HostWidthU … MateDepthW`), not on the datum,
+> because the moment both datums carry them the two objects reference
+> each other and FreeCAD refuses the cycle. `MateFrame` became the
+> `MateDatum` string, joined by a `Joint` string naming the VarSet.
+
 **Status: Parts A–H complete and verified.** A–G by hand in the GUI. H run headlessly on the Part G file by `devBuildMacros/PartH_FrameAccessors.FCMacro` (27 checks, 0 failed; output in `scratch/PartH_results.md`, files `scratch/Frame Accessors Part H1.FCStd`, `Part H.FCStd`, `Part H (Xflip).FCStd`), H1 replayed by Adam in the GUI, and the H2 convention decided on 2026-09-18: **a component keeps its timber-local x,y offsets at both ends — the end-A form is the mirror (H3 route c), not a rotation.**
 
 **Purpose.** Prove the last mechanism unknown before templates get built: that a joinery template can reference *only* its own VarSet and frame accessors, and that moving a joint to a different face requires nothing but re-placing one LCS.

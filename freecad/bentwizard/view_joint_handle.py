@@ -13,9 +13,9 @@ of the marker is to see that the intersection IS joined without cutting
 a section.
 
 The handle owns no Placement (nothing it does may touch geometry or the
-solver), so the marker's position is read from the joint's landing frame
+solver), so the marker's position is read from the joint's host datum
 at draw time and refreshed after every document recompute by one shared
-observer. That covers what an object-local update cannot: a landing frame
+observer. That covers what an object-local update cannot: a host datum
 moving with Joint_Station, and a whole bent seating in the frame — the
 same blind spot assemble.refresh_joint_display exists for.
 """
@@ -160,7 +160,7 @@ class ViewProviderTimberJointHandle:
         return sep
 
     def refresh(self):
-        """Move the marker to the joint's landing frame. Cheap, and
+        """Move the marker to the joint's host datum. Cheap, and
         purely view-side: no property is written, nothing is touched.
 
         Returns False only when the handle is gone — the observer reads
@@ -173,7 +173,7 @@ class ViewProviderTimberJointHandle:
             transform = getattr(self, "transform", None)
             if obj is None or transform is None:
                 return True                 # not ready yet
-            frame = getattr(obj, joint_handle.FRAME_PROP, None)
+            frame = getattr(obj, joint_handle.DATUM_PROP, None)
             if frame is None:
                 return True                 # handle alive, nothing to draw
             pos = frame.getGlobalPlacement().Base
@@ -185,7 +185,7 @@ class ViewProviderTimberJointHandle:
         return True
 
     def updateData(self, _obj, prop):
-        if prop == joint_handle.FRAME_PROP:
+        if prop == joint_handle.DATUM_PROP:
             self.refresh()
 
     def getDisplayModes(self, _vobj):

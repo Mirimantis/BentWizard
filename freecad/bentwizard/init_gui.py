@@ -1,8 +1,7 @@
 """Workbench registration for BentWizard.
 
-Phase 1 commands (New Timber, Apply Joint, Preview Mated Joint, linter)
-register here as they are implemented. All actions are named in domain
-terms, on one dedicated toolbar/menu (friction finding #5).
+Commands register here; all actions are named in domain terms, on one
+dedicated toolbar/menu (friction finding #5).
 """
 
 import FreeCADGui as Gui
@@ -10,7 +9,7 @@ import FreeCADGui as Gui
 
 class BentWizardWorkbench(Gui.Workbench):
     MenuText = "BentWizard"
-    ToolTip = "Timber framing — Mill Rule joinery on native geometry"
+    ToolTip = "Timber framing — joinery on native geometry"
 
     def Initialize(self):
         from freecad.bentwizard import commands

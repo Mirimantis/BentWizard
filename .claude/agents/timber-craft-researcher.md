@@ -1,6 +1,6 @@
 ---
 name: timber-craft-researcher
-description: Researches traditional/analogue timber framing and joinery methods — square rule vs. scribe rule, historical joint geometry, layout techniques, regional terminology — when a feature needs a real-world carpentry analog. Use before designing a new joint template or Mill Rule behavior. Do not use for FreeCAD API or Python questions.
+description: Researches traditional/analogue timber framing and joinery methods — square rule vs. scribe rule, historical joint geometry, layout techniques, regional terminology — when a feature needs a real-world carpentry analog. Use before designing a new joint template or a layout behaviour. Do not use for FreeCAD API or Python questions.
 tools: WebSearch, WebFetch
 model: sonnet
 ---

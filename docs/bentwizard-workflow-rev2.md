@@ -1,5 +1,17 @@
 # BentWizard — Workflow Document (rev 2)
 
+> **Terminology note (2026-09-18, after this document was written).** The
+> coordinate system a timber carries is a **datum** in code, UI and every
+> later document — never a "frame". To a framer a frame is a structure
+> made of wood, and the parent assembly is already `Frame-NNN`. Where this
+> document says *mate frame*, *frame accessors* or *F_Post_J1*, read
+> *mate datum*, *datum accessors*, `D_T-Post-001_YPos_001`. Two facts
+> found while building to this document are recorded inline below,
+> marked **[built]**: the cross-timber accessors live on the joint
+> VarSet, not on the datums (mutual `Mate*` accessors are an
+> object-granular dependency cycle), and the parity rule covers opposite
+> faces as well as ends.
+
 Supersedes the Phase 0 workflow document. Rev 1 recorded a manual workflow built on a subtractive mandate, typed stick lengths, square-rule layout doctrine, and joints rebuilt sketch-by-sketch on the target timber. Spike rounds 1–3 and the mate-frame GUI tests replaced all of that. Everything below is proven in FreeCAD 1.1.1, headlessly and in the GUI, unless explicitly marked open.
 
 Companions: the roadmap, the friction findings log, and the spike results (`spike-variant-link-results.md`, `spike-copyobject-results.md`, `spike-round2b-results.md`, `spike-round3-results.md`).
@@ -35,14 +47,14 @@ Companions: the roadmap, the friction findings log, and the spike results (`spik
 
 **Faces** are `+X`, `−X`, `+Y`, `−Y` — the internal, unambiguous identity, used by every expression, placement and tool. **Ends** are A (Z = 0) and B (Z = Length).
 
-**Face labels** are per-timber display aliases (`FaceLabel_XPos` etc.), defaulted from `Frame_Role` (post → outside/inside/bent-left/bent-right; plate → top/bottom/outside/inside; and so on), user-overridable, surfaced on drawings, in the joinery schedule, and in the apply dialog's face picker. **Never a selector** — renaming a face must never affect geometry.
+**Face labels** are per-timber display aliases (`FaceLabelXPos` etc.), defaulted from the timber's *role* (post → outside/inside/bent-left/bent-right; plate → top/bottom/outside/inside; and so on — not built yet, and "`Frame_Role`" in the first draft meant this timber role, not rev 1's landing/mate marker), user-overridable, surfaced on drawings, in the joinery schedule, and in the apply dialog's face picker. **Never a selector** — renaming a face must never affect geometry.
 
 Rev 1's face 1–4 numbering and reference-face concept are retired with the layout doctrine.
 
 ## 3. Naming
 
-- **Timber Bodies**: MemberID labels (`P2-1`).
-- **VarSet labels**: `Kind_Owner` — `TDim_P2-1`, `J-HousedMT-007`, `Group_LoftDovetail`, `Project_Main`, `Order_Main`.
+- **Timber Bodies**: a permanent identity ending in separator + serial (`T-Post-003`, `T-Post.Balcony.001`); position is the display-only `PositionTag`. **[built]** — rev 1's positional MemberIDs (`P2-1`) were superseded at the first shakedown and are not the convention.
+- **VarSet labels**: `Kind_Owner` — `TDim_T-Post-003`, `J-HousedMT-007` (a template's own joint VarSet is `J-<Kind>-000`; the "`JointParams`" of §4.3 below means this VarSet), `Project_Main`, `Order_Main`.
 - **Property names**: UpperCamelCase, FreeCAD convention, no separators (`MortiseThickness`, `HousingDepth`, `TenonLength`, `PegCount`). A trailing digit does not get a display space; accept it.
 - **Tooltips**: mandatory on every template-defined property.
 - **Joint component bodies**: `<Role>.<Kind>.<serial>` — `Mortise.MT.001`, `Tenon.MT.001`. Document-unique by construction.
@@ -50,7 +62,7 @@ Rev 1's face 1–4 numbering and reference-face concept are retired with the lay
 ## 4. Proven recipes
 
 ### 4.1 Parametric timber
-VarSet `TDim_<id>` with `XWidth`, `YWidth`, `Length`. Body with a section sketch on XY, **centred on the origin** (half-width constraints from centrelines, not corner-pinned), padded to `Length`. Stored properties are always full dimensions; halving happens in expressions.
+VarSet `TDim_<id>` with `WidthX`, `WidthY`, `LengthZ` (**[built]** — the names §2 gives; `XWidth`/`YWidth`/`Length` here was a slip). Body with a section sketch on XY, **centred on the origin** (half-width constraints from centrelines, not corner-pinned), padded to `Length`. Stored properties are always full dimensions; halving happens in expressions.
 
 ### 4.2 Mate frames
 
@@ -82,13 +94,13 @@ Because every face satisfies the same rule, a cutter modelled in −Z cuts into 
 | `WidthU`, `WidthV` | host extents along the frame's local X, Y |
 | `DepthW` | host extent behind the frame, along −Z |
 | `Station` | position along the host |
-| `MateWidthU`, `MateWidthV`, `MateDepthW` | the same, resolved through the mated frame |
+| `MateWidthU`, `MateWidthV`, `MateDepthW` | the same, resolved through the mated frame — **[built]: on the joint VarSet** (as `HostWidthU … MateDepthW`, reading both datums), never on the datums themselves, because two datums reading each other is a dependency cycle |
 
 `Station` is an **authored property**, bound to a group variable (`<<ProjectVars>>.GirtLine`) or a literal, and the frame's own `Placement` is driven from it. No `href()` is needed: an LCS has no shape derived from its properties, so this is a leaf dependency rather than the cycle that forces `href()` on a Body. `Station` cannot go stale, since the expression owns the placement.
 
 End frames are not a separate concept — they are frames with `Station` pinned to 0 or `LengthZ` and Z along the timber axis.
 
-**Pairing is recorded as a `MateFrame` string** holding the mate's *internal Name*. `App::PropertyLink` and `App::PropertyXLink` both fail across Body boundaries (scope violation on recompute, not on assignment); expressions cross freely. The tool creates frames with explicit internal names so the string is human-readable. Mate accessors are direct named references — expressions cannot dereference a link property, and binding a mate accessor to the mate's VarSet directly would silently survive a re-pair.
+**Pairing is recorded as a `MateFrame` string** (**[built]** `MateDatum`, plus `Joint` naming the joint VarSet) holding the mate's *internal Name*. `App::PropertyLink` and `App::PropertyXLink` both fail across Body boundaries (scope violation on recompute, not on assignment); expressions cross freely. The tool creates frames with explicit internal names so the string is human-readable. Mate accessors are direct named references — expressions cannot dereference a link property, and binding a mate accessor to the mate's VarSet directly would silently survive a re-pair.
 
 **Frame placements are computed by the tool from a face identity, station and height — never typed as offset components by a human.** An attached datum's local offset axes do not map to the parent's axes as their names suggest; this has produced three separate bugs in this project (the stray 8-inch offset, findings #10, and the XWidth/YWidth error in the mate-frame test).
 
@@ -174,8 +186,8 @@ Templates therefore declare per-property valid ranges. The roadmap's sanity boun
 
 ## 8. Open items
 
-- Handedness: **closed** by Part H (2026-09-18). Applying at a Z-flipped frame mirrors the component across its local X so it keeps its timber-local offsets (§4.4 step 3); no mirrored templates, no `Template_Handed` flag, no dialog option. Would reopen only for a chiral joint that must *not* mirror. Related and untested: what an offset does when a template moves between *opposite faces* of a post.
-- Boolean order within a half that has both cutter and adder: order does not commute; the template must declare it. Mechanism undecided.
+- Handedness: **closed** by Part H (2026-09-18). Applying at a Z-flipped frame mirrors the component across its local X so it keeps its timber-local offsets (§4.4 step 3); no mirrored templates, no `Template_Handed` flag, no dialog option. Would reopen only for a chiral joint that must *not* mirror. **[built]** The opposite-faces case is the same rule: each face and end carries a parity (`EndB`, `XPos`, `YPos` +; `EndA`, `XNeg`, `YNeg` −) and a component is mirrored when the target datum's parity differs from the authoring datum's — the −X face datum equals the +X one reflected through the timber's YZ plane composed with that local-X mirror. Verified by `tests/test_apply.py::test_parity_keeps_timber_local_offsets` on all four faces and both ends.
+- Boolean order within a half that has both cutter and adder: order does not commute; the template must declare it. **[built]** `ComponentOrder` on each component body; Apply applies in that order, the template bar warns when a cutter follows an adder.
 - Crown: a physical-stick property decided at layout, better as a per-timber drawing note than a face label.
 - TechDraw units/dimensioning display (fractional inches).
 - Single- vs multi-document frames at scale.
