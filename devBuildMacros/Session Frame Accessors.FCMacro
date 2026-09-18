@@ -1,0 +1,485 @@
+# Macro Begin: C:\Users\Adam\Documents\Projects\BentWizard\devBuildMacros\Session Frame Accessors.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+
+# Gui.runCommand('Std_DlgMacroRecord',0)
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS')
+App.ActiveDocument.getObject('Body001').addObject(obj)
+
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Unnamed').getObject('LCS')
+# dep_features = _tv_LCS.get_all_dependent(App.getDocument('Unnamed').getObject('LCS'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+App.getDocument('Unnamed').getObject('LCS').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Unnamed').getObject('LCS').MapReversed = False
+App.getDocument('Unnamed').getObject('LCS').AttachmentSupport = None
+App.getDocument('Unnamed').getObject('LCS').MapPathParameter = 0.000000
+App.getDocument('Unnamed').getObject('LCS').MapMode = 'FlatFace'
+App.getDocument('Unnamed').getObject('LCS').recompute()
+# _tv_LCS.restore()
+# del(_tv_LCS)
+# Gui.Selection.addSelection('Unnamed','Body001')
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS001')
+App.ActiveDocument.getObject('Body001').addObject(obj)
+
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS001 = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Unnamed').getObject('LCS001')
+# dep_features = _tv_LCS001.get_all_dependent(App.getDocument('Unnamed').getObject('LCS001'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS001.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS001.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+App.getDocument('Unnamed').getObject('LCS001').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Unnamed').getObject('LCS001').MapReversed = False
+App.getDocument('Unnamed').getObject('LCS001').AttachmentSupport = None
+App.getDocument('Unnamed').getObject('LCS001').MapPathParameter = 0.000000
+App.getDocument('Unnamed').getObject('LCS001').MapMode = 'FlatFace'
+App.getDocument('Unnamed').getObject('LCS001').recompute()
+# _tv_LCS001.restore()
+# del(_tv_LCS001)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body001','LCS001.')
+App.getDocument('Unnamed').LCS001.setExpression('.Placement.Base.z', u'<<TDim_GIrt>>.LengthZ')
+# Gui.Selection.clearSelection()
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Unnamed").save()
+### End command Std_Save
+# Gui.Selection.addSelection('Unnamed','Body')
+# Gui.ActiveDocument.ActiveView.setActiveObject('pdbody',App.getDocument('Unnamed').getObject('Body'))
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS002')
+App.ActiveDocument.getObject('Body').addObject(obj)
+
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS002 = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Unnamed').getObject('LCS002')
+# dep_features = _tv_LCS002.get_all_dependent(App.getDocument('Unnamed').getObject('LCS002'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS002.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS002.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+App.getDocument('Unnamed').getObject('LCS002').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Unnamed').getObject('LCS002').MapReversed = False
+App.getDocument('Unnamed').getObject('LCS002').AttachmentSupport = None
+App.getDocument('Unnamed').getObject('LCS002').MapPathParameter = 0.000000
+App.getDocument('Unnamed').getObject('LCS002').MapMode = 'FlatFace'
+App.getDocument('Unnamed').getObject('LCS002').recompute()
+# _tv_LCS002.restore()
+# del(_tv_LCS002)
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS003')
+App.ActiveDocument.getObject('Body').addObject(obj)
+
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS003 = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Unnamed').getObject('LCS003')
+# dep_features = _tv_LCS003.get_all_dependent(App.getDocument('Unnamed').getObject('LCS003'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS003.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS003.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+App.getDocument('Unnamed').getObject('LCS003').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Unnamed').getObject('LCS003').MapReversed = False
+App.getDocument('Unnamed').getObject('LCS003').AttachmentSupport = None
+App.getDocument('Unnamed').getObject('LCS003').MapPathParameter = 0.000000
+App.getDocument('Unnamed').getObject('LCS003').MapMode = 'FlatFace'
+App.getDocument('Unnamed').getObject('LCS003').recompute()
+# _tv_LCS003.restore()
+# del(_tv_LCS003)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','LCS003.')
+App.getDocument('Unnamed').LCS003.setExpression('.Placement.Base.z', u'<<TDim_Post>>.LengthZ')
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Unnamed").save()
+### End command Std_Save
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body')
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS004')
+App.ActiveDocument.getObject('Body').addObject(obj)
+
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS004 = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Unnamed').getObject('LCS004')
+# dep_features = _tv_LCS004.get_all_dependent(App.getDocument('Unnamed').getObject('LCS004'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS004.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS004.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','LCS002.XZ_Plane004.',670.315,1300.96,91.856)
+App.getDocument('Unnamed').getObject('LCS004').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Unnamed').getObject('LCS004').MapReversed = False
+App.getDocument('Unnamed').getObject('LCS004').AttachmentSupport = [(App.getDocument('Unnamed').getObject('LCS002'),'XZ_Plane004.')]
+App.getDocument('Unnamed').getObject('LCS004').MapPathParameter = 0.000000
+App.getDocument('Unnamed').getObject('LCS004').MapMode = 'FlatFace'
+App.getDocument('Unnamed').getObject('LCS004').recompute()
+# _tv_LCS004.restore()
+# del(_tv_LCS004)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','LCS004.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Origin.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','LCS004.')
+# Gui.runCommand('Std_Undo',0)
+# Gui.runCommand('Std_Undo',0)
+# Gui.Selection.addSelection('Unnamed','Body','LCS003.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','Origin.XZ_Plane.',325.472,1300.96,285.508)
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS004')
+App.ActiveDocument.getObject('Body').addObject(obj)
+
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS004 = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Unnamed').getObject('LCS004')
+# dep_features = _tv_LCS004.get_all_dependent(App.getDocument('Unnamed').getObject('LCS004'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS004.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS004.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+App.ActiveDocument.recompute()
+# _tv_LCS004.restore()
+# del(_tv_LCS004)
+# Gui.Selection.clearSelection()
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS004')
+App.ActiveDocument.getObject('Body').addObject(obj)
+
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS004 = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Unnamed').getObject('LCS004')
+# dep_features = _tv_LCS004.get_all_dependent(App.getDocument('Unnamed').getObject('LCS004'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS004.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS004.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+# Gui.Selection.addSelection('Unnamed','Body','Origin.XZ_Plane.',-321.905,1300.96,539.496)
+App.ActiveDocument.recompute()
+# _tv_LCS004.restore()
+# del(_tv_LCS004)
+### Begin command Part_Datums
+obj = App.activeDocument().addObject('Part::LocalCoordinateSystem','LCS004')
+App.ActiveDocument.getObject('Body').addObject(obj)
+
+obj.Visibility = True
+obj.ViewObject.doubleClicked()
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS004 = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Unnamed').getObject('LCS004')
+# dep_features = _tv_LCS004.get_all_dependent(App.getDocument('Unnamed').getObject('LCS004'), '')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS004.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS004.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+### End command Part_Datums
+App.getDocument('Unnamed').getObject('LCS004').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Unnamed').getObject('LCS004').MapReversed = False
+App.getDocument('Unnamed').getObject('LCS004').AttachmentSupport = [(App.getDocument('Unnamed').getObject('Origin'),'XZ_Plane.')]
+App.getDocument('Unnamed').getObject('LCS004').MapPathParameter = 0.000000
+App.getDocument('Unnamed').getObject('LCS004').MapMode = 'Deactivated'
+App.getDocument('Unnamed').getObject('LCS004').recompute()
+# _tv_LCS004.restore()
+# del(_tv_LCS004)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','LCS004.')
+App.getDocument('Unnamed').LCS004.setExpression('.Placement.Base.y', u'<<TDim_Post>>.WidthY / 2')
+App.getDocument('Unnamed').LCS004.setExpression('.Placement.Base.z', u'<<ProjectVars>>.GirtLine')
+FreeCAD.getDocument('Unnamed').getObject('LCS004').Placement = App.Placement(App.Vector(0,127,1219.2),App.Rotation(App.Vector(0.9999999999999997,0,0),-90))
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','LCS002.')
+FreeCAD.getDocument('Unnamed').getObject('LCS002').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,1),-9))
+
+FreeCAD.getDocument('Unnamed').getObject('LCS002').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,1),-90))
+
+FreeCAD.getDocument('Unnamed').getObject('LCS002').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,1),-9))
+
+FreeCAD.getDocument('Unnamed').getObject('LCS002').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,0,1),0))
+
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS002 = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Unnamed').getObject('LCS002')
+# dep_features = _tv_LCS002.get_all_dependent(App.getDocument('Unnamed').getObject('Body'), 'LCS002.')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS002.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS002.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+App.getDocument('Unnamed').getObject('LCS002').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Unnamed').getObject('LCS002').MapReversed = False
+App.getDocument('Unnamed').getObject('LCS002').AttachmentSupport = None
+App.getDocument('Unnamed').getObject('LCS002').MapPathParameter = 0.000000
+App.getDocument('Unnamed').getObject('LCS002').MapMode = 'Deactivated'
+App.getDocument('Unnamed').getObject('LCS002').recompute()
+# _tv_LCS002.restore()
+# del(_tv_LCS002)
+FreeCAD.getDocument('Unnamed').getObject('LCS002').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,1),0))
+
+FreeCAD.getDocument('Unnamed').getObject('LCS002').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,0),0))
+
+FreeCAD.getDocument('Unnamed').getObject('LCS002').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,0),1))
+
+FreeCAD.getDocument('Unnamed').getObject('LCS002').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,0),18))
+
+FreeCAD.getDocument('Unnamed').getObject('LCS002').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,0),180))
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','LCS003.')
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS003 = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Unnamed').getObject('LCS003')
+# dep_features = _tv_LCS003.get_all_dependent(App.getDocument('Unnamed').getObject('Body'), 'LCS003.')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS003.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS003.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+App.getDocument('Unnamed').getObject('LCS003').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Unnamed').getObject('LCS003').MapReversed = False
+App.getDocument('Unnamed').getObject('LCS003').AttachmentSupport = None
+App.getDocument('Unnamed').getObject('LCS003').MapPathParameter = 0.000000
+App.getDocument('Unnamed').getObject('LCS003').MapMode = 'Deactivated'
+App.getDocument('Unnamed').getObject('LCS003').recompute()
+# _tv_LCS003.restore()
+# del(_tv_LCS003)
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body001','LCS.')
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Unnamed').getObject('LCS')
+# dep_features = _tv_LCS.get_all_dependent(App.getDocument('Unnamed').getObject('Body001'), 'LCS.')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+App.getDocument('Unnamed').getObject('LCS').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Unnamed').getObject('LCS').MapReversed = False
+App.getDocument('Unnamed').getObject('LCS').AttachmentSupport = None
+App.getDocument('Unnamed').getObject('LCS').MapPathParameter = 0.000000
+App.getDocument('Unnamed').getObject('LCS').MapMode = 'Deactivated'
+App.getDocument('Unnamed').getObject('LCS').recompute()
+# _tv_LCS.restore()
+# del(_tv_LCS)
+FreeCAD.getDocument('Unnamed').getObject('LCS').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,1),0))
+
+FreeCAD.getDocument('Unnamed').getObject('LCS').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,0),0))
+
+FreeCAD.getDocument('Unnamed').getObject('LCS').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,0),1))
+
+FreeCAD.getDocument('Unnamed').getObject('LCS').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,0),18))
+
+FreeCAD.getDocument('Unnamed').getObject('LCS').Placement = App.Placement(App.Vector(0,0,0),App.Rotation(App.Vector(0,1,0),180))
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body001','LCS001.')
+# import Show
+# from Show.Containers import isAContainer
+# _tv_LCS001 = Show.TempoVis(App.ActiveDocument, tag= 'PartGui::TaskAttacher')
+# tvObj = App.getDocument('Unnamed').getObject('LCS001')
+# dep_features = _tv_LCS001.get_all_dependent(App.getDocument('Unnamed').getObject('Body001'), 'LCS001.')
+# dep_features = [o for o in dep_features if not isAContainer(o)]
+# if tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 	visible_features = [feat for feat in tvObj.InList if feat.isDerivedFrom('PartDesign::FeaturePrimitive')]
+# 	dep_features = [feat for feat in dep_features if feat not in visible_features]
+# 	del(visible_features)
+# _tv_LCS001.hide(dep_features)
+# del(dep_features)
+# if not tvObj.isDerivedFrom('PartDesign::CoordinateSystem'):
+# 		if len(tvObj.AttachmentSupport) > 0:
+# 			_tv_LCS001.show([lnk[0] for lnk in tvObj.AttachmentSupport])
+# del(tvObj)
+App.getDocument('Unnamed').getObject('LCS001').AttachmentOffset = App.Placement(App.Vector(0.0000000000, 0.0000000000, 0.0000000000),  App.Rotation(0.0000000000, 0.0000000000, 0.0000000000))
+App.getDocument('Unnamed').getObject('LCS001').MapReversed = False
+App.getDocument('Unnamed').getObject('LCS001').AttachmentSupport = None
+App.getDocument('Unnamed').getObject('LCS001').MapPathParameter = 0.000000
+App.getDocument('Unnamed').getObject('LCS001').MapMode = 'Deactivated'
+App.getDocument('Unnamed').getObject('LCS001').recompute()
+# _tv_LCS001.restore()
+# del(_tv_LCS001)
+# Gui.Selection.clearSelection()
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Unnamed").save()
+### End command Std_Save
+# Gui.Selection.addSelection('Unnamed','Body','LCS004.')
+App.getDocument('Unnamed').LCS004.addProperty('App::PropertyLength', 'Station', 'Base', '')
+App.getDocument('Unnamed').LCS004.setExpression('Station', u'<<ProjectVars>>.GirtLine')
+App.getDocument('Unnamed').LCS004.setExpression('.Placement.Base.z', u'Station')
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Unnamed").save()
+### End command Std_Save
+App.getDocument('Unnamed').LCS004.addProperty('App::PropertyLength', 'WidthU', 'Layout', '')
+App.getDocument('Unnamed').LCS004.setExpression('WidthU', u'<<TDim_Post>>.WidthX')
+App.getDocument('Unnamed').LCS004.addProperty('App::PropertyLength', 'WidthV', 'Layout', '')
+App.getDocument('Unnamed').LCS004.setExpression('WidthV', u'<<TDim_Post>>.LengthZ')
+App.getDocument('Unnamed').LCS004.addProperty('App::PropertyLength', 'DepthW', 'Layout', '')
+App.getDocument('Unnamed').LCS004.setExpression('DepthW', u'<<TDim_Post>>.WidthY')
+App.getDocument('Unnamed').LCS004.addProperty('App::PropertyLength', 'HostLength', 'Layout', '')
+App.getDocument('Unnamed').LCS004.setExpression('HostLength', u'<<TDim_Post>>.LengthZ')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body001','LCS001.')
+App.getDocument('Unnamed').LCS001.addProperty('App::PropertyLength', 'WidthU', 'Attachment', '')
+App.getDocument('Unnamed').LCS001.setExpression('WidthU', u'<<TDim_GIrt>>.WidthX')
+App.getDocument('Unnamed').LCS001.addProperty('App::PropertyLength', 'WidthV', 'Frame', '')
+App.getDocument('Unnamed').LCS001.setExpression('WidthV', u'<<TDim_GIrt>>.WidthY')
+App.getDocument('Unnamed').LCS001.addProperty('App::PropertyLength', 'DepthW', 'Frame', '')
+App.getDocument('Unnamed').LCS001.setExpression('DepthW', u'<<TDim_GIrt>>.LengthZ')
+App.getDocument('Unnamed').LCS001.addProperty('App::PropertyLength', 'Station', 'Frame', '')
+App.getDocument('Unnamed').LCS001.setExpression('Station', u'<<TDim_GIrt>>.LengthZ')
+App.getDocument('Unnamed').LCS001.addProperty('App::PropertyLength', 'HostLength', 'Frame', '')
+App.getDocument('Unnamed').LCS001.setExpression('HostLength', u'<<TDim_GIrt>>.LengthZ')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','LCS004.')
+App.getDocument('Unnamed').LCS004.addProperty('App::PropertyLength', 'MateDepth', 'Frame', '')
+App.getDocument('Unnamed').LCS004.setExpression('MateDepth', u'<<TDim_GIrt>>.LengthZ')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body001','LCS001.')
+App.getDocument('Unnamed').LCS001.addProperty('App::PropertyLink', 'MateFrame', 'Frame', '')
+FreeCAD.getDocument('Unnamed').getObject('LCS001').MateFrame = None
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','LCS004.')
+App.getDocument('Unnamed').LCS004.addProperty('App::PropertyLink', 'MateFrame', 'Frame', '')
+FreeCAD.getDocument('Unnamed').getObject('LCS004').MateFrame = None
+
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body001','LCS001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body001','LCS001.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','LCS004.')
+# Gui.Selection.clearSelection()
+# Gui.Selection.addSelection('Unnamed','Body','LCS004.')
+App.getDocument('Unnamed').LCS004.addProperty('App::PropertyLength', 'MateWidthU', 'MateFrame', '')
+App.getDocument('Unnamed').LCS004.setExpression('MateWidthU', u'<<F_Girt_B>>.WidthU')
+App.getDocument('Unnamed').LCS004.addProperty('App::PropertyLength', 'MateWidthV', 'MateFrame', '')
+App.getDocument('Unnamed').LCS004.setExpression('MateWidthV', u'<<F_Girt_B>>.WidthV')
+App.getDocument('Unnamed').LCS004.addProperty('App::PropertyLength', 'MateDepthW', 'MateFrame', '')
+App.getDocument('Unnamed').LCS004.setExpression('MateDepthW', u'<<F_Girt_B>>.DepthW')
+App.getDocument('Unnamed').LCS004.addProperty('App::PropertyLength', 'MateLength', 'MateFrame', '')
+App.getDocument('Unnamed').LCS004.setExpression('MateLength', u'<<F_Girt_B>>.HostLength')
+### Begin command Std_Save
+# Gui.SendMsgToActiveView("Save")
+App.getDocument("Unnamed").save()
+### End command Std_Save
+# Macro End: C:\Users\Adam\Documents\Projects\BentWizard\devBuildMacros\Session Frame Accessors.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++

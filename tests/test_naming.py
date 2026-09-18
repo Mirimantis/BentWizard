@@ -1,11 +1,5 @@
-"""Tests for the naming helpers (freecad.bentwizard.naming).
-
-Stdlib-only — runs under any Python. Pins the decided scheme: permanent
-labels with a trailing serial segment; suggestion helpers only ever
-touch that segment (the retired bent-number swap changed the FIRST
-number it found, which mangled descriptive names — the regression these
-tests guard).
-"""
+"""Pure-Python naming helpers: serials, joint labels, datum and component
+labels, the UpperCamelCase property rule. No FreeCAD needed."""
 
 import sys
 import unittest
@@ -13,253 +7,105 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
-import _repo_path  # noqa: E402, F401 — this repo's code must win the import
+import _repo_path  # noqa: E402, F401
 
 from freecad.bentwizard import naming  # noqa: E402
 
 
-class SplitSerialTest(unittest.TestCase):
-    def test_trailing_segment_is_the_serial(self):
-        self.assertEqual(naming.split_serial("T-Post-Level1-003"),
-                         ("T-Post-Level1", "003"))
-        self.assertEqual(naming.split_serial("T-TieBeam_decorative-007"),
-                         ("T-TieBeam_decorative", "007"))
-
-    def test_digit_inside_a_description_is_not_a_serial(self):
-        # 'Level1' ends with a digit but is not an all-digit segment
-        self.assertEqual(naming.split_serial("T-Post-Level1"),
-                         ("T-Post-Level1", None))
-
-    def test_no_serial_forms(self):
-        self.assertEqual(naming.split_serial("T-Post"), ("T-Post", None))
-        self.assertEqual(naming.split_serial("Post01"), ("Post01", None))
-        self.assertEqual(naming.split_serial("007"), ("007", None))
-
-    def test_legacy_member_id_splits_on_its_position(self):
+class SerialTest(unittest.TestCase):
+    def test_split_serial(self):
+        self.assertEqual(naming.split_serial("T-Post-Level1-003"), ("T-Post-Level1", "003"))
+        self.assertEqual(naming.split_serial("T-Post.Balcony.001"), ("T-Post.Balcony", "001"))
+        self.assertEqual(naming.split_serial("T-Post-Level1"), ("T-Post-Level1", None))
         self.assertEqual(naming.split_serial("P2-1"), ("P2", "1"))
 
-    def test_permissive_separators(self):
-        # July 2026: dots, underscores, and spaces separate a serial too
-        self.assertEqual(naming.split_serial("T-Post.Balcony.001"),
-                         ("T-Post.Balcony", "001"))
-        self.assertEqual(naming.split_serial("T_Post_004"),
-                         ("T_Post", "004"))
-        self.assertEqual(naming.split_serial("T Post 002"),
-                         ("T Post", "002"))
-        # a glued digit is still descriptive, whatever the separators
-        self.assertEqual(naming.split_serial("T-Post.Level1"),
-                         ("T-Post.Level1", None))
-
-
-class NextSerialTest(unittest.TestCase):
-    def test_starts_at_one(self):
+    def test_next_serial_starts_at_one_and_counts_past_the_highest(self):
         self.assertEqual(naming.next_serial([], "T-Post"), "T-Post-001")
+        self.assertEqual(naming.next_serial(["T-Post-001", "T-Post-007"], "T-Post"), "T-Post-008")
+        self.assertEqual(naming.next_serial(["T.Post.002"], "T.Post"), "T.Post.003")
+        self.assertEqual(naming.next_serial([], "T.Post.solarium."), "T.Post.solarium.001")
+        self.assertEqual(naming.next_serial([], "D_T-Post-001_YPos", sep="_"),
+                         "D_T-Post-001_YPos_001")
 
-    def test_counts_past_the_highest_existing(self):
-        labels = ["T-Post-001", "T-Post-005", "T-Post-Level1-002"]
-        self.assertEqual(naming.next_serial(labels, "T-Post"), "T-Post-006")
-        # the Level1 family is separate
-        self.assertEqual(naming.next_serial(labels, "T-Post-Level1"),
-                         "T-Post-Level1-003")
-
-    def test_taken_reserves_batch_suggestions(self):
-        self.assertEqual(
-            naming.next_serial(["T-Post-001"], "T-Post",
-                               taken=["T-Post-002"]),
-            "T-Post-003")
-
-    def test_width_grows_past_999(self):
-        self.assertEqual(naming.next_serial(["T-Post-999"], "T-Post"),
-                         "T-Post-1000")
-
-
-class SuccessorLabelTest(unittest.TestCase):
-    def test_bumps_only_the_trailing_serial(self):
+    def test_successor_bumps_only_the_trailing_serial(self):
         labels = ["T-Post-Level1-003"]
-        self.assertEqual(naming.successor_label(labels, "T-Post-Level1-003"),
-                         "T-Post-Level1-004")
-
-    def test_never_touches_interior_digits(self):
-        # the old bent-number swap would have produced T-Post-Level2-...
-        out = naming.successor_label(["T-Post-Level1-003"],
-                                     "T-Post-Level1-003")
-        self.assertTrue(out.startswith("T-Post-Level1-"), out)
-
-    def test_appends_a_serial_when_missing(self):
-        self.assertEqual(naming.successor_label([], "T-Post-Level1"),
-                         "T-Post-Level1-001")
-
-    def test_keeps_legacy_width(self):
-        self.assertEqual(naming.successor_label(["P1-1", "P1-2"], "P1-1"),
-                         "P1-3")
-
-    def test_batch_taken(self):
-        labels = ["T-Post-001", "T-Post-002"]
-        first = naming.successor_label(labels, "T-Post-001")
-        second = naming.successor_label(labels, "T-Post-002", taken=[first])
-        self.assertEqual((first, second), ("T-Post-003", "T-Post-004"))
-
-    def test_keeps_the_users_separator(self):
-        # dotted family bumps with dots
-        labels = ["T-Post.Balcony.001"]
-        self.assertEqual(naming.successor_label(labels, "T-Post.Balcony.001"),
-                         "T-Post.Balcony.002")
-        # spaced family bumps with spaces
-        self.assertEqual(naming.successor_label(["T Post 002"], "T Post 002"),
-                         "T Post 003")
-
-    def test_mixed_separator_families_share_serials(self):
-        # 'T-Post.001' and 'T-Post-001' are one family: the scan counts
-        # across separators so serials never collide, and an unspecified
-        # separator adopts the family's own
-        self.assertEqual(naming.next_serial(["T-Post.001"], "T-Post"),
-                         "T-Post.002")
-
-    def test_trailing_separator_names_the_separator(self):
-        # 'T.Post.solarium.' means "append my serial with a dot" — the
-        # separator is used, never doubled, and the existing family
-        # counts (the shakedown bug: 'T.Post.solarium.-001')
-        labels = ["T.Post.solarium.100"]
-        self.assertEqual(naming.successor_label(labels, "T.Post.solarium."),
-                         "T.Post.solarium.101")
-        self.assertEqual(naming.next_serial([], "T.Post.solarium."),
-                         "T.Post.solarium.001")
-
-    def test_dot_is_the_default_separator(self):
-        # no trailing separator, no family, no separator in the base:
-        # the appended serial uses a dot
-        self.assertEqual(naming.next_serial([], "Solarium"), "Solarium.001")
-        # a separator already in the base wins over the default
-        self.assertEqual(naming.next_serial([], "T-Post"), "T-Post-001")
-        self.assertEqual(naming.next_serial([], "T.Post"), "T.Post.001")
-
-    def test_bare_base_adopts_the_family_separator(self):
-        # typing the base without serial or trailing separator still
-        # lands in the family's style
-        self.assertEqual(
-            naming.successor_label(["T.Post.solarium.100"], "T.Post.solarium"),
-            "T.Post.solarium.101")
+        self.assertEqual(naming.successor_label(labels, "T-Post-Level1-003"), "T-Post-Level1-004")
+        self.assertEqual(naming.successor_label([], "T-Post-Level1"), "T-Post-Level1-001")
 
 
-class ReservedLabelCharsTest(unittest.TestCase):
-    def test_clean_labels_pass(self):
-        for label in ("T-Post-003", "T-Post.Balcony.001", "T Post (north)",
-                      "T-Pfosten-Größe-004", "T-Post-#7-005", "T-Post-<x-006"):
-            self.assertEqual(naming.reserved_in_label(label), "", label)
-
-    def test_reserved_characters_reported(self):
-        self.assertEqual(naming.reserved_in_label("T>Post"), ">")
-        self.assertEqual(naming.reserved_in_label("T;Post\\x"), ";\\")
-        self.assertEqual(naming.reserved_in_label("T-Post\na"), "\n")
+class ReservedCharsTest(unittest.TestCase):
+    def test_reserved(self):
+        self.assertEqual(naming.reserved_in_label("a>b;c\\d\n"), "\n;>\\")
+        self.assertEqual(naming.reserved_in_label("T-Post.001 (Ünicode) #<"), "")
 
 
 class JointLabelTest(unittest.TestCase):
-    def test_new_scheme_roundtrip(self):
-        label = naming.joint_label("HousedMT", "001")
-        self.assertEqual(label, "J-HousedMT-001")
-        self.assertEqual(naming.parse_joint_label(label),
-                         ("HousedMT", "001"))
-        self.assertTrue(naming.is_joint_varset_label(label))
+    def test_round_trip(self):
+        self.assertEqual(naming.joint_label("HousedMT", "001"), "J-HousedMT-001")
+        self.assertEqual(naming.parse_joint_label("J-HousedMT-001"), ("HousedMT", "001"))
+        self.assertTrue(naming.is_joint_varset_label("J-HousedMT-000"))
+        self.assertFalse(naming.is_joint_varset_label("Joint_MT_0a"))
+        self.assertFalse(naming.is_joint_varset_label("J-Butt.000"))
+        self.assertIsNone(naming.parse_joint_label("TDim_T-Post-001"))
 
-    def test_legacy_scheme_parses(self):
-        self.assertEqual(naming.parse_joint_label("Joint_MT_B2a"),
-                         ("MT", "B2a"))
-        self.assertEqual(naming.parse_joint_label("Joint_Loft_DT_0a"),
-                         ("Loft_DT", "0a"))
-        self.assertTrue(naming.is_joint_varset_label("Joint_MT_B2a"))
+    def test_template_stem_is_the_kind(self):
+        self.assertEqual(naming.template_kind_from_stem("Joint_HousedMT"), "HousedMT")
+        self.assertEqual(naming.template_kind_from_stem("HousedMT"), "HousedMT")
+        self.assertEqual(naming.template_stem("HousedMT"), "Joint_HousedMT")
+        self.assertEqual(naming.template_stem("Joint_HousedMT"), "Joint_HousedMT")
 
-    def test_non_joint_labels(self):
-        self.assertIsNone(naming.parse_joint_label("TimberDims_T-Post-001"))
-        self.assertIsNone(naming.parse_joint_label("J-nosegments"))
-        self.assertFalse(naming.is_joint_varset_label("T-Post-001"))
-        self.assertFalse(naming.is_joint_varset_label("Joints"))
 
-    def test_kind_token_from_source(self):
-        self.assertEqual(naming.kind_token_from_source("Joint_HousedMT"),
-                         "HousedMT")
-        self.assertEqual(naming.kind_token_from_source("J-ScarfJoint"),
-                         "ScarfJoint")
-        self.assertEqual(naming.kind_token_from_source("HousedMT"),
-                         "HousedMT")
+class PropertyNameTest(unittest.TestCase):
+    def test_camel_case(self):
+        for good in ("TenonLength", "WidthX", "PegCount", "HousingDepth2"):
+            self.assertTrue(naming.is_camel_case(good), good)
+        for bad in ("Tenon_Length", "tenonLength", "Housing Depth", "_X", "2Wide"):
+            self.assertFalse(naming.is_camel_case(bad), bad)
 
-    def test_member_suffix(self):
-        # the pre-July-2026 long form, still the fallback for templates
-        # that declare no Template_Abbrev
-        self.assertEqual(naming.member_suffix("J-HousedMT-001"),
-                         "_J-HousedMT-001")
-        self.assertEqual(naming.member_suffix("Joint_MT_0a"), "_MT_0a")
-        self.assertEqual(naming.member_suffix("Joint_Loft_DT_0a"),
-                         "_Loft_DT_0a")
-        self.assertIsNone(naming.member_suffix("TDim_T-Post-001"))
+    def test_ranges_and_accessors(self):
+        self.assertEqual(naming.range_base("TenonLengthMin"), ("TenonLength", "Min"))
+        self.assertEqual(naming.range_base("TenonLengthMax"), ("TenonLength", "Max"))
+        self.assertIsNone(naming.range_base("TenonLength"))
+        self.assertTrue(naming.is_accessor_property("MateWidthU"))
+        self.assertFalse(naming.is_accessor_property("WidthU"))
+        self.assertTrue(naming.is_template_metadata("TemplateSource"))
+        self.assertFalse(naming.is_template_metadata("TenonLength"))
+
+
+class DatumLabelTest(unittest.TestCase):
+    def test_labels(self):
+        self.assertEqual(naming.datum_label("T-Post-001", "EndA"), "D_T-Post-001_A")
+        self.assertEqual(naming.datum_label("T-Post-001", "EndB"), "D_T-Post-001_B")
+        self.assertEqual(naming.datum_label("T-Post-001", "YPos", "002"), "D_T-Post-001_YPos_002")
+        self.assertEqual(naming.object_name("D_T-Post-001_A"), "D_T_Post_001_A")
+        self.assertEqual(naming.object_name("1st"), "_1st")
 
 
 class FeatureLabelTest(unittest.TestCase):
-    """The descriptive-first feature scheme (July 2026)."""
+    def test_base_features(self):
+        self.assertEqual(naming.section_sketch_label("T-Post-001"), "Section.Skt.T-Post-001")
+        self.assertEqual(naming.stick_label("T-Post-001"), "Stick.T-Post-001")
+        self.assertEqual(naming.dims_label("T-Post-001"), "TDim_T-Post-001")
+        self.assertEqual(naming.dims_owner("TDim_T-Post-001"), "T-Post-001")
+        self.assertIsNone(naming.dims_owner("Whatever"))
 
-    def test_joint_suffix_uses_the_abbrev(self):
-        # what Apply-Joint rewrites in a template's feature labels
-        self.assertEqual(
-            naming.joint_suffix_for("J-WedgedHalfDovetail-001", "WHD"),
-            ".WHD.001")
-        self.assertEqual(naming.joint_suffix_for("J-HousedMT-B3a", "HMT"),
-                         ".HMT.B3a")
-
-    def test_no_abbrev_falls_back_to_the_long_form(self):
-        # a template predating Template_Abbrev still round-trips
-        self.assertEqual(naming.joint_suffix_for("J-HousedMT-001", None),
-                         "_J-HousedMT-001")
-        self.assertEqual(naming.joint_suffix_for("Joint_MT_0a", None),
-                         "_MT_0a")
-
-    def test_cut_is_bare_and_the_rest_are_tagged(self):
-        s = ".WHD.001"
-        self.assertEqual(
-            naming.feature_label("TailSlope", "PartDesign::Pocket", s),
-            "TailSlope.WHD.001")
-        self.assertEqual(
-            naming.feature_label("TailSlope", "Sketcher::SketchObject", s),
-            "TailSlope.Skt.WHD.001")
-        self.assertEqual(
-            naming.feature_label("Mate", "Part::LocalCoordinateSystem", s),
-            "Mate.Lcs.WHD.001")
-        self.assertEqual(
-            naming.feature_label("ShoulderA", "Part::DatumPlane", s),
-            "ShoulderA.Dtm.WHD.001")
-
-    def test_type_tag(self):
-        self.assertIsNone(naming.type_tag("PartDesign::Hole"))
-        self.assertEqual(naming.type_tag("Sketcher::SketchObject"), "Skt")
-
-    def test_legacy_frame_role_from_label(self):
-        # the retired substrings, kept so pre-Frame_Role files still seat
-        self.assertEqual(
-            naming.legacy_frame_role("B0-1_MateFrame_MT_0a"), "Mate")
-        self.assertEqual(
-            naming.legacy_frame_role("P0-1_JointFrame_MT_0a"), "Landing")
-        self.assertIsNone(naming.legacy_frame_role("Housing.HMT.001"))
-
-
-class DimsLabelTest(unittest.TestCase):
-    def test_prefix_and_owner(self):
-        self.assertEqual(naming.dims_label("T.Joist.001"), "TDim_T.Joist.001")
-        self.assertEqual(naming.dims_owner("TDim_T.Joist.001"), "T.Joist.001")
-
-    def test_legacy_prefix_still_recognised(self):
-        # existing documents keep 'TimberDims_'; the binding is structural
-        self.assertTrue(naming.is_dims_label("TimberDims_P0-1"))
-        self.assertEqual(naming.dims_owner("TimberDims_P0-1"), "P0-1")
-        self.assertIsNone(naming.dims_owner("PostDims"))
-
-    def test_is_template_metadata(self):
-        # name-keyed: the group is author-controlled and drifts
-        self.assertTrue(naming.is_template_metadata("Template_Handed",
-                                                    "Joint"))
-        self.assertTrue(naming.is_template_metadata("Template_Angle_Min",
-                                                    None))
-        self.assertTrue(naming.is_template_metadata("Handed", "Joint"))
-        self.assertTrue(naming.is_template_metadata("Anything", "Template"))
-        self.assertFalse(naming.is_template_metadata("Tenon_Length",
-                                                     "Joint"))
+    def test_component_labels(self):
+        self.assertEqual(naming.component_label("Mortise", "HousedMT", "001"),
+                         "Mortise.HousedMT.001")
+        self.assertEqual(naming.parse_component_label("Mortise.HousedMT.001"),
+                         ("Mortise", "HousedMT", "001"))
+        self.assertEqual(naming.parse_component_label("Tenon.Shoulder.HousedMT.001"),
+                         ("Tenon.Shoulder", "HousedMT", "001"))
+        self.assertIsNone(naming.parse_component_label("Mortise"))
+        self.assertEqual(naming.retag_component_label("Mortise.HousedMT.000", "HousedMT", "007"),
+                         "Mortise.HousedMT.007")
+        self.assertEqual(naming.retag_component_label("Mortise", "HousedMT", "007"),
+                         "Mortise.HousedMT.007")
+        self.assertEqual(naming.boolean_label("Cutter", "Mortise.HousedMT.001"),
+                         "Cut.Mortise.HousedMT.001")
+        self.assertEqual(naming.boolean_label("Adder", "Tenon.HousedMT.001"),
+                         "Fuse.Tenon.HousedMT.001")
+        self.assertEqual(naming.mirror_label("Tenon.HousedMT.001"), "Mirror.Tenon.HousedMT.001")
 
 
 if __name__ == "__main__":

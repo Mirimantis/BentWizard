@@ -1,151 +1,111 @@
 # Session handoff
 
-Living pointer for a fresh session. Read after CLAUDE.md and the three
-spec docs (roadmap, workflow, findings). Update it as work lands.
+Living pointer for a fresh session. Read after CLAUDE.md and the rev-2
+workflow doc. Update it as work lands.
 
-## Where things stand (Phase 1)
+## Where things stand (September 2026)
 
-Done and on `main`, all output lints clean, full suite green
-(`python -m unittest discover -s tests` with the bundled python):
+The rev-2 foundation is built on branch `claude/rev2-datums`, headless
+suite green (108+ tests), **awaiting Adam's GUI round before commit**
+(the project rule: nothing lands untested). The rev-1 code is gone:
+`apply_joint.py`, `span.py`, the parity tables, `Stick_Allowance_*`, the
+companion `Layout_` VarSet, `Template_Handed`, Preview Mated Joint,
+Drive Length from Layout Distance, the dovetail template.
 
-- **Linter** (`freecad/bentwizard/linter.py`) — workflow §6 as rules, pure
-  Python over `fcstd.py`. Ground-truthed against the session-12 fixture.
-- **Joint template** `library/Joint_HousedMT.FCStd` — housed, pegged,
-  drawbored M&T on a landing-frame LCS per role, plus a **mate frame**
-  on the tenon role (declares the engaged pose). Built by the recipe in
-  `docs/mt-template-build.md`; mirrored as a test fixture that must stay
-  strict- and advisory-clean.
-- **Workbench commands** (`commands.py`, registered in `init_gui.py`):
-  New Timber, Apply Joint (full placement: end A/B, faces 1–4, hand),
-  Remove Joint, Preview Mated Joint.
-- **Apply Joint** (`apply_joint.py`) — reads a template as a spec and
-  rebuilds it natively in the target; junction bindings (§4.3) written
-  to the mating timber's Dims; records `Placement_Record` and
-  `Template_Source` on the joint VarSet.
-- **Preview** — ghost App::Link of the secondary seated in the real
-  primary, attached to the landing frame so it tracks most edits live
-  (see the mate-frame-moving caveat below).
+What to GUI-test, in order (each step is a command on the BentWizard
+toolbar):
 
-- **Duplicate Bent** (`duplicate.py`) — merged.
+1. **New Timber** — a centred stick with `WidthX/WidthY/LengthZ` and two
+   end datums in the tree. **Show Face & End Marks** should read ±X/±Y
+   and A/B on it. Edit `WidthY` in the Dims VarSet: the section and the
+   datums follow.
+2. **Add Datum** on each face at a station; then bind a station to a
+   project variable via the ƒx field and edit the variable.
+3. **Apply Timber Joint** with `Joint_HousedMT` between a post and a
+   girt on each face and at both ends of the girt (Assemble now on):
+   the girt seats, the post shows the housing and mortise, the girt the
+   shoulder and tenon; the handle marker sits on the post's datum; the
+   joint files under `TimberJoints_Bent-001`. Edit `TenonLength`,
+   `HousingDepth`, the host datum's `Station`, the girt's `WidthX` — the
+   right things move and nothing else does. **Audit Timbers** reads
+   design vs order length and "one solid" throughout.
+4. **Remove Timber Joint** from the handle's context menu: the timbers
+   return to bare sticks, the datums stay unpaired, Undo brings the
+   joint back live (edit a parameter afterwards).
+5. A π bent (two posts, a beam at end A/B) and a second one via
+   **Duplicate Timbers** with an offset; a tie between the bents makes
+   the frame. Edit the beam's `LengthZ`: does the bent re-solve on a
+   plain recompute in the GUI? (Headless it needs an explicit solve —
+   the assembly stays `Touched`; the roadmap says the GUI re-solves.)
+6. **New Joint Template** from `Joint_Butt`, author a component in the
+   GUI per the report window's guide, **Save as Joint Template**, apply
+   it. This is the "a framer can author a joint without Python" claim.
 
-**In review (PR #3, branch `claude/timber-naming-conventions-451894`):**
-the naming overhaul decided at the shakedown. Permanent serial labels
-(`T-<Role>[-<Qualifier>]-<serial>` timbers, `J-<Kind>-<serial>` joints;
-`naming.py` holds the pure helpers) split from position, which is now
-display-only Tier-2 data (`Position_Tag` on Dims and joint VarSets).
-Tree organization: Dims VarSets nest inside their Bodies, joint VarSets
-park in a `TimberJointVars` Std Group (renamed from `Joints` to stay
-clear of the Assembly workbench's own `Joints` group), Duplicate
-Timbers (né Duplicate Bent) can group its copies.
-Suggestion tools bump only the trailing serial segment (the old
-first-number bent swap is gone — it mangled descriptive names). Legacy
-labels stay accepted (advisory-clean) so the library template and
-Adam's existing docs keep working; the template's internals
-(`Joint_MT_0a`, roles `P0-1`/`B0-1`) are untouched — new joint labels
-take their kind token from the template file stem (`HousedMT`).
+**First GUI round (Adam, 2026-09-18):** New Timber and Apply
+`Joint_HousedMT` worked; afterwards most of the UI was greyed out as if a
+task were open, with an "Access violation" in the report view. Cause:
+Apply opened the template with `openDocument(hidden=True)`, which steals
+the active document, and closing it left none. Fixed by
+`template_library.open_hidden` (restores the active document); verified
+by a scripted GUI session through Apply, the template geometry check,
+Undo and Redo. Still to confirm in Adam's GUI: that the access violation
+is gone with it (the scripted session never produced one). Known noise:
+Undo of an Apply prints two `getOverlayIcons` tracebacks from FreeCAD's
+own `JointObject.py` — not ours, harmless.
 
-**Landing PR #3** (the recommended worktree workflow, in order): (1)
-merge the PR; (2) in the MAIN repo dir `…\Projects\BentWizard` — which
-sits on `duplicate-bent`, not `main` — run `git checkout main && git
-pull` so the main checkout actually holds the merged code; (3)
-`scripts/dev-install.ps1 main` + restart FreeCAD. The point-back is a
-*post-merge* step: pointing the junction at `main` before then loads the
-pre-naming main checkout and FreeCAD silently drops the new dialogs.
-Keeping the main checkout on `main` is the hygiene that makes
-`dev-install.ps1 main` mean what it says.
+Things that could only show up in the GUI: recompute ordering
+(`Tool shape is null` was a GUI-only failure in the spikes), the
+tree's rendering of the handle's group extension, whether the
+mirroring's loose source body at root is tolerable in the tree.
 
 ## Architecture cheat-sheet (why the code is shaped this way)
 
-- **Rebuild, don't copy.** New Timber, Apply Joint, and Duplicate Bent
-  all *construct* native geometry rather than FreeCAD-copy it, so the
-  phantom-feature / stale-expression traps (findings #2/#12) can't
-  occur. This is the load-bearing decision.
-- **Landing frame + mate frame.** Each role's stack hangs off one datum
-  LCS (the landing frame); placement = re-placing that one frame (end
-  via flip_z, face via the `FACES` table, hand via flip_x). The mate
-  frame declares engagement (two frames coincide) — rule-neutral, so
-  preview/assembly need no joint-specific code.
-- **Junction point (§4.3).** All cross-timber coupling is joint-VarSet
-  properties bound to the mating timber's Dims; body-internal features
-  never reference a foreign Dims. The linter enforces this.
-- **GUI-free cores.** `timber.py` / `apply_joint.py` / `duplicate.py`
-  have no Qt imports; `commands.py` is thin wrappers. Tests drive the
-  cores headless (FreeCAD-gated, skip under plain Python).
-- **Verification is by resolved geometry**, not frame coincidence — the
-  End-B bug (a backwards joint whose frames coincided perfectly) is why
-  the seating tests assert solid interference, not just placement.
+- **Datums belong to timbers; a joint is applied to them.** Every datum
+  is placed from `facetable.FACE_TABLE`, Z out of the material, so a
+  cutter modelled in −Z and an adder in +Z work on every face and end
+  with no parity correction. Pairing is two strings (`MateDatum`,
+  `Joint`); the cross-timber accessors sit on the joint VarSet because
+  two datums reading each other is a dependency cycle.
+- **Copy, don't rebuild.** `apply.py` copies the template's VarSet and
+  component bodies with `copyObject(objs, False)`, re-points the datum
+  references (both `<<Label>>` and the bare form a cross-document copy
+  leaves), mirrors on parity, Booleans in `ComponentOrder`, and refuses
+  unless every timber is still one solid.
+- **Pre-position, then solve.** `assemble.assimilate_joint` moves the
+  free side to `datums.seat_delta` before the first recompute with the
+  joint present; MbD otherwise rotated the grounded post.
+- **Structural, never label-matched.** Dims from the stick pad's
+  `LengthZ` binding; joint members from the `<<J-…>>` token anchored on
+  component bodies; handles by their links; Fixed joints by the datum
+  names they reference.
+- **GUI-free cores.** `timber`, `datums`, `apply`, `assemble`,
+  `duplicate`, `measure`, `template_check` have no Qt; `commands.py` is
+  thin wrappers. Tests drive the cores headless.
 
 ## Running things
 
 - Tests: `C:\Users\Adam\Documents\Projects\FreeCAD_1.1.1-Windows-x86_64-py311\bin\python.exe -m unittest discover -s tests`
-  (portable FreeCAD now lives outside the repo — see CLAUDE.md Environment)
 - Lint a file: `... python.exe -m freecad.bentwizard.linter <file.FCStd>`
-- Headless scripting: `freecadcmd.exe <script.py>`; to import the repo
-  package, front-load `<repo>/freecad` on the already-imported `freecad`
-  package's `__path__` (freecadcmd pre-imports its own `freecad`).
-- **Worktree gotcha:** FreeCAD's Mod scan grafts the junction (the MAIN
-  repo) onto `freecad.__path__` ahead of a worktree checkout — an
-  `append` silently runs the main repo's code. `tests/_repo_path.py`
-  front-loads the checkout under test (each test module imports it and
-  re-grafts after `import FreeCAD`); do the same in ad-hoc scripts run
-  from a worktree.
-- The workbench is dev-installed via a junction at
+- Rebuild the shipped library: `... python.exe scripts/build_library.py`
+  (writes `library/Joint_Butt.FCStd` and `library/Joint_HousedMT.FCStd`
+  and runs the template bar on both)
+- Headless scripting: `freecadcmd.exe <script.py>` swallows `print`;
+  prefer the bundled `python.exe`, and front-load `<repo>/freecad` on
+  `freecad.__path__` (`tests/_repo_path.py`) so the checkout wins over
+  the `Mod` junction.
+- The workbench is dev-installed via the junction at
   `%APPDATA%/FreeCAD/v1-1/Mod/BentWizard` → repo root, so the working
-  tree runs live (uncommitted code included). Adam must restart FreeCAD
-  to pick up changes.
-- **Commit workflow (adopted):** build + headless-test, then Adam
-  GUI-tests and approves BEFORE committing. Commits land tested.
-- Scratch experiments go in `scratch/` (gitignored). Never save over a
-  file Adam has open; read his files or copy to scratch.
+  tree runs live. Restart FreeCAD to pick up changes.
+- Scratch experiments go in `scratch/` (gitignored).
 
-## Next candidates (roadmap has full detail)
+## Known limitations / backlog (the roadmap has the full list)
 
-- ~~**Save-as-joint-template**~~ — **built August 2026** as New Joint
-  Template + Save as Joint Template (`template_library.py`,
-  `template_check.py`). The linter was only half the validator: the
-  skeleton rules moved out of the test suite into `template_check.py`
-  so a user reaches the same completeness bar the library controls do.
-  Reports, never blocks. Templates now live in the user's template
-  folder as well as the shipped `library/`.
-- **Full test-bent assembly** (§4.8) — position the sticks into a real
-  π with the Assembly workbench (datum-to-datum, mate frames are the
-  natural anchors). Currently duplicated/new timbers sit at the origin.
-- **Parameter groups / presets** — the type layer (§4.9); a preset is a
-  Group VarSet the instance binds to. Adam wants this ("TieBeam01").
-- Then Phase 2 (cut lists, TechDraw) per the roadmap.
-
-## Known limitations / backlog (all in the roadmap's Open Items)
-
-- **Preview** doesn't track edits that move the mate frame within the
-  secondary (its Width/Depth, or Tenon_Length) or a body moved while
-  the preview is up — refresh (toggle) fixes it. Complete fix = a
-  recompute-driven ghost placement (FeaturePython); deferred.
-- **Duplicate Timbers** now reproduces the sources' relative
-  placements (the copies-land-at-origin debt is paid; they assemble
-  into an offset bent sub-assembly). Older joints
-  (pre-`Template_Source`) rely on the library kind-scan fallback.
-- **Handed tenons** (corner-anchored end frames mirrored about the
-  section center) not supported — hand is side-landing-roles only.
-- **Layout rules** (reframed July 2026): the workbench's native
-  convention is **Mill Rule** — what's built already is it. Square Rule
-  ≈ free (its reduce-to-ideal housing is field work, never a drawn
-  dimension), Line Rule contained (centered timber variant, 2nd `FACES`
-  table). See the roadmap's Layout rules section.
-- **Permissive naming** (July 2026): body labels are free-form except
-  the reserved characters `>`, `\`, `;`, and line breaks (new strict
-  lint; empirically verified against the 1.1.1 expression engine). The
-  serial is the trailing digit run after any of `-`/`.`/`_`/space, and
-  bump tools preserve the separator — `T-Post.Balcony.001` is
-  first-class. Workflow doc §3 has the full rule.
-- **Descriptive-first feature labels** (July 2026): features inside
-  bodies read `<Descriptive>[.<TypeTag>].<Abbrev>.<serial>`
-  (`TailSlope.Skt.WHD.001`) instead of the body-qualified form, which
-  buried the descriptive part between two long tokens. The Dims prefix
-  shortened to `TDim_`, frame role moved to the Tier-2 `Frame_Role`
-  property, and both library templates were migrated by
-  `scripts/migrate-naming.py` — including `Joint_HousedMT`, which came
-  off the legacy `Joint_MT_0a` / `P0-1` / `B0-1` internals named above.
-  Existing documents are grandfathered, never rewritten.
-- Joint browsing at scale, reference-face 3D indicator, primary/secondary
-  as explicit load-path metadata. (New Timber expression fields and
-  copy-from-selected landed July 2026.)
+- Per-timber face labels (a `Role` on the Dims VarSet defaulting
+  `FaceLabelXPos` … for drawings and the face pickers) — not built; the
+  pickers show ±X/±Y.
+- Created-part roles (wedges, pegs), the dovetail rebuilt on the new
+  contract, the beam tool, the framer-facing panel.
+- A mirrored component's source body sits at the document root (the
+  Boolean claims the mirroring, not its source).
+- Headless assemblies need an explicit `solve()` after a parameter
+  edit; confirm the GUI does it on recompute.

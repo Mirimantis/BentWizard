@@ -1,0 +1,454 @@
+"""Apply and remove a timber joint — the rev-2 mechanism.
+
+Applying a joint is a copy, not a rebuild:
+
+1. **Copy.** The template's joint VarSet and each component Body — the
+   body with its own features and Origin, and nothing else — are copied
+   into the document with ``copyObject(objs, False)``. FreeCAD remaps
+   every link and expression *among the copied set* (the VarSet
+   included), while expressions naming the template's datums keep
+   naming them by label, which is exactly the handle we need.
+2. **Pair.** The two target datums are paired under the copied VarSet,
+   which binds its ``Host*``/``Mate*`` accessors through them.
+3. **Re-point.** Every ``<<template datum>>`` token in the copied set
+   becomes the target datum — one substitution over the component's
+   ``Placement`` and its accessor references (Part H1b).
+4. **Mirror when parity differs.** A component keeps its timber-local
+   x/y offsets at either end and on opposite faces (Part H2/H3): when
+   the target datum's parity is not the authoring datum's, a
+   ``Part::Mirroring`` across the component's local X carries the
+   Placement instead of the body. Symmetric components mirror to
+   themselves, so this is unconditional rather than a user choice.
+5. **Boolean**, in declared order, ``Cut`` for a cutter and ``Fuse`` for
+   an adder, into the timber that owns the datum. The Boolean seats its
+   operand in the timber Body's LOCAL frame (round 3), which is why the
+   binding is the datum's local Placement.
+6. **Assert one solid** after every Boolean. Three different errors
+   produced exactly the expected volume with wrong geometry; only the
+   solid count told a joint from a severed timber.
+
+Removing a joint deletes the Booleans, mirrorings, component bodies,
+handle, Fixed assembly joint and VarSet, and unpairs the datums — which
+stay, because they belong to the timber. The timber returns to its bare
+stick; nothing about it moved.
+"""
+
+from __future__ import annotations
+
+import re
+from collections import namedtuple
+
+import FreeCAD as App
+
+from . import datums, facetable, measure, naming, template_library
+from .datums import DatumError
+from .template import JointError, TemplateSpec
+from .timber import dim_input, dims_varset
+
+Applied = namedtuple("Applied", "varset components booleans warnings")
+
+_COPY_FAILED = "copyObject returned an unexpected set"
+
+
+# --------------------------------------------------------------------------
+# Structural queries
+# --------------------------------------------------------------------------
+
+def joint_datums(varset):
+    """The datums paired under a joint VarSet, host first."""
+    return datums.datums_of_joint(varset)
+
+
+def joint_bodies(varset):
+    """The timbers a joint connects (host first)."""
+    return [datums.owner(d) for d in joint_datums(varset)]
+
+
+def joint_members(varset):
+    """Everything a joint is made of, apart from its VarSet and datums:
+    its component bodies (with their features and Origins), their
+    mirrorings, and the Booleans that apply them.
+
+    Structural, and anchored on COMPONENT bodies — a body declaring a
+    ComponentRole whose own features carry the ``<<J-Kind-serial>>``
+    token. Never a timber: a timber holds the Boolean that references
+    the joint, and widening the closure through it once deleted a
+    timber's section, pad and datums along with the joint.
+    """
+    doc = varset.Document
+    token = f"<<{varset.Label}>>"
+
+    def mentions(obj):
+        return any(token in e for _p, e in obj.ExpressionEngine)
+
+    comps = [b for b in doc.Objects
+             if b.TypeId == "PartDesign::Body"
+             and hasattr(b, naming.PROP_COMPONENT_ROLE)
+             and (mentions(b) or any(mentions(f) for f in b.Group))]
+    members = {}
+    for body in comps:
+        members[body.Name] = body
+        for f in body.Group:
+            members[f.Name] = f
+        origin = body.Origin
+        if origin is not None:
+            members[origin.Name] = origin
+            for f in origin.OriginFeatures:
+                members[f.Name] = f
+    comp_names = {b.Name for b in comps}
+    holders = set(comp_names)
+    for obj in doc.Objects:
+        if obj.TypeId == "Part::Mirroring":
+            src = getattr(obj, "Source", None)
+            if src is not None and src.Name in comp_names:
+                members[obj.Name] = obj
+                holders.add(obj.Name)
+    for obj in doc.Objects:
+        if obj.TypeId == "PartDesign::Boolean"                 and any(o.Name in holders for o in obj.Group):
+            members[obj.Name] = obj
+    return list(members.values())
+
+
+def joint_components(varset):
+    """The joint's component bodies (cutters and adders), in ComponentOrder."""
+    comps = [o for o in joint_members(varset)
+             if o.TypeId == "PartDesign::Body"
+             and hasattr(o, naming.PROP_COMPONENT_ROLE)]
+    return sorted(comps, key=lambda c: (getattr(c, naming.PROP_COMPONENT_ORDER, 0),
+                                        c.Label))
+
+
+def joint_varsets(doc):
+    return [o for o in doc.Objects
+            if o.TypeId == "App::VarSet" and naming.is_joint_varset_label(o.Label)]
+
+
+def bent_joints(doc, bodies):
+    """(inside, outside): joints whose two timbers are both in `bodies`,
+    and joints touching the set with one timber outside it."""
+    names = {b.Name for b in bodies}
+    inside, outside = [], []
+    for vs in joint_varsets(doc):
+        owners = {b.Name for b in joint_bodies(vs) if b is not None}
+        if not owners:
+            continue
+        if owners <= names:
+            inside.append(vs)
+        elif owners & names:
+            outside.append(vs)
+    return inside, outside
+
+
+def next_serial(doc, kind):
+    """The next free serial for J-<kind>-NNN in `doc`."""
+    label = naming.next_serial([o.Label for o in doc.Objects],
+                               naming.JOINT_PREFIX + kind, sep="-")
+    return naming.split_serial(label)[1]
+
+
+# --------------------------------------------------------------------------
+# Apply
+# --------------------------------------------------------------------------
+
+def _resolve_target(doc, role, target):
+    """(body, datum, created) for one role's target — an existing datum
+    or a new one placed for the occasion."""
+    body = target.get("body")
+    if body is None or dims_varset(body) is None:
+        raise JointError(f"role {role!r}: pick a timber")
+    datum = target.get("datum")
+    if datum is not None:
+        if not datums.is_datum(datum):
+            raise JointError(f"role {role!r}: {datum.Label!r} is not a datum")
+        if datums.owner(datum) is not body:
+            raise JointError(f"role {role!r}: datum {datum.Label!r} is not on "
+                             f"{body.Label!r}")
+        if datums.is_paired(datum):
+            raise JointError(f"role {role!r}: datum {datum.Label!r} is already "
+                             f"paired under "
+                             f"{getattr(datum, naming.PROP_JOINT, '')!r}; remove "
+                             f"that timber joint first")
+        return body, datum, False
+    face = target.get("face")
+    if face is None:
+        raise JointError(f"role {role!r}: choose an existing datum or a face")
+    if facetable.is_end(face):
+        datum = datums.end_datum(body, face)
+        if datum is not None:
+            if datums.is_paired(datum):
+                raise JointError(f"role {role!r}: {body.Label}'s "
+                                 f"{facetable.display(face)} datum is already "
+                                 f"paired; remove that timber joint first")
+            return body, datum, False
+    datum = datums.add_datum(body, face, target.get("station"))
+    return body, datum, True
+
+
+def _set_value(varset, name, value):
+    if isinstance(value, str) and value.lstrip().startswith("="):
+        _q, expr = dim_input(value)
+        try:
+            varset.evalExpression(expr)
+        except Exception as err:
+            raise JointError(f"{name}: bad expression {expr!r} ({err})")
+        varset.setExpression(name, expr)
+        return
+    varset.setExpression(name, None)
+    type_id = varset.getTypeIdOfProperty(name)
+    if type_id == "App::PropertyInteger":
+        setattr(varset, name, int(value))
+    elif type_id == "App::PropertyBool":
+        setattr(varset, name, bool(value))
+    elif type_id == "App::PropertyString":
+        setattr(varset, name, str(value))
+    elif type_id in ("App::PropertyLength", "App::PropertyDistance",
+                     "App::PropertyAngle", "App::PropertyQuantity"):
+        setattr(varset, name, App.Units.Quantity(value)
+                if isinstance(value, str) else value)
+    else:
+        setattr(varset, name, value)
+
+
+def _substitute(objs, old_label, new_label):
+    """Re-point every reference to `old_label` in the expressions of
+    `objs` at `new_label`. A cross-document copy rewrites a
+    ``<<Label>>`` it cannot resolve into the bare ``Label.Prop`` form,
+    so both spellings are matched."""
+    pattern = re.compile(r"(<<" + re.escape(old_label) + r">>|(?<![\w.])"
+                         + re.escape(old_label) + r"(?=\.))")
+    for obj in objs:
+        for path, expr in list(obj.ExpressionEngine):
+            new = pattern.sub(f"<<{new_label}>>", expr)
+            if new != expr:
+                obj.setExpression(path, new)
+
+
+def _copy_set(body):
+    """A component body with its own features and Origin — the set that
+    copies cleanly with `with_dependencies=False` (Part H finding 10)."""
+    return [body] + list(body.Group) + [body.Origin] + list(body.Origin.OriginFeatures)
+
+
+def apply_joint(doc, spec, serial, targets, values=None, position_tag=""):
+    """Apply template `spec` as joint J-<Kind>-<serial>.
+
+    `targets[role]` is ``{"body": Body, "datum": LCS}`` for an existing
+    unpaired datum, or ``{"body": Body, "face": <facetable place>,
+    "station": value-or-'=expr'}`` to place one. `values` maps parameter
+    names to literals or ``'=<expression>'`` strings. Returns an
+    ``Applied`` (varset, component bodies, Booleans, warnings). Raises
+    JointError/DatumError with the document possibly half-changed — the
+    caller owns the transaction and aborts it on failure.
+    """
+    if not isinstance(spec, TemplateSpec):
+        spec = TemplateSpec(spec)
+    serial = str(serial).strip()
+    if not serial.isdigit():
+        raise JointError(f"serial must be digits, got {serial!r}")
+    label = naming.joint_label(spec.kind, serial)
+    if doc.getObjectsByLabel(label):
+        raise JointError(f"{label} already exists in this document")
+    missing = [r for r in spec.roles if r not in targets]
+    if missing:
+        raise JointError(f"no target for role(s) {', '.join(missing)}")
+
+    resolved = {}
+    for role in spec.roles:
+        resolved[role] = _resolve_target(doc, role, targets[role])
+    bodies = [resolved[r][0] for r in spec.roles]
+    if bodies[0] is bodies[1]:
+        raise JointError("a timber joint connects two different timbers")
+    host_datum = resolved[spec.host_role][1]
+    mate_datum = resolved[spec.mate_role][1]
+
+    # --- copy the VarSet and the components out of the template -------
+    with template_library.open_hidden(spec.path) as tdoc:
+        t_varset = tdoc.getObjectsByLabel(spec.varset_label)
+        if not t_varset:
+            raise JointError(f"{spec.stem}: joint VarSet "
+                             f"{spec.varset_label!r} not found")
+        t_varset = t_varset[0]
+        objs = [t_varset]
+        comp_slices = []
+        for c in spec.components:
+            t_body = tdoc.getObject(c["name"])
+            if t_body is None:
+                raise JointError(f"{spec.stem}: component {c['label']!r} not found")
+            block = _copy_set(t_body)
+            comp_slices.append((c, len(objs), len(block)))
+            objs.extend(block)
+        copies = doc.copyObject(objs, False)
+    if len(copies) != len(objs) or copies[0].TypeId != "App::VarSet":
+        raise JointError(_COPY_FAILED)
+    varset = copies[0]
+    components = []
+    for c, start, n in comp_slices:
+        body = copies[start]
+        if body.TypeId != "PartDesign::Body":
+            raise JointError(_COPY_FAILED)
+        components.append((c, body, copies[start:start + n]))
+
+    # --- relabel and parameterize --------------------------------------
+    varset.Label = label
+    for c, body, _block in components:
+        body.Label = naming.retag_component_label(c["label"], spec.kind, serial)
+    # the template's accessor bindings name template datums; pair() rewrites them
+    for side in naming.SIDES:
+        for acc in facetable.ACCESSORS:
+            if hasattr(varset, side + acc):
+                varset.setExpression(side + acc, None)
+    for name, value in (values or {}).items():
+        if not hasattr(varset, name):
+            raise JointError(f"{label} has no parameter {name!r}")
+        _set_value(varset, name, value)
+    if not hasattr(varset, naming.PROP_TEMPLATE_SOURCE):
+        varset.addProperty("App::PropertyString", naming.PROP_TEMPLATE_SOURCE,
+                           naming.TEMPLATE_META_GROUP,
+                           "The library template this joint was applied from.")
+    setattr(varset, naming.PROP_TEMPLATE_SOURCE, spec.stem)
+    if not hasattr(varset, naming.PROP_POSITION_TAG):
+        varset.addProperty("App::PropertyString", naming.PROP_POSITION_TAG, "Tag",
+                           "Where this joint sits in the structure — display-"
+                           "only, for drawings and schedules.")
+    setattr(varset, naming.PROP_POSITION_TAG, (position_tag or "").strip())
+
+    # --- pair ---------------------------------------------------------------
+    datums.pair(host_datum, mate_datum, varset)
+
+    # --- re-point and place each component ------------------------------
+    target_datum = {spec.host_datum_label: host_datum,
+                    spec.mate_datum_label: mate_datum}
+    placed = []
+    for c, body, block in components:
+        t_datum_label = c["datum"]
+        target = target_datum[t_datum_label]
+        _substitute(block, t_datum_label, target.Label)
+        # a template authored with a mirroring in it is unusual; the
+        # authoring parity is the datum's the component was bound to
+        authored_parity = facetable.parity(spec.datum_face[t_datum_label])
+        mirror = authored_parity != datums.parity(target)
+        holder = body
+        if mirror:
+            body.setExpression("Placement", None)
+            body.Placement = App.Placement()
+            m = doc.addObject("Part::Mirroring", "Mirror")
+            m.Label = naming.mirror_label(body.Label)
+            m.Source = body
+            m.Base = App.Vector(0, 0, 0)
+            m.Normal = App.Vector(1, 0, 0)
+            m.setExpression("Placement", f"<<{target.Label}>>.Placement")
+            holder = m
+        placed.append((c, body, holder, target))
+    doc.recompute()
+    for c, body, holder, _t in placed:
+        if not measure.is_whole(body):
+            raise JointError(f"{body.Label}: the component is not one valid "
+                             f"solid at these parameters "
+                             f"({measure.solid_count(body)} solids)")
+
+    # --- booleans, in declared order ----------------------------------------
+    warnings = []
+    booleans = []
+    for c, body, holder, target in placed:
+        timber = datums.owner(target)
+        before = timber.Shape.Volume
+        op = naming.BOOLEAN_OP[c["role"]]
+        bo = timber.newObject("PartDesign::Boolean", "Boolean")
+        bo.Label = naming.boolean_label(c["role"], body.Label)
+        bo.Group = [holder]          # direct assignment: addObjects would
+        bo.Type = op                 # drag a mirroring's Source in too
+        bo.Refine = True
+        doc.recompute()
+        if "Invalid" in bo.State or "Error" in bo.State:
+            raise JointError(f"{bo.Label}: recompute failed ({bo.State})")
+        if not measure.is_whole(timber):
+            raise JointError(
+                f"{bo.Label} leaves {timber.Label} as "
+                f"{measure.solid_count(timber)} solids — the {c['role'].lower()} "
+                f"does not land inside the stick (severed, or missed it)")
+        after = timber.Shape.Volume
+        if op == "Cut" and abs(after - before) < 1e-6:
+            warnings.append(f"{bo.Label} removed no material from "
+                            f"{timber.Label} — check the datum's face and station")
+        if op == "Fuse" and abs(after - before) < 1e-6:
+            warnings.append(f"{bo.Label} added no material to {timber.Label}")
+        booleans.append(bo)
+
+    from . import joint_handle
+    joint_handle.ensure_handle(varset, host_datum)
+    for w in warnings:
+        App.Console.PrintWarning(f"BentWizard: {w}\n")
+    return Applied(varset, [b for _c, b, _h, _t in placed], booleans, warnings)
+
+
+# --------------------------------------------------------------------------
+# Remove
+# --------------------------------------------------------------------------
+
+def _unlink_feature(body, feat):
+    """Take a solid feature out of a Body's chain, relinking what
+    followed it, before deleting it."""
+    base = getattr(feat, "BaseFeature", None)
+    for other in body.Group:
+        if getattr(other, "BaseFeature", None) is feat:
+            other.BaseFeature = base
+    if body.Tip is feat:
+        body.Tip = base
+    body.removeObject(feat)
+
+
+def remove_joint(varset):
+    """Remove a timber joint: Booleans, mirrorings, components, handle,
+    Fixed assembly joint and VarSet; the datums stay, unpaired. Asserts
+    each timber returns to one solid. Caller owns the transaction."""
+    doc = varset.Document
+    pair = joint_datums(varset)
+    timber_names = [datums.owner(d).Name for d in pair if datums.owner(d) is not None]
+    # snapshot everything by NAME before deleting anything: a deleted
+    # object's proxy raises on any attribute, and removing a feature can
+    # cascade
+    members = joint_members(varset)
+    booleans = [(o.Name, o.getParentGeoFeatureGroup())
+                for o in members if o.TypeId == "PartDesign::Boolean"]
+    mirrorings = [o.Name for o in members if o.TypeId == "Part::Mirroring"]
+    components = []
+    for o in members:
+        if o.TypeId == "PartDesign::Body":
+            origin = o.Origin
+            components.append(([f.Name for f in o.Group],
+                               [f.Name for f in origin.OriginFeatures] if origin else [],
+                               origin.Name if origin else None, o.Name))
+
+    from . import assemble, joint_handle
+    for fixed in assemble.find_fixed_joints(doc, varset):
+        doc.removeObject(fixed.Name)
+    joint_handle.remove_handle(varset)
+
+    for name, body in booleans:
+        bo = doc.getObject(name)
+        if bo is None:
+            continue
+        if body is not None and doc.getObject(body.Name) is not None:
+            _unlink_feature(body, bo)
+        doc.removeObject(name)
+    for name in mirrorings:
+        if doc.getObject(name) is not None:
+            doc.removeObject(name)
+    for features, origin_features, origin, body_name in components:
+        for name in list(reversed(features)) + origin_features + [origin, body_name]:
+            if name and doc.getObject(name) is not None:
+                doc.removeObject(name)
+    for d in pair:
+        datums.unpair(d)
+    doc.removeObject(varset.Name)
+    joint_handle.prune_root_group(doc)
+    doc.recompute()
+    timbers = [doc.getObject(n) for n in timber_names]
+    for t in timbers:
+        if t is None:
+            continue
+        if "Invalid" in t.State or "Error" in t.State:
+            raise JointError(f"{t.Label}: recompute failed after removal ({t.State})")
+        if not measure.is_whole(t):
+            raise JointError(f"{t.Label} is {measure.solid_count(t)} solids after removal")
+    return timbers

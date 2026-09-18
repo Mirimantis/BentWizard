@@ -1,355 +1,214 @@
-"""Ground-truth tests for the BentWizard linter.
+"""The linter's rules, pinned against documents built for the purpose.
 
-The session-12 prototype (tests/fixtures/Joint_HouseMT_session_12.FCStd)
-carries every known debt listed in the Phase 0 workflow document §7.
-These tests pin the linter to that ground truth: each debt must be
-caught. TimberTemplate.FCStd is the clean control — the pristine
-template must produce no strict findings.
-
-Debt 5's *value* (ProjectVars.FloorHeight left at the 54 in test value)
-is not machine-decidable; the linter catches that debt at the object
-level (naming + tooltip findings on ProjectVars/FloorHeight), and the
-value itself remains a human review item.
-
-Run with:  python -m unittest discover -s tests
-(stdlib only — works with the bundled FreeCAD python or any Python 3.9+)
+A clean rev-2 document (timbers, datums, a pairing, a component and its
+Boolean) lints silent — strict AND advisory — and then one deliberate
+violation per rule is introduced and must be the finding that fires.
+FreeCAD builds the documents; the linter reads the saved files with no
+FreeCAD at all.
 """
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
-import _repo_path  # noqa: E402, F401 — this repo's code must win the import
-
-from freecad.bentwizard import naming  # noqa: E402
-from freecad.bentwizard.fcstd import FcstdDocument  # noqa: E402
-from freecad.bentwizard import template_check  # noqa: E402
-from freecad.bentwizard.linter import ADVISORY, STRICT, Model, lint  # noqa: E402
-
-FIXTURES = Path(__file__).resolve().parent / "fixtures"
-LIBRARY = REPO_ROOT / "library"
-SESSION_12 = FIXTURES / "Joint_HouseMT_session_12.FCStd"
-TEMPLATE = FIXTURES / "TimberTemplate.FCStd"
-# The library acceptance controls read library/ DIRECTLY. They used to
-# read a fixture copy, which drifted: the copy predated the companion
-# layout VarSet entirely, so the bar was being asserted against a
-# template two conventions old. Every other test module already reads
-# library/, and a duplicate that must be hand-refreshed is exactly the
-# kind of thing that silently stops being refreshed.
-JOINT_TEMPLATE = LIBRARY / "Joint_HousedMT.FCStd"
-BUTT_TEMPLATE = LIBRARY / "Joint_Butt.FCStd"
-WHD_TEMPLATE = LIBRARY / "Joint_WedgedHalfDovetail.FCStd"
-
-
-class LinterFixtureTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.findings = lint(cls.FIXTURE)
-
-    def matching(self, rule, obj=None, contains=None):
-        out = []
-        for f in self.findings:
-            if f.rule != rule:
-                continue
-            if obj is not None and f.obj != obj:
-                continue
-            if contains is not None and contains not in f.message:
-                continue
-            out.append(f)
-        return out
-
-    def assertFinding(self, rule, obj=None, contains=None):
-        hits = self.matching(rule, obj=obj, contains=contains)
-        self.assertTrue(
-            hits,
-            f"expected a [{rule}] finding"
-            + (f" on {obj}" if obj else "")
-            + (f" mentioning {contains!r}" if contains else "")
-            + f"; got: {[str(f) for f in self.findings if f.rule == rule]}")
-        return hits
-
-
-class SessionTwelveDebts(LinterFixtureTest):
-    """Workflow document §7: every known debt must be caught."""
-
-    FIXTURE = SESSION_12
-
-    # Debt 1 — MT1 drives both beam ends and both posts.
-    def test_mt1_spans_three_bodies(self):
-        self.assertFinding("joint-varset-single-instance",
-                           obj="VarSet002", contains="3 bodies")
-
-    def test_mt1_drives_both_beam_ends(self):
-        self.assertFinding("joint-varset-single-instance",
-                           obj="VarSet002", contains="both ends")
-
-    # Debt 2 — combined two-circle peg sketch on the beam.
-    def test_combined_peg_sketch(self):
-        self.assertFinding("multi-instance-sketch", obj="Sketch019")
-
-    # Debt 3 — PegHole_MT1_sketch2 (Post2) references PostDims.
-    def test_peghole_cross_timber_reference(self):
-        self.assertFinding("cross-timber-dims-reference",
-                           obj="Sketch018", contains="PostDims")
-
-    # Debt 4 — Post2's hole feature unnamed (Hole001); tongue-sides
-    # pocket never renamed (Pocket007).
-    def test_unnamed_hole_feature(self):
-        self.assertFinding("auto-generated-label", obj="Hole001")
-
-    def test_unnamed_tongue_pocket(self):
-        self.assertFinding("auto-generated-label", obj="Pocket007")
-
-    # Debt 5 — ProjectVars.FloorHeight left at a test value. The value is
-    # not lintable; the object is flagged for naming and tooltips.
-    def test_projectvars_flagged(self):
-        self.assertFinding("naming-convention", obj="VarSet006",
-                           contains="Kind_Owner")
-        self.assertFinding("naming-convention", obj="VarSet006",
-                           contains="FloorHeight")
-
-    # Debt 6 — all prototype VarSets predate the naming convention.
-    def test_all_prototype_varsets_flagged(self):
-        flagged = {f.obj for f in self.matching("naming-convention",
-                                                contains="Kind_Owner")}
-        expected = {"VarSet", "VarSet001", "VarSet002", "VarSet003",
-                    "VarSet004", "VarSet005", "VarSet006"}
-        self.assertTrue(expected <= flagged,
-                        f"missing naming findings for {expected - flagged}")
-
-
-class SessionTwelveBehavior(LinterFixtureTest):
-    """Rule behavior beyond the §7 list, pinned against the same file."""
-
-    FIXTURE = SESSION_12
-
-    def test_dims_label_drift_flagged(self):
-        # PostDims should be TDim_Post per the convention; the drifted
-        # label is advisory (tools resolve structurally). Note the legacy
-        # 'TimberDims_' prefix IS grandfathered — 'PostDims' carries
-        # neither prefix, so it still reports.
-        self.assertFinding("naming-convention", contains="TDim_Post")
-
-    def test_symmetric_constraint_detected(self):
-        # Socket_DT1 sketch still carries one Symmetric constraint.
-        self.assertFinding("symmetry-constraint", obj="Sketch010")
-
-    def test_mortise_width_at_caution_threshold(self):
-        # TenonWidth = 6 in on an 8x8: exactly 75% — at the severing limit
-        # (not over it), so advisory caution, not strict.
-        self.assertFinding("caution-threshold", obj="Pocket001",
-                           contains="TenonWidth")
-        self.assertFinding("caution-threshold", obj="Pocket011",
-                           contains="TenonWidth")
-        self.assertFalse(self.matching("severing-limit"),
-                         "75% is at the limit, not over it")
-
-    def test_no_solid_face_references(self):
-        # Assembly joints were built datum-to-datum per the workflow.
-        self.assertFalse(self.matching("solid-face-reference"))
-
-    def test_islands_strictly_interior(self):
-        # Post-session-5 subtractive rework: island pockets are clean.
-        self.assertFalse(self.matching("island-not-interior"))
-
-    def test_own_dims_references_not_flagged(self):
-        # A timber's own Dims bindings are legitimate.
-        self.assertFalse(self.matching("cross-timber-dims-reference",
-                                       obj="Sketch002"))
-
-    def test_strict_findings_are_exactly_the_known_set(self):
-        strict_objs = sorted(f.obj for f in self.findings
-                             if f.severity == STRICT)
-        self.assertEqual(strict_objs, [
-            "Pocket004",              # Housing_DT1 length from JoistDims
-            "Sketch003",              # Post housing width from BeamDims
-            "Sketch009",              # DT housing width from JoistDims
-            "Sketch010",              # DT socket position from JoistDims
-            "Sketch014",              # Post2 housing width from BeamDims
-            "Sketch018",              # debt 3: peg sketch from PostDims
-            "Sketch019",              # debt 2: combined peg sketch
-            "VarSet002",              # debt 1: MT1 spans 3 bodies
-            "VarSet002",              # debt 1: MT1 drives both beam ends
-        ])
-
-
-class TimberTemplateControl(LinterFixtureTest):
-    """The pristine template must be strict-clean."""
-
-    FIXTURE = TEMPLATE
-
-    def test_no_strict_findings(self):
-        strict = [f for f in self.findings if f.severity == STRICT]
-        self.assertEqual(strict, [])
-
-    def test_advisories_still_reported(self):
-        # Pre-convention names are advisory, never strict.
-        self.assertTrue(self.matching("naming-convention"))
-        self.assertTrue(all(f.severity == ADVISORY for f in self.findings))
-
-
-class TemplateSkeletonCompleteness:
-    """Every library template carries the same skeleton, and a lint of
-    zero findings does NOT prove it is there.
-
-    The linter is a correctness bar, not a completeness one: its frame
-    rules only fire once frames exist, so a half-built template — two
-    timbers and no frames at all — lints completely silent. That is a
-    false green on the one test whose whole job is to say 'this template
-    is fit to ship', and it matters most for Joint_Butt, which is the
-    skeleton new templates are copied from.
-
-    The rules themselves live in freecad/bentwizard/template_check.py —
-    Save-as-joint-template runs exactly these checks on a user's own
-    joint, and a completeness bar that existed only in the test suite
-    would be a bar no user ever reaches. This mixin is what proves them
-    against templates known to be complete; each test asserts one rule's
-    findings are empty, so a red suite still reads as a checklist.
-    """
-
-    # Two timbers, three frames: one Landing per role (the anchor's, and
-    # the entering timber's end frame) plus the single Mate.
-    EXPECTED_FRAMES = template_check.EXPECTED_FRAMES
-    EXPECTED_LANDING = template_check.EXPECTED_LANDING
-    EXPECTED_MATE = template_check.EXPECTED_MATE
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.model = Model(FcstdDocument.from_file(cls.FIXTURE))
-
-    def assertRuleClean(self, rule):
-        findings = rule(self.model)
-        self.assertEqual([str(f) for f in findings], [])
-
-    def test_carries_two_timbers_each_with_dims(self):
-        self.assertRuleClean(template_check.rule_two_timbers)
-
-    def test_carries_the_joint_varset_with_its_abbrev(self):
-        self.assertRuleClean(template_check.rule_joint_varset)
-
-    def test_carries_the_companion_layout_varset(self):
-        self.assertRuleClean(template_check.rule_layout_companion)
-
-    def test_carries_the_full_frame_set(self):
-        self.assertRuleClean(template_check.rule_frame_set)
-
-    def test_mate_frame_is_driven_from_the_joint_varset(self):
-        self.assertRuleClean(template_check.rule_mate_frame_driven_from_joint)
-
-    def test_file_stem_matches_the_joint_kind(self):
-        # The stem is what applied joints take their kind from.
-        findings = template_check.stem_findings(self.FIXTURE, self.model)
-        self.assertEqual([str(f) for f in findings], [])
-
-    def test_apply_joint_can_load_it(self):
-        self.assertEqual(
-            [str(f) for f in template_check.load_findings(self.FIXTURE)], [])
-
-
-class HousedMTTemplateControl(TemplateSkeletonCompleteness, LinterFixtureTest):
-    """The first library joint template (built Phase 1, sessions
-    Part A–E) must lint completely clean — strict AND advisory. This is
-    the library acceptance bar; if a linter change breaks this, either
-    the rule is wrong or the template needs updating alongside it."""
-
-    FIXTURE = JOINT_TEMPLATE
-
-    def test_completely_clean(self):
-        self.assertEqual([str(f) for f in self.findings], [])
-
-
-@unittest.skipUnless(BUTT_TEMPLATE.exists(),
-                     f"{BUTT_TEMPLATE.name} not built yet — see "
-                     f"docs/butt-template-build.md")
-class ButtTemplateControl(TemplateSkeletonCompleteness, LinterFixtureTest):
-    """The jointless starter template. Same acceptance bar as any other
-    library template — strict AND advisory clean — with no
-    caution-threshold exemption, because it has no cuts to be cautious
-    about. It is also the skeleton new templates are authored from, so
-    anything it carries propagates: it must be silent, and it must be
-    complete (see TemplateSkeletonCompleteness — a jointless template is
-    exactly the case a lint-only bar cannot tell from a half-built one)."""
-
-    FIXTURE = BUTT_TEMPLATE
-
-    def test_completely_clean(self):
-        self.assertEqual([str(f) for f in self.findings], [])
-
-    def test_stays_jointless(self):
-        """The defining property, and the one that would rot silently.
-
-        Its value is that it carries the skeleton and nothing else; a
-        pocket added here propagates into every template copied from it
-        as exactly the phantom feature finding #12 warns about. Only the
-        two base pads may be solid features.
-        """
-        solid = [o for o in self.model.doc.objects.values()
-                 if o.type_id.startswith("PartDesign::")
-                 and not o.is_type("PartDesign::Body")]
-        pads = [o.label for o in solid if o.is_type("PartDesign::Pad")]
-        joinery = [f"{o.label} ({o.type_id})" for o in solid
-                   if not o.is_type("PartDesign::Pad")]
-        self.assertEqual(
-            joinery, [],
-            f"the starter skeleton must carry no joinery geometry, "
-            f"found: {joinery}")
-        self.assertEqual(
-            sorted(pads),
-            sorted(f"Stick.{b.label}" for b in self.model.bodies),
-            f"expected exactly the two stick pads, got {pads}")
-
-
-class WedgedHalfDovetailTemplateControl(TemplateSkeletonCompleteness,
-                                        LinterFixtureTest):
-    """The Dutch anchor-beam joint, converted to frames-at-face and given
-    its companion layout VarSet (August 2026).
-
-    Its documented bar allows `caution-threshold` — it severs a real
-    fraction of the post, deliberately — but nothing else. It carries
-    the same three-frame skeleton as the other two, so the completeness
-    assertions apply unchanged.
-    """
-
-    FIXTURE = WHD_TEMPLATE
-
-    def test_no_strict_findings(self):
-        strict = [str(f) for f in self.findings if f.severity == STRICT]
-        self.assertEqual(strict, [])
-
-    def test_only_caution_advisories(self):
-        other = [str(f) for f in self.findings
-                 if f.severity == ADVISORY and f.rule != "caution-threshold"]
-        self.assertEqual(other, [])
-
-    def test_publishes_its_allowance(self):
-        """The point of the conversion: a timber entering this joint can
-        drive its Length. Before the companion existed, Drive Length from
-        Layout Distance refused outright.
-
-        FTF is asserted structurally rather than by value — the template
-        must publish an allowance consumed by the mate frame, and it is
-        the frame placement that makes it true, not the arithmetic.
-        """
-        companion = [
-            vs for vs in self.model.varsets
-            if getattr(vs.prop(naming.VARSET_ROLE_PROP), "value", None)
-            == naming.VARSET_ROLE_LAYOUT][0]
-        for prop in ("Stick_Allowance_FTF", "Stick_Allowance_OC",
-                     "Grid_Setback"):
-            self.assertIsNotNone(
-                companion.prop(prop),
-                f"{companion.label} publishes no {prop}")
-        # the layout triple must be one signed type: _OC goes negative
-        # whenever the stick stops short of the grid line, and a Length
-        # would clamp it to zero without complaint
-        for prop in ("Stick_Allowance_FTF", "Stick_Allowance_OC",
-                     "Grid_Setback"):
-            self.assertEqual(
-                companion.prop(prop).type_id, "App::PropertyDistance",
-                f"{prop} must be App::PropertyDistance, not Length")
+import _repo_path  # noqa: E402
+
+try:
+    import FreeCAD as App
+    import Part
+    import Sketcher
+    _repo_path.graft()
+    HAVE_FREECAD = True
+except ImportError:
+    HAVE_FREECAD = False
+
+IN = 25.4
+
+
+@unittest.skipUnless(HAVE_FREECAD, "FreeCAD not importable — run with the bundled python")
+class LinterRules(unittest.TestCase):
+    def setUp(self):
+        from freecad.bentwizard import datums
+        from freecad.bentwizard.timber import new_timber
+        self.doc = App.newDocument("LintTest")
+        self.post, self.pdims = new_timber(self.doc, "T-Post-001", "6 in", "10 in", "8 ft")
+        self.girt, self.gdims = new_timber(self.doc, "T-Girt-001", "4 in", "8 in", "6 ft")
+        self.host = datums.add_datum(self.post, "YPos", "48 in")
+        self.mate = datums.end_datum(self.girt, "EndB")
+        self.vs = self.doc.addObject("App::VarSet", "JointVS")
+        self.vs.Label = "J-Test-001"
+        self.vs.addProperty("App::PropertyLength", "HousingDepth", "Joint", "housing depth")
+        self.vs.HousingDepth = 0.5 * IN
+        datums.pair(self.host, self.mate, self.vs)
+        self.cutter = self.component("Housing.Test.001", "Cutter", 1)
+        self.boolean = self.post.newObject("PartDesign::Boolean", "Cut")
+        self.boolean.Label = "Cut.Housing.Test.001"
+        self.boolean.Group = [self.cutter]
+        self.boolean.Type = "Cut"
+        self.doc.recompute()
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+
+    def component(self, label, role, order):
+        """A cutter body: housing block sized from the joint VarSet's
+        mate accessors, grown in -Z, placed on the host datum."""
+        body = self.doc.addObject("PartDesign::Body", "Comp")
+        body.Label = label
+        body.addProperty("App::PropertyString", "ComponentRole", "Component", "role")
+        body.ComponentRole = role
+        body.addProperty("App::PropertyInteger", "ComponentOrder", "Component", "order")
+        body.ComponentOrder = order
+        sk = body.newObject("Sketcher::SketchObject", "HousingSkt")
+        sk.AttachmentSupport = (body.Origin.OriginFeatures[3], [""])
+        sk.MapMode = "FlatFace"
+        w, h = 4 * IN, 8 * IN
+        V = App.Vector
+        pts = [V(-w / 2, -h / 2, 0), V(w / 2, -h / 2, 0), V(w / 2, h / 2, 0), V(-w / 2, h / 2, 0)]
+        for i in range(4):
+            sk.addGeometry(Part.LineSegment(pts[i], pts[(i + 1) % 4]), False)
+        for i in range(4):
+            sk.addConstraint(Sketcher.Constraint("Coincident", i, 2, (i + 1) % 4, 1))
+        sk.addConstraint(Sketcher.Constraint("Horizontal", 0))
+        sk.addConstraint(Sketcher.Constraint("Horizontal", 2))
+        sk.addConstraint(Sketcher.Constraint("Vertical", 1))
+        sk.addConstraint(Sketcher.Constraint("Vertical", 3))
+        J = f"<<{self.vs.Label}>>"
+        c = sk.addConstraint(Sketcher.Constraint("DistanceX", -1, 1, 1, 1, w / 2))
+        sk.setExpression(f"Constraints[{c}]", J + ".MateWidthU / 2")
+        c = sk.addConstraint(Sketcher.Constraint("DistanceX", 3, 1, -1, 1, w / 2))
+        sk.setExpression(f"Constraints[{c}]", J + ".MateWidthU / 2")
+        c = sk.addConstraint(Sketcher.Constraint("DistanceY", -1, 1, 2, 1, h / 2))
+        sk.setExpression(f"Constraints[{c}]", J + ".MateWidthV / 2")
+        c = sk.addConstraint(Sketcher.Constraint("DistanceY", 0, 1, -1, 1, h / 2))
+        sk.setExpression(f"Constraints[{c}]", J + ".MateWidthV / 2")
+        pad = body.newObject("PartDesign::Pad", "HousingPad")
+        pad.Profile = sk
+        pad.setExpression("Length", J + ".HousingDepth")
+        pad.Reversed = True
+        body.setExpression("Placement", f"<<{self.host.Label}>>.Placement")
+        self.doc.recompute()
+        return body
+
+    def findings(self):
+        from freecad.bentwizard.linter import lint
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "lint.FCStd")
+            self.doc.saveAs(path)
+            return lint(path)
+
+    def rules(self, severity=None):
+        return sorted({f.rule for f in self.findings()
+                       if severity is None or f.severity == severity})
+
+    # --- the control ------------------------------------------------------
+
+    def test_clean_document_is_silent(self):
+        self.assertEqual([str(f) for f in self.findings()], [])
+
+    # --- strict rules -----------------------------------------------------
+
+    def test_datum_not_attached(self):
+        self.host.AttachmentSupport = [(self.post.Origin.OriginFeatures[4], "")]
+        self.host.MapMode = "FlatFace"
+        self.assertIn("datum-not-attached", self.rules("strict"))
+
+    def test_datum_declaration_rotation_from_the_wrong_row(self):
+        from freecad.bentwizard import facetable
+        row = facetable.FACE_TABLE["YNeg"]
+        self.host.Placement = App.Placement(
+            self.host.Placement.Base, App.Rotation(App.Vector(*row.axis), row.angle))
+        self.assertIn("datum-declaration", self.rules("strict"))
+
+    def test_datum_declaration_station_unbound(self):
+        self.host.setExpression(".Placement.Base.z", None)
+        self.assertIn("datum-declaration", self.rules("strict"))
+
+    def test_datum_declaration_accessor_rebound(self):
+        self.host.setExpression("WidthU", f"<<{self.pdims.Label}>>.WidthY")
+        self.assertIn("datum-declaration", self.rules("strict"))
+
+    def test_datum_link_scope(self):
+        self.host.addProperty("App::PropertyLink", "MateLink", "Datum", "no")
+        self.assertIn("datum-link-scope", self.rules("strict"))
+
+    def test_datum_pairing_mate_missing(self):
+        self.mate.MateDatum = "Nowhere"
+        self.assertIn("datum-pairing", self.rules("strict"))
+
+    def test_datum_pairing_does_not_point_back(self):
+        self.mate.MateDatum = ""
+        self.assertIn("datum-pairing", self.rules("strict"))
+
+    def test_datum_pairing_varset_reads_another_datum(self):
+        from freecad.bentwizard import datums
+        other = datums.add_datum(self.post, "XPos", "30 in")
+        self.vs.setExpression("HostWidthU", f"<<{other.Label}>>.WidthU")
+        self.assertIn("datum-pairing", self.rules("strict"))
+
+    def test_component_declaration(self):
+        self.cutter.ComponentRole = "Slicer"
+        self.assertIn("component-declaration", self.rules("strict"))
+
+    def test_component_placement_unbound(self):
+        self.cutter.setExpression("Placement", None)
+        self.assertIn("component-declaration", self.rules("strict"))
+
+    def test_component_reference_scope_dims(self):
+        pad = next(o for o in self.cutter.Group if o.TypeId == "PartDesign::Pad")
+        pad.setExpression("Length", f"<<{self.gdims.Label}>>.WidthX / 4")
+        self.assertIn("component-reference-scope", self.rules("strict"))
+
+    def test_component_reference_scope_other_datum(self):
+        sk = next(o for o in self.cutter.Group if o.TypeId == "Sketcher::SketchObject")
+        sk.setExpression("Constraints[8]", f"<<{self.mate.Label}>>.WidthU / 2")
+        self.assertIn("component-reference-scope", self.rules("strict"))
+
+    def test_boolean_operand_count(self):
+        extra = self.doc.addObject("Part::Box", "Extra")
+        self.boolean.Group = [self.cutter, extra]
+        self.assertIn("boolean-operand", self.rules("strict"))
+
+    def test_solid_face_reference(self):
+        sk = next(o for o in self.cutter.Group if o.TypeId == "Sketcher::SketchObject")
+        sk.AttachmentSupport = [(self.post, "Face1")]
+        self.assertIn("solid-face-reference", self.rules("strict"))
+
+    def test_label_reserved_characters(self):
+        self.vs.Label = "J-Te;st-001"
+        self.assertIn("label-reserved-characters", self.rules("strict"))
+
+    # --- advisory rules ---------------------------------------------------
+
+    def test_property_naming(self):
+        self.vs.addProperty("App::PropertyLength", "Tenon_Length", "Joint", "t")
+        self.assertIn("property-naming", self.rules("advisory"))
+
+    def test_missing_tooltip(self):
+        self.vs.addProperty("App::PropertyLength", "TenonLength", "Joint", "")
+        self.assertIn("missing-tooltip", self.rules("advisory"))
+
+    def test_naming_conventions(self):
+        self.cutter.Label = "Housing"
+        self.host.Label = "Frame_Post"
+        self.assertIn("naming-convention", self.rules("advisory"))
+
+    def test_component_order(self):
+        # an adder on the SAME timber ordered before the cutter
+        adder = self.component("Tongue.Test.001", "Adder", 0)
+        fuse = self.post.newObject("PartDesign::Boolean", "Fuse")
+        fuse.Group = [adder]
+        fuse.Type = "Fuse"
+        self.doc.recompute()
+        self.assertIn("component-order", self.rules("advisory"))
+
+    def test_auto_generated_label(self):
+        self.cutter.Label = "Body001"
+        self.assertIn("auto-generated-label", self.rules("advisory"))
 
 
 if __name__ == "__main__":

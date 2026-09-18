@@ -89,6 +89,7 @@ class Property:
     geometry: list = field(default_factory=list)     # GeometryList only
     constraints: list = field(default_factory=list)  # ConstraintList only
     cells: dict = field(default_factory=dict)        # Spreadsheet cells only
+    enum: list = field(default_factory=list)         # custom enumeration values
     element: object = None         # raw xml.etree Element
 
 
@@ -225,6 +226,12 @@ def _parse_property(el):
         elif tag == "Cells":
             for cell in child.findall("Cell"):
                 prop.cells[cell.get("address")] = cell.get("content", "")
+        elif tag == "CustomEnumList":
+            prop.enum = [e.get("value") for e in child.findall("Enum")]
+    # A custom enumeration (a datum's Face) reads as its string; a static
+    # one (MapMode) keeps the integer index, all the file carries.
+    if prop.enum and isinstance(prop.value, int) and 0 <= prop.value < len(prop.enum):
+        prop.value = prop.enum[prop.value]
     return prop
 
 

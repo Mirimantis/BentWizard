@@ -1,340 +1,316 @@
-"""Is this file fit to ship as a joint template?
+"""The template bar: what makes a joint file a template.
 
-The linter is a *correctness* bar: it catches wrongness, and every one
-of its frame rules only fires once frames exist. A half-built template —
-two timbers and no frames at all — lints completely silent, which is a
-false green on the one question Save-as-joint-template has to answer.
-This module is the *completeness* half: the skeleton every template
-carries, stated as rules over the same semantic model, emitting the same
-``linter.Finding`` so one report covers both halves.
-
-The rules were lifted from ``tests/test_linter.py``'s
-``TemplateSkeletonCompleteness`` mixin, which now asserts against this
-module — one implementation, proven by the library controls against
-templates known to be complete. Messages cite the build-doc part that
-creates the missing piece, so a report reads as a checklist.
-
-Pure Python over the fcstd reader; no FreeCAD import, same as the
-linter it sits beside.
+The linter's rules fire on what a document *contains*; a half-built
+template — two timbers and nothing else — lints completely silent. The
+rules here assert the **skeleton** a template must carry: two timbers,
+one joint VarSet, a pairing under it, and components that are declared,
+placed on the paired datums and applied by a matching Boolean. Same
+``linter.Finding``, same strict/advisory split; ``check(path)`` is the
+whole pure-Python bar, ``check_geometry(path)`` the FreeCAD half —
+one solid per timber, growth direction, and the parameter sweep that
+finds the silent two-solid holes round 3 found (finding #14 relocated
+to authoring time). Everything **reports, never blocks**.
 """
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
 
-from . import naming
-from .fcstd import FcstdDocument, expression_refs
+from . import naming, template_library
+from .fcstd import FcstdDocument
 from .linter import ADVISORY, STRICT, Finding, Model, lint_document
 
-# Two timbers, three frames: one Landing per role (the anchor's, and the
-# entering timber's end frame) plus the single Mate.
-EXPECTED_FRAMES = 3
-EXPECTED_LANDING = 2
-EXPECTED_MATE = 1
-
-MATE_OFFSET_PATH = ".AttachmentOffset.Base.z"
-
-
-def _frames(model):
-    return [o for o in model.doc.objects.values()
-            if o.is_type("Part::LocalCoordinateSystem")]
-
-
-def _role_of(frame):
-    return getattr(frame.prop(naming.FRAME_ROLE_PROP), "value", None)
-
-
-def _joint_varsets(model):
-    """VarSets labelled J-<Kind>-<serial>. Deliberately label-parsed
-    rather than taken from Model.kind: a template whose joint VarSet is
-    mislabelled is exactly what this check exists to report, and
-    TemplateSpec parses the label too."""
-    return [vs for vs in model.varsets if naming.parse_joint_label(vs.label)]
-
-
-def _companions(model):
-    return [vs for vs in model.varsets
-            if getattr(vs.prop(naming.VARSET_ROLE_PROP), "value", None)
-            == naming.VARSET_ROLE_LAYOUT]
-
-
-def _doc_finding(rule, severity, message):
-    """A finding about the document as a whole rather than one object."""
-    return Finding(rule, severity, "-", "(document)", message)
+SWEEP_STEPS = 12
+SWEEP_DEFAULT_RANGE = (0.25, 1.5)      # x default, when no range is declared
 
 
 # --------------------------------------------------------------------------
-# Skeleton rules
+# Skeleton rules (pure)
 # --------------------------------------------------------------------------
 
 def rule_two_timbers(model):
-    """Part A: the anchor and the entering timber, each parametric."""
-    findings = []
-    bodies = model.bodies
-    if len(bodies) != 2:
-        findings.append(_doc_finding(
-            "template-timbers", STRICT,
-            f"expected 2 timber bodies (the anchor and the entering "
-            f"timber), got {[b.label for b in bodies]} — see Part A"))
-    for body in bodies:
-        if body.name not in model.dims_of:
-            findings.append(Finding(
-                "template-timbers", STRICT, body.name, body.label,
-                "no Dims VarSet drives this timber's base pad Length — "
-                "the body is not parametric — see Part A"))
-    return findings
+    timbers = model.timbers()
+    if len(timbers) == 2:
+        return []
+    return [Finding("template-timbers", STRICT, "", "template",
+                    f"a joint template holds exactly two timbers (host and "
+                    f"mate), found {len(timbers)}: "
+                    f"{', '.join(b.label for b in timbers) or 'none'}")]
 
 
 def rule_joint_varset(model):
-    """Part B/C: exactly one joint VarSet, and it declares its abbrev."""
-    findings = []
-    joints = _joint_varsets(model)
+    joints = model.joint_varsets()
     if len(joints) != 1:
-        got = [vs.label for vs in joints] or [vs.label for vs in model.varsets]
-        findings.append(_doc_finding(
-            "template-joint-varset", STRICT,
-            f"expected exactly 1 joint VarSet labelled "
-            f"J-<Kind>-<serial>, got {got} — the VarSet IS the joint — "
-            f"see Part B"))
-    for vs in joints:
-        abbrev = getattr(vs.prop(naming.TEMPLATE_ABBREV), "value", None)
-        if not abbrev:
-            findings.append(Finding(
-                "template-joint-varset", ADVISORY, vs.name, vs.label,
-                f"declares no {naming.TEMPLATE_ABBREV} — Apply-Joint "
-                f"rewrites exactly that suffix on every feature label, "
-                f"so without one the labels keep the long "
-                f"'_J-<Kind>-<serial>' form — see Part C"))
-    return findings
+        return [Finding("template-joint-varset", STRICT, "", "template",
+                        f"a template holds exactly one joint VarSet "
+                        f"(J-<Kind>-000), found {len(joints)}: "
+                        f"{', '.join(v.label for v in joints) or 'none'}")]
+    vs = joints[0]
+    out = []
+    parsed = naming.parse_joint_label(vs.label)
+    if parsed is None:
+        out.append(Finding("template-joint-varset", ADVISORY, vs.name, vs.label,
+                           "joint VarSet label should read 'J-<Kind>-000'"))
+    elif parsed[1] != naming.TEMPLATE_SERIAL:
+        out.append(Finding("template-joint-varset", ADVISORY, vs.name, vs.label,
+                           f"a template's own joint serial is "
+                           f"{naming.TEMPLATE_SERIAL!r}; Apply allocates real "
+                           f"serials from 001"))
+    return out
 
 
-def rule_layout_companion(model):
-    """Part G.1: the companion holding the length-consuming parameters.
-
-    Advisory when absent — a template without one still applies; it just
-    cannot drive a timber's Length from a layout distance, so Drive
-    Length refuses on every joint made from it."""
-    companions = _companions(model)
-    if len(companions) == 1:
+def rule_pairing(model):
+    joints = model.joint_varsets()
+    if len(joints) != 1:
         return []
-    if not companions:
-        return [_doc_finding(
-            "template-layout-companion", ADVISORY,
-            f"no companion layout VarSet (a VarSet carrying "
-            f"{naming.VARSET_ROLE_PROP} = '{naming.VARSET_ROLE_LAYOUT}') "
-            f"— joints from this template cannot drive a timber's "
-            f"Length from a layout distance — see Part G.1")]
-    return [_doc_finding(
-        "template-layout-companion", STRICT,
-        f"more than one companion layout VarSet "
-        f"({[vs.label for vs in companions]}) — a joint may have at "
-        f"most one, and the template will not load — see Part G.1")]
+    vs = joints[0]
+    host = model.accessor_datum(vs, "Host")
+    mate = model.accessor_datum(vs, "Mate")
+    if host is None or mate is None:
+        return [Finding("template-pairing", STRICT, vs.name, vs.label,
+                        "the joint VarSet's Host*/Mate* accessors do not name "
+                        "two datums — pair a datum on each timber under it")]
+    owners = {model.datum_owner(d).name if model.datum_owner(d) else None
+              for d in (host, mate)}
+    timbers = {b.name for b in model.timbers()}
+    if len(owners) != 2 or not owners <= timbers:
+        return [Finding("template-pairing", STRICT, vs.name, vs.label,
+                        f"the paired datums {host.label!r} and {mate.label!r} "
+                        f"must sit one on each template timber")]
+    out = []
+    for d in (host, mate):
+        j = model.datum_joint(d)
+        if j is not vs:
+            out.append(Finding("template-pairing", STRICT, d.name, d.label,
+                               f"datum is not paired under {vs.label!r}"))
+    return out
 
 
-def rule_frame_set(model):
-    """Parts D, E, F: three frames, every one declaring its role, one
-    landing frame owned by each timber."""
-    findings = []
-    frames = _frames(model)
-    if len(frames) != EXPECTED_FRAMES:
-        findings.append(_doc_finding(
-            "template-frame-set", STRICT,
-            f"expected {EXPECTED_FRAMES} joint frames (one landing per "
-            f"role plus the single mate), got "
-            f"{[f.label for f in frames]} — see Parts D, E and F"))
-    for frame in frames:
-        if _role_of(frame) not in naming.FRAME_ROLES:
-            findings.append(Finding(
-                "template-frame-set", STRICT, frame.name, frame.label,
-                f"no valid {naming.FRAME_ROLE_PROP} property — the role "
-                f"is Tier-2 data read by Preview, Assemble and "
-                f"Duplicate, never a label substring — see Parts D and E"))
-    landing = [f for f in frames if _role_of(f) == naming.FRAME_ROLE_LANDING]
-    mate = [f for f in frames if _role_of(f) == naming.FRAME_ROLE_MATE]
-    if len(landing) != EXPECTED_LANDING:
-        findings.append(_doc_finding(
-            "template-frame-set", STRICT,
-            f"expected {EXPECTED_LANDING} "
-            f"'{naming.FRAME_ROLE_LANDING}' frames, one per role, got "
-            f"{[f.label for f in landing]} — see Parts D and E"))
-    if len(mate) != EXPECTED_MATE:
-        findings.append(_doc_finding(
-            "template-frame-set", STRICT,
-            f"expected {EXPECTED_MATE} '{naming.FRAME_ROLE_MATE}' frame "
-            f"— only the half that enters carries one — got "
-            f"{[f.label for f in mate]} — see Part F"))
-
-    owners = {}
-    for frame in landing:
-        body = model.owner.get(frame.name)
-        owners.setdefault(body.label if body else None, []).append(frame.label)
-    if None in owners:
-        findings.append(_doc_finding(
-            "template-frame-set", STRICT,
-            f"landing frame(s) outside any body: {owners[None]} — "
-            f"activate the target body before creating a datum, or the "
-            f"frame lands at the document root — see Part D"))
-        del owners[None]
-    expected_owners = sorted(b.label for b in model.bodies)
-    if sorted(owners) != expected_owners:
-        findings.append(_doc_finding(
-            "template-frame-set", STRICT,
-            f"each timber gets exactly one landing frame; got {owners} "
-            f"for timbers {expected_owners} — see Parts D and E"))
-    return findings
-
-
-def rule_mate_frame_driven_from_joint(model):
-    """Part F: the mate frame's offset from the stick end IS the
-    clear-span allowance, read from the JOINT VarSet's consumed copy."""
-    findings = []
-    joints = {vs.name for vs in _joint_varsets(model)}
-    for frame in _frames(model):
-        if _role_of(frame) != naming.FRAME_ROLE_MATE:
-            continue
-        paths = {e.path: e.expression for e in frame.expressions}
-        if MATE_OFFSET_PATH not in paths:
-            findings.append(Finding(
-                "template-mate-frame", STRICT, frame.name, frame.label,
-                f"no {MATE_OFFSET_PATH} expression — the mate frame's "
-                f"offset from the stick end IS the clear-span "
-                f"allowance, and a typed literal would not follow an "
-                f"author's edit — see Part F"))
-            continue
-        refs = {t.name for t, _ in
-                expression_refs(paths[MATE_OFFSET_PATH], model.doc)}
-        if not refs & joints:
-            findings.append(Finding(
-                "template-mate-frame", STRICT, frame.name, frame.label,
-                f"{MATE_OFFSET_PATH} does not reference the joint "
-                f"VarSet ({paths[MATE_OFFSET_PATH]!r}) — joint_members "
-                f"closes over the literal <<J-Kind-serial>> token, "
-                f"which <<Layout_J-Kind-serial>> does not contain, so a "
-                f"mate frame reading the companion directly is not a "
-                f"joint member — see Part G.1"))
-    return findings
-
-
-def rule_geometry_reads_the_joint_varset(model):
-    """Geometry binds to the JOINT VarSet, never to the companion.
-
-    ``joint_members`` closes over the literal ``<<J-Kind-serial>>``
-    token, which ``<<Layout_J-Kind-serial>>`` does not contain. A cut
-    reading the companion directly is therefore not part of the joint:
-    Apply-Joint never clones it, and the applied joint is quietly
-    missing that feature. The companion is authoritative for the
-    length-consuming parameters, but the joint VarSet carries a consumed
-    copy and geometry reads that — the same rule the mate frame follows
-    (see Part G.1).
-    """
-    companions = {vs.name: vs for vs in _companions(model)}
-    if not companions:
+def rule_components(model):
+    joints = model.joint_varsets()
+    if len(joints) != 1:
         return []
-    joints = {vs.name for vs in _joint_varsets(model)}
-    findings = []
-    for obj in model.doc.objects.values():
-        if obj.is_type("App::VarSet"):
-            continue          # the consumed copy is exactly this binding
-        reads_companion, reads_joint = set(), False
-        for e in obj.expressions:
-            for target, _sub in expression_refs(e.expression, model.doc):
-                if target.name in companions:
-                    reads_companion.add(companions[target.name].label)
-                elif target.name in joints:
-                    reads_joint = True
-        if reads_companion and not reads_joint:
-            findings.append(Finding(
-                "template-companion-binding", STRICT, obj.name, obj.label,
-                f"binds to the companion layout VarSet "
-                f"({', '.join(sorted(reads_companion))}) and to no joint "
-                f"VarSet, so it is not part of the joint — Apply-Joint "
-                f"closes over the <<J-Kind-serial>> token and would "
-                f"never clone this feature. Add a consumed copy of the "
-                f"parameter on the joint VarSet and read that — "
-                f"see Part G.1"))
-    return findings
+    vs = joints[0]
+    paired = {d.name for d in (model.accessor_datum(vs, "Host"),
+                               model.accessor_datum(vs, "Mate")) if d is not None}
+    out = []
+    booleans = model.doc.of_type("PartDesign::Boolean")
+    for comp in model.components:
+        datum = model.component_datum(comp)
+        if datum is None:
+            continue                # the linter's component-declaration says so
+        if datum.name not in paired:
+            out.append(Finding("template-components", STRICT, comp.name, comp.label,
+                               f"placed on {datum.label!r}, which is not one of "
+                               f"the joint's paired datums"))
+            continue
+        timber = model.datum_owner(datum)
+        holder = model.component_placement_holder(comp)
+        holders = {comp.name, holder.name if holder else comp.name}
+        applying = [b for b in booleans
+                    if any(l.obj in holders for l in (b.prop("Group").links
+                                                      if b.prop("Group") else []))]
+        role = comp.prop(naming.PROP_COMPONENT_ROLE).value
+        want = naming.BOOLEAN_OP.get(role)
+        if not applying:
+            out.append(Finding("template-components", STRICT, comp.name, comp.label,
+                               f"no Boolean applies this {role.lower() if role else 'component'} "
+                               f"to {timber.label!r} — add a PartDesign "
+                               f"{want or 'Boolean'} with the component as its "
+                               f"operand"))
+            continue
+        for b in applying:
+            if model.owner.get(b.name) is not timber:
+                out.append(Finding("template-components", STRICT, b.name, b.label,
+                                   f"applies {comp.label!r} inside "
+                                   f"'{model.owner.get(b.name).label if model.owner.get(b.name) else '?'}', "
+                                   f"but the component's datum is on {timber.label!r}"))
+            t = b.prop("Type")
+            op = t.value if t else None
+            if isinstance(op, int):
+                op = ["Fuse", "Cut", "Common"][op] if 0 <= op < 3 else op
+            if want and op != want:
+                out.append(Finding("template-components", STRICT, b.name, b.label,
+                                   f"is a {op}, but a {role} is applied with {want}"))
+    return out
 
 
-SKELETON_RULES = [
-    rule_two_timbers,
-    rule_joint_varset,
-    rule_layout_companion,
-    rule_frame_set,
-    rule_mate_frame_driven_from_joint,
-    rule_geometry_reads_the_joint_varset,
-]
+def rule_ranges(model):
+    out = []
+    for vs in model.joint_varsets():
+        for p in vs.properties.values():
+            if p.group is None:
+                continue
+            base = naming.range_base(p.name)
+            if base is None or not naming.is_range_property(p.name, p.group):
+                continue
+            name, bound = base
+            param = vs.prop(name)
+            if param is None or param.group is None:
+                out.append(Finding("template-ranges", ADVISORY, vs.name, vs.label,
+                                   f"{p.name} declares a range for {name!r}, "
+                                   f"which is not a parameter"))
+                continue
+            if isinstance(p.value, (int, float)) and isinstance(param.value, (int, float)):
+                if bound == "Min" and param.value < p.value:
+                    out.append(Finding("template-ranges", ADVISORY, vs.name, vs.label,
+                                       f"{name}'s default is below {p.name}"))
+                if bound == "Max" and param.value > p.value:
+                    out.append(Finding("template-ranges", ADVISORY, vs.name, vs.label,
+                                       f"{name}'s default is above {p.name}"))
+    return out
 
 
-def skeleton_findings(model):
-    """The completeness half, over an already-built linter Model."""
-    findings = []
+SKELETON_RULES = [rule_two_timbers, rule_joint_varset, rule_pairing,
+                  rule_components, rule_ranges]
+
+
+def skeleton_findings(doc):
+    model = Model(doc)
+    out = []
     for rule in SKELETON_RULES:
-        findings.extend(rule(model))
-    return findings
+        out.extend(rule(model))
+    return out
 
 
-# --------------------------------------------------------------------------
-# The whole bar
-# --------------------------------------------------------------------------
-
-def stem_findings(path, model):
-    """The file stem is load-bearing: ``kind_token_from_source`` takes
-    the user-visible joint kind from it, so 'Joint_BraceMT.FCStd' makes
-    every applied joint J-BraceMT-<serial> regardless of what the VarSet
-    inside is called. A mismatch is not an error — it is a surprise,
-    which is worse in a name a cut list carries."""
-    stem = os.path.splitext(os.path.basename(str(path)))[0]
-    token = naming.kind_token_from_source(stem)
-    findings = []
-    for vs in _joint_varsets(model):
-        kind = naming.parse_joint_label(vs.label)[0]
-        if kind != token:
-            findings.append(Finding(
-                "template-kind-matches-stem", ADVISORY, vs.name, vs.label,
-                f"joint VarSet kind '{kind}' does not match the file "
-                f"stem '{stem}' — applied joints take their kind from "
-                f"the FILE, so they will be labelled J-{token}-<serial> "
-                f"while this VarSet says J-{kind}-<serial>"))
-    return findings
+def stem_findings(path, doc):
+    """The file stem is the joint's kind; a VarSet saying otherwise is
+    reported (Apply takes the kind from the FILE)."""
+    stem_kind = naming.template_kind_from_stem(Path(path).stem)
+    out = []
+    for vs in Model(doc).joint_varsets():
+        parsed = naming.parse_joint_label(vs.label)
+        if parsed and parsed[0] != stem_kind:
+            out.append(Finding("template-stem", ADVISORY, vs.name, vs.label,
+                               f"file stem names the kind {stem_kind!r} but the "
+                               f"joint VarSet says {parsed[0]!r} — Save as Joint "
+                               f"Template offers to relabel"))
+    return out
 
 
 def load_findings(path):
-    """The real acceptance test: does Apply-Joint's own loader accept
-    this file? Imported inside the function — apply_joint reaches for
-    FreeCAD-free code only, but keeping the import local leaves this
-    module importable from the linter's context unchanged."""
-    from .apply_joint import JointError, TemplateSpec
+    """The real acceptance test: does TemplateSpec load it?"""
+    from .template import JointError, TemplateSpec
     try:
         TemplateSpec(path)
-    except JointError as exc:
-        return [_doc_finding(
-            "template-loads", STRICT,
-            f"Apply-Joint cannot load this file as a template: {exc}")]
+    except JointError as err:
+        return [Finding("template-load", STRICT, "", Path(path).stem, str(err))]
     return []
 
 
 def check(path):
-    """Every bar a library template must clear: the linter's rules, the
-    skeleton, the file-stem contract, and an actual TemplateSpec load."""
+    """Every pure finding for a template file: lint + skeleton + stem +
+    load. No FreeCAD needed."""
     doc = FcstdDocument.from_file(path)
-    model = Model(doc)
-    findings = lint_document(doc)
-    findings.extend(skeleton_findings(model))
-    findings.extend(stem_findings(path, model))
-    findings.extend(load_findings(path))
-    return findings
+    return (lint_document(doc) + skeleton_findings(doc)
+            + stem_findings(path, doc) + load_findings(path))
+
+
+# --------------------------------------------------------------------------
+# Geometry (FreeCAD)
+# --------------------------------------------------------------------------
+
+def _sweep_domain(spec, name):
+    p = spec.parameter(name)
+    if p is None or not p["numeric"] or p["type"] == "App::PropertyInteger":
+        return None
+    default = p["default"]
+    if not isinstance(default, (int, float)) or p["expression"]:
+        return None
+    lo = p["min"] if p["min"] is not None else default * SWEEP_DEFAULT_RANGE[0]
+    hi = p["max"] if p["max"] is not None else default * SWEEP_DEFAULT_RANGE[1]
+    if hi <= lo:
+        return None
+    return lo, hi
+
+
+def check_geometry(path, persist=True):
+    """FreeCAD half of the bar, on a copy opened hidden: each timber one
+    solid at defaults; each component's solid on the correct side of its
+    origin; and every numeric parameter swept across its declared range
+    (or 25-150 % of its default), recording where a timber stops being
+    one valid solid. With `persist`, the sweep result is written to the
+    VarSet's SweepFindings so the apply dialog can warn from it."""
+    import FreeCAD as App
+    from . import datums, measure
+    from .template import JointError, TemplateSpec
+    try:
+        spec = TemplateSpec(path)
+    except JointError:
+        return []                      # load_findings already said so
+    out = []
+    with template_library.open_hidden(path) as doc:
+        doc.recompute()
+        timbers = [doc.getObjectsByLabel(r)[0] for r in spec.roles
+                   if doc.getObjectsByLabel(r)]
+        for t in timbers:
+            if not measure.is_whole(t):
+                out.append(Finding("template-geometry", STRICT, t.Name, t.Label,
+                                   f"{measure.solid_count(t)} solids at the "
+                                   f"template's default parameters"))
+        for c in spec.components:
+            body = doc.getObject(c["name"])
+            if body is None:
+                continue
+            bb = measure.local_shape(body).BoundBox
+            if c["role"] == naming.COMPONENT_CUTTER and bb.ZMax > 1e-6:
+                out.append(Finding("growth-direction", ADVISORY, body.Name, body.Label,
+                                   f"a cutter is modelled in -Z, but this one "
+                                   f"reaches to z = {bb.ZMax:.3f} mm"))
+            if c["role"] == naming.COMPONENT_ADDER and bb.ZMin < -1e-6:
+                out.append(Finding("growth-direction", ADVISORY, body.Name, body.Label,
+                                   f"an adder is modelled in +Z, but this one "
+                                   f"reaches to z = {bb.ZMin:.3f} mm"))
+        vs = doc.getObjectsByLabel(spec.varset_label)
+        vs = vs[0] if vs else None
+        failures = []
+        if vs is not None and spec.components:
+            for p in spec.parameters:
+                domain = _sweep_domain(spec, p["name"])
+                if domain is None:
+                    continue
+                original = getattr(vs, p["name"])
+                lo, hi = domain
+                for i in range(SWEEP_STEPS):
+                    value = lo + (hi - lo) * i / (SWEEP_STEPS - 1)
+                    setattr(vs, p["name"], value)
+                    doc.recompute()
+                    bad = [t for t in timbers
+                           if "Invalid" in t.State or not measure.is_whole(t)]
+                    if bad:
+                        failures.append((p["name"], value, [t.Label for t in bad]))
+                setattr(vs, p["name"], original)
+                doc.recompute()
+            text = "; ".join(f"{n} = {v:.3f} mm -> {', '.join(b)}"
+                             for n, v, b in failures)
+            for n, v, b in failures:
+                out.append(Finding("template-sweep", ADVISORY, vs.Name, vs.Label,
+                                   f"at {n} = {App.Units.Quantity(v, 'mm').UserString} "
+                                   f"the timber(s) {', '.join(b)} stop being one "
+                                   f"valid solid"))
+            if persist:
+                if not hasattr(vs, naming.PROP_SWEEP_FINDINGS):
+                    vs.addProperty("App::PropertyString", naming.PROP_SWEEP_FINDINGS,
+                                   naming.TEMPLATE_META_GROUP,
+                                   "Parameter values at which the template's "
+                                   "timbers stop being one valid solid, found "
+                                   "by the registration sweep. Empty = none.")
+                setattr(vs, naming.PROP_SWEEP_FINDINGS, text)
+                doc.recompute()
+                doc.save()
+    return out
 
 
 def format_report(path, findings):
-    """Same shape as the linter's report, with the clean case said out
-    loud — a silent report is the one result a user cannot interpret."""
-    lines = [f"== {path} =="]
+    lines = [f"== {Path(path).name} =="]
     if not findings:
-        lines.append("Clean: no findings. This template is fit to ship.")
+        lines.append("Clean: lints strict and advisory silent, skeleton "
+                     "complete, loads as a template.")
         return "\n".join(lines)
-    for severity, title in ((STRICT, "MUST FIX"), (ADVISORY, "SHOULD FIX")):
+    for severity, title in ((STRICT, "STRICT"), (ADVISORY, "ADVISORY")):
         group = [f for f in findings if f.severity == severity]
-        lines.append(f"{title}: {len(group)} finding(s)")
-        for f in group:
-            lines.append(f"  {f}")
+        if group:
+            lines.append(f"{title}: {len(group)} finding(s)")
+            for f in group:
+                lines.append(f"  {f}")
     return "\n".join(lines)
