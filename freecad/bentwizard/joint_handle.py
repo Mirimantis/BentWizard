@@ -99,6 +99,20 @@ def anchor_datum(varset):
     return pair[0] if pair else None
 
 
+def marker_position(handle, frame):
+    """Where the marker draws: the host datum's origin in the handle's
+    scene-graph frame. The marker's Coin nodes sit under the handle's
+    container assembly (via its TimberJoints_ group), which already
+    applies that assembly's placement — so the datum's global position is
+    taken back into the container's frame, or an offset bent would draw
+    its markers at twice its offset."""
+    pos = frame.getGlobalPlacement().Base
+    container = handle.getParentGeoFeatureGroup()
+    if container is not None:
+        pos = container.getGlobalPlacement().inverse().multVec(pos)
+    return pos
+
+
 def joint_container(varset):
     """The assembly a timber joint belongs to, or None: its Fixed
     assembly joint's container (the container rules resolved once, by
