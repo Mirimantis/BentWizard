@@ -470,14 +470,22 @@ class NewTimberCommand:
 # Add Datum
 # --------------------------------------------------------------------------
 
-def _selected_timber(doc):
+def _selected_timbers(doc):
+    """The timbers in the current selection, in selection order, each
+    once (a selected datum or feature counts for its timber)."""
+    out = []
     for obj in Gui.Selection.getSelection():
         body = obj if obj.TypeId == "PartDesign::Body" \
             else obj.getParentGeoFeatureGroup()
         if body is not None and body.TypeId == "PartDesign::Body" \
-                and dims_varset(body) is not None:
-            return body
-    return None
+                and dims_varset(body) is not None and body not in out:
+            out.append(body)
+    return out
+
+
+def _selected_timber(doc):
+    timbers = _selected_timbers(doc)
+    return timbers[0] if timbers else None
 
 
 class AddDatumDialog(QtWidgets.QDialog):
@@ -722,6 +730,33 @@ def _role_display(role_label):
             base = base[len(prefix):]
             break
     return base or role_label
+
+
+def _role_caption(spec, role):
+    """(row label, tooltip) for a template role in the apply dialog.
+
+    The template's timbers are called Post and Girt, but a joint lands
+    between many kinds of timber, so the dialog names the *roles*:
+    Primary (the host — its datum is the landing datum) and Secondary
+    (the mate — seated onto it). What each one does is read from where
+    the template put its datum: on a side face, the timber passes through
+    the intersection; on an end, it butts and terminates there."""
+    face = spec.datum_face[spec.role_datum[role]]
+    passing = not facetable.is_end(face)
+    if role == spec.host_role:
+        name, what = "Primary", "host"
+    else:
+        name, what = "Secondary", "mate"
+    kind = "passing" if passing else "butting"
+    if passing:
+        does = ("the passing timber that runs continuously through the "
+                "intersection, with the landing datum at a station on a side face")
+    else:
+        does = ("the butting timber that terminates at the joint, with the "
+                "joinery attached to its end datum")
+    tip = (f"{name} timber ({what}): {does}. Called "
+           f"'{_role_display(role)}' in this template.")
+    return f"{name} — {kind}:", tip
 
 
 def _joint_of_selection(doc):
@@ -969,16 +1004,24 @@ class ApplyJointDialog(QtWidgets.QDialog):
             self.problem.setText(f"Cannot load this template: {err}")
             return
         self.serial.setText(next_serial(self.doc, self.spec.kind))
-        selected = _selected_timber(self.doc)
+        # the selection fills the roles in order: first picked = Primary
+        # (host), second = Secondary (mate)
+        selected = _selected_timbers(self.doc)
+        preset = dict(zip([self.spec.host_role, self.spec.mate_role], selected))
         for role in self.spec.roles:
             w = _DatumChoice(self.doc, self)
             w.set_default_face(self.spec.datum_face[self.spec.role_datum[role]])
-            if role == self.spec.host_role and selected is not None:
+            if role in preset:
                 for i in range(w.timber.count()):
-                    if w.timber.itemData(i) is selected:
+                    if w.timber.itemData(i) is preset[role]:
                         w.timber.setCurrentIndex(i)
+                        break
             self.role_widgets[role] = w
-            self.roles_form.addRow(f"{_role_display(role)}:", w)
+            caption, tip = _role_caption(self.spec, role)
+            label = QtWidgets.QLabel(caption, self)
+            label.setToolTip(tip)
+            w.setToolTip(tip)
+            self.roles_form.addRow(label, w)
         for p in self.spec.parameters:
             self.param_widgets[p["name"]] = self._param_widget(p)
             self.params_form.addRow(f"{p['name']}:", self.param_widgets[p["name"]])
@@ -1362,7 +1405,11 @@ How to author the joint in this file:
   - A CUTTER is a Body at the document root, modelled in -Z from its own
     origin, with ComponentRole = Cutter and a ComponentOrder; an ADDER is
     the same modelled in +Z with ComponentRole = Adder. Bind the body's
-    Placement to the datum it sits on ('<<D_...>>.Placement').
+    Placement to the joint VarSet's accessor for the datum it sits on
+    ('<<J-<Kind>-000>>.HostPlacement' on the host's datum,
+    '.MatePlacement' on the mate's) — never to the datum itself: a Body
+    reading a datum makes FreeCAD file the datum's axes under that Body,
+    and the datum then fails its scope check on recompute.
   - A component reads ONLY its own datum's accessors (WidthU, WidthV,
     DepthW) and the joint VarSet, whose Host*/Mate* accessors give the
     other timber's section. Never a timber's Dims, never another datum.

@@ -89,7 +89,8 @@ class LinterRules(unittest.TestCase):
         pad.Profile = sk
         pad.setExpression("Length", J + ".HousingDepth")
         pad.Reversed = True
-        body.setExpression("Placement", f"<<{self.host.Label}>>.Placement")
+        from freecad.bentwizard import datums
+        body.setExpression("Placement", datums.placement_binding(self.vs, self.host))
         self.doc.recompute()
         return body
 
@@ -157,6 +158,25 @@ class LinterRules(unittest.TestCase):
     def test_component_placement_unbound(self):
         self.cutter.setExpression("Placement", None)
         self.assertIn("component-declaration", self.rules("strict"))
+
+    def test_component_placement_direct(self):
+        """A Body reading the datum's Placement directly is the defect
+        behind 'Link(s) ... go out of the allowed scope' (Adam's second
+        GUI round): strict on the body, advisory on a mirroring."""
+        self.cutter.setExpression("Placement", f"<<{self.host.Label}>>.Placement")
+        self.assertIn("component-placement-direct", self.rules("strict"))
+        self.assertNotIn("component-declaration", self.rules("strict"))
+        # through a mirroring: the same read is merely non-uniform
+        self.cutter.setExpression("Placement", None)
+        self.cutter.Placement = App.Placement()
+        m = self.doc.addObject("Part::Mirroring", "Mirror")
+        m.Label = "Mirror.Housing.Test.001"
+        m.Source = self.cutter
+        m.Normal = App.Vector(1, 0, 0)
+        m.setExpression("Placement", f"<<{self.host.Label}>>.Placement")
+        self.boolean.Group = [m]
+        self.assertIn("component-placement-direct", self.rules("advisory"))
+        self.assertNotIn("component-placement-direct", self.rules("strict"))
 
     def test_component_reference_scope_dims(self):
         pad = next(o for o in self.cutter.Group if o.TypeId == "PartDesign::Pad")

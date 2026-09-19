@@ -18,13 +18,18 @@ A template contains:
   measures along). Optional range bounds go in group `Ranges` as
   `<Name>Min` / `<Name>Max`; the registration sweep and the apply
   dialog read them. The tool writes the six accessors `HostWidthU …
-  MateDepthW` (group `Datums`): they read the two datums, and they are
-  how a component learns the *other* timber's section.
+  MateDepthW` and `HostPlacement` / `MatePlacement` (group `Datums`):
+  they read the two datums, and they are how a component learns the
+  *other* timber's section and where it sits.
 - **component Bodies** at the document root — a `Cutter` modelled in
   −Z from its own origin (it eats into the material behind the datum)
   or an `Adder` modelled in +Z (it grows out of it) — each carrying
   `ComponentRole` and `ComponentOrder`, its `Placement` bound to the
-  datum it sits on (`<<D_…>>.Placement`), labelled
+  joint VarSet's accessor for the datum it sits on
+  (`<<J-<Kind>-000>>.HostPlacement` / `.MatePlacement` — never to the
+  datum itself: a Body that reads a datum makes FreeCAD file the datum's
+  axes under that Body, and the datum fails its scope check on
+  recompute), labelled
   `<Descriptive>.<Kind>.000` (`Mortise.HousedMT.000`), and applied to
   that datum's timber by a `PartDesign::Boolean` (`Cut.Mortise.HousedMT.000`,
   `Fuse.Tenon.HousedMT.000`), cutters before adders.

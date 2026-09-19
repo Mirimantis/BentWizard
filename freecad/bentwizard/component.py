@@ -31,8 +31,12 @@ TOOLTIPS = {
 }
 
 
-def new_component(doc, label, role, order, datum):
-    """An empty component body placed on `datum`."""
+def new_component(doc, label, role, order, varset, datum):
+    """An empty component body placed on `datum`, which must be paired
+    under joint `varset`: the body's Placement binds to the VarSet's
+    HostPlacement / MatePlacement accessor, never to the datum itself
+    (see naming.PLACEMENT_ACCESSOR for why)."""
+    from . import datums
     if role not in naming.COMPONENT_ROLES:
         raise ValueError(f"role must be Cutter or Adder, got {role!r}")
     body = doc.addObject("PartDesign::Body", "Component")
@@ -44,7 +48,7 @@ def new_component(doc, label, role, order, datum):
     body.addProperty("App::PropertyInteger", naming.PROP_COMPONENT_ORDER,
                      naming.COMPONENT_GROUP, TOOLTIPS[naming.PROP_COMPONENT_ORDER])
     setattr(body, naming.PROP_COMPONENT_ORDER, int(order))
-    body.setExpression("Placement", f"<<{datum.Label}>>.Placement")
+    body.setExpression("Placement", datums.placement_binding(varset, datum))
     return body
 
 

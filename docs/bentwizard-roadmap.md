@@ -52,6 +52,7 @@ The grid is authored on project VarSets; datums and Dims bind to it. A datum's `
 - **Beam tool**, stage 1 (dialog: two datums, one template both ends, `LengthZ` as an expression) then stage 2 (the 3-click gesture, which wants parametrically angled joints).
 - **Parametrically angled joints**: a joint angle as a VarSet property driving a datum's rotation, bounded by a declared range; the datum table gains an angle term.
 - **A mirrored component's source body** sits at the document root beside its mirroring (the Boolean claims the mirroring, not the source). Tolerable; file it under the handle if the tree objects.
+- **Archetypes** (Adam, 2026-09-18). New Timber gets an option to make the timber an *archetype*: its parameters go on a VarSet the timber references, filed in a `TArchetypes` group at the document root, named at creation. Later timbers pick an archetype and reference the same VarSet, so editing the archetype updates every timber built from it; a tool makes an archetype from an existing timber. The same for timber joints: `JArchetypes`, a joint VarSet as the type layer a joint instance binds to (this is the "parameter presets" open item, given a home).
 - **Re-place operations** on the handle's context menu (move a joint to another datum without removing it): a token substitution over the component's expressions plus a re-pair — the mechanism is the one Apply already runs.
 - Cross-joint interference checking, dihedral angle finder, raising calculations — unchanged from rev 3, see Phase 4.
 
@@ -114,6 +115,7 @@ External research supports the shape: purpose-built timber software earns adopti
 - Dimension displays in the 3D view, including which variable feeds each (custom-drawn, view-only; prototype one type first).
 - Joint library previews (a screenshot at save time is easy; an embedded viewport is later).
 - A workspace that hides FreeCAD's UI, only if the dock panel proves insufficient.
+- **Spin the naming prompt off** (Adam, 2026-09-18): the dev helper that prompts for a label when a VarSet, Body or other object is created (`devBuildMacros/EnforceNaming.FCMacro`, installed as `Mod/EnforceNaming`) is liked, but it carries BentWizard naming language into every workbench. Make it a separate lightweight plugin that only asks for a name, with no guidance about what the name should be.
 
 ### Principles
 - **Do not be prescriptive.** Provide multiple routes between stages and smooth transitions back and forth.
@@ -122,7 +124,7 @@ External research supports the shape: purpose-built timber software earns adopti
 - **Name things after the work, not the implementation.**
 
 ### Ergonomic debt paid and remaining
-Rev 3's named debt — the two-VarSet juggle (`Tenon_Length` living on a companion the joint consumed from) — is gone with the companion. Remaining: the joint VarSet's tool-written accessors (`HostWidthU …`) sit beside the framer's parameters in the property editor (a group apart, read-only by convention; the panel above hides them), and the apply dialog's role rows read the template's timber labels (`Post`, `Girt`) rather than a per-template role name.
+Rev 3's named debt — the two-VarSet juggle (`Tenon_Length` living on a companion the joint consumed from) — is gone with the companion. Remaining: the joint VarSet's tool-written accessors (`HostWidthU …`) sit beside the framer's parameters in the property editor (a group apart, read-only by convention; the panel above hides them), and the apply dialog's role rows now say *Primary — passing* / *Secondary — butting* (host / mate, passing or butting read from where the template put each datum) with the template's own timber name in the tooltip; an explicit per-template role name with a load direction is still the open item below.
 
 ## Open Items
 - **Dihedral angle finder**: pick two connected faces, get the angle between them — lands with parametrically angled joints.

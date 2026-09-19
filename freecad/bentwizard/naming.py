@@ -84,6 +84,15 @@ PROP_STATION = "Station"         # along the host, drives Placement.z
 PROP_MATE_DATUM = "MateDatum"    # internal Name of the paired datum
 PROP_JOINT = "Joint"             # internal Name of the joint VarSet
 ACCESSORS = ("WidthU", "WidthV", "DepthW")
+# The joint VarSet's placement accessors (HostPlacement / MatePlacement):
+# a component Body binds its Placement to one of these, never to a
+# datum's Placement directly. FreeCAD resolves a datum's child axes and
+# planes to the FIRST GeoFeatureGroup in the datum's in-list, without
+# checking membership; a component Body reading the datum can come
+# before the owning timber and the datum then fails its scope check on
+# recompute ("Link(s) ... go out of the allowed scope").
+PLACEMENT_ACCESSOR = "Placement"
+ALL_ACCESSORS = ACCESSORS + (PLACEMENT_ACCESSOR,)
 
 # Joint VarSet: the cross-timber accessors it carries once paired
 # (a datum never reads another datum — object-granular cycle)
@@ -251,7 +260,14 @@ def is_template_metadata(name, group=None):
 def is_accessor_property(name):
     """True for a joint VarSet's cross-timber accessor (HostWidthU ...),
     which the tool writes and a user never edits."""
-    return any(name == side + acc for side in SIDES for acc in ACCESSORS)
+    return any(name == side + acc for side in SIDES for acc in ALL_ACCESSORS)
+
+
+def placement_accessor(side):
+    """'HostPlacement' / 'MatePlacement'."""
+    if side not in SIDES:
+        raise ValueError(f"side must be one of {SIDES}, got {side!r}")
+    return side + PLACEMENT_ACCESSOR
 
 
 def is_range_property(name, group=None):

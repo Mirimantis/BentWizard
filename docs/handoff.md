@@ -53,6 +53,23 @@ is gone with it (the scripted session never produced one). Known noise:
 Undo of an Apply prints two `getOverlayIcons` tracebacks from FreeCAD's
 own `JointObject.py` — not ours, harmless.
 
+**Second GUI round (Adam, 2026-09-18):** four findings, all fixed
+before commit. (1) Apply did not take the selection: now the first
+selected timber fills Primary (host), the second Secondary (mate).
+(2) The role rows said Post/Girt: now *Primary — passing* / *Secondary —
+butting*, read from where the template put each datum. (3) Remove left
+the timbers invisible: features added from Python leave the previous
+Tip visible and a removed Tip leaves nothing shown — `apply.show_tip`
+fixes the view after Apply and Remove. (4) Editing a girt's `WidthX`
+raised `Link(s) to object(s) 'XZ_Plane005 …' go out of the allowed
+scope 'D_T_Beam_001_B'`: FreeCAD files a datum's child axes under the
+first GeoFeatureGroup in the datum's in-list, and a component Body
+whose Placement read the datum could come first. Components now bind
+to the joint VarSet's `HostPlacement`/`MatePlacement`; the linter's
+`component-placement-direct` rule guards it; the library is rebuilt.
+Verified by a scripted GUI session (visibility after Apply and Remove,
+the width edit recomputing clean).
+
 Things that could only show up in the GUI: recompute ordering
 (`Tool shape is null` was a GUI-only failure in the spikes), the
 tree's rendering of the handle's group extension, whether the

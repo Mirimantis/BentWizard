@@ -163,6 +163,16 @@ class DatumTest(unittest.TestCase):
                          (4, 8, 72))
         self.assertEqual(datums.datums_of_joint(vs), [host, mate])
         self.assertIs(datums.host_datum(vs), host)
+        # the placement accessors: what a component binds to, so that no
+        # Body ever reads a datum directly
+        self.assertEqual(vs.HostPlacement, host.Placement)
+        self.assertEqual(vs.MatePlacement, mate.Placement)
+        self.assertEqual(datums.side_of(vs, host), "Host")
+        self.assertEqual(datums.side_of(vs, mate), "Mate")
+        self.assertEqual(datums.placement_binding(vs, mate),
+                         f"<<{vs.Label}>>.MatePlacement")
+        with self.assertRaises(datums.DatumError):
+            datums.placement_binding(vs, datums.end_datum(self.girt, "EndA"))
         # the girt's section change reaches the host side through the VarSet
         self.gdims.WidthX = "5 in"
         self.doc.recompute()
@@ -197,6 +207,7 @@ class DatumTest(unittest.TestCase):
             self.assertFalse(datums.is_paired(d))
             self.assertEqual(d.Joint, "")
         self.assertEqual(vs.HostWidthU, 0)
+        self.assertEqual(vs.HostPlacement, App.Placement())
         self.assertEqual(vs.ExpressionEngine, [])
         self.assertEqual(datums.datums_of_joint(vs), [])
         # and the datums can pair again
