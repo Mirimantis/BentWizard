@@ -113,6 +113,22 @@ class DuplicateBentTest(unittest.TestCase):
             self.assertLess(joint_misfit(vs)[0], 1e-3, vs.Label)
         self.assertAlmostEqual(new_bodies[self.post1].getGlobalPlacement().Base.x / IN,
                                120, places=6)
+        # the offset rides on the timbers, never on the new assembly:
+        # FreeCAD draws its Fixed-joint markers at twice a moved root
+        # assembly's offset (Adam's GUI round, 2026-09-18)
+        self.assertTrue(bent2.Placement.isIdentity())
+        # the joint markers draw under the offset bent, which applies its
+        # own placement: drawn there, each lands on its datum, not at twice
+        # the offset (Adam's GUI round, 2026-09-18)
+        from freecad.bentwizard import joint_handle
+        for vs in new_joints:
+            handle = joint_handle.find_handle(vs)
+            self.assertIs(handle.getParentGeoFeatureGroup(), bent2, vs.Label)
+            datum = getattr(handle, joint_handle.DATUM_PROP)
+            drawn = bent2.getGlobalPlacement().multVec(
+                joint_handle.marker_position(handle, datum))
+            self.assertLess((drawn - datum.getGlobalPlacement().Base).Length, 1e-6,
+                            vs.Label)
 
     def test_partial_set_skips_boundary_joints(self):
         new_bodies, new_joints, skipped = self.duplicate([self.post1, self.beam])
