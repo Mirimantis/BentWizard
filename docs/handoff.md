@@ -101,7 +101,9 @@ mirroring's loose source body at root is tolerable in the tree.
 
 ## Running things
 
-- Tests: `C:\Users\Adam\Documents\Projects\FreeCAD_1.1.1-Windows-x86_64-py311\bin\python.exe -m unittest discover -s tests`
+- Tests: `<FreeCAD>\bin\python.exe -m unittest discover -s tests`, where
+  `<FreeCAD>` is the portable install beside the checkout (location
+  varies per machine; see CLAUDE.md → Environment)
 - Lint a file: `... python.exe -m freecad.bentwizard.linter <file.FCStd>`
 - Rebuild the shipped library: `... python.exe scripts/build_library.py`
   (writes `library/Joint_Butt.FCStd` and `library/Joint_HousedMT.FCStd`
