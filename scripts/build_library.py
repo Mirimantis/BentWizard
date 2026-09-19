@@ -30,15 +30,24 @@ IN = 25.4
 HOST, MATE = "T-Post-000", "T-Girt-000"
 
 
-def skeleton(doc, kind):
+def skeleton(doc, kind, handed=None):
     """Two timbers, host datum on the post's +Y face at 48 in, the
-    girt's end B paired to it under J-<kind>-000, girt seated."""
+    girt's end B paired to it under J-<kind>-000, girt seated. `handed`
+    (bool) declares the template's Handed flag; None leaves it
+    undeclared, which keeps the mirror rule."""
     post, _ = new_timber(doc, HOST, "8 in", "8 in", "8 ft")
     girt, _ = new_timber(doc, MATE, "6 in", "8 in", "6 ft")
     host = datums.add_datum(post, "YPos", "48 in")
     mate = datums.end_datum(girt, "EndB")
     vs = doc.addObject("App::VarSet", "JointVS")
     vs.Label = naming.joint_label(kind, naming.TEMPLATE_SERIAL)
+    if handed is not None:
+        add_param(vs, naming.PROP_TEMPLATE_HANDED, "App::PropertyBool", handed,
+                  "False: the joint looks the same from either side, so "
+                  "Apply never mirrors it. True: it has a hand, and Apply "
+                  "mirrors a component applied at a datum of the other "
+                  "parity (the opposite face or end).",
+                  naming.TEMPLATE_META_GROUP)
     datums.pair(host, mate, vs)
     doc.recompute()
     girt.Placement = datums.seat_delta(host, mate).multiply(girt.Placement)
@@ -52,7 +61,7 @@ def add_param(vs, name, type_id, value, tooltip, group="Joint"):
 
 
 def build_butt(doc):
-    _post, _girt, _host, _mate, vs = skeleton(doc, "Butt")
+    _post, _girt, _host, _mate, vs = skeleton(doc, "Butt", handed=False)
     add_param(vs, "PegCount", "App::PropertyInteger", 0,
               "Number of pegs (or bolts) at this connection — schedule "
               "data only, no geometry.")
@@ -60,7 +69,8 @@ def build_butt(doc):
 
 
 def build_housed_mt(doc):
-    post, girt, host, mate, vs = skeleton(doc, "HousedMT")
+    # centred tenon and housing: the same from either side
+    post, girt, host, mate, vs = skeleton(doc, "HousedMT", handed=False)
     J = f"<<{vs.Label}>>"
     add_param(vs, "TenonThickness", "App::PropertyLength", 2 * IN,
               "Tenon (and mortise) thickness, measured across the host's "

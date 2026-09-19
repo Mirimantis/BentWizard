@@ -161,8 +161,25 @@ def rule_ranges(model):
     return out
 
 
+def rule_handed(model):
+    """A template declares whether it is handed. Undeclared keeps the
+    mirror rule, so it is safe — but it pays for a mirroring (and an
+    out-of-scope link warning on every GUI recompute) that a symmetric
+    joint never needs."""
+    out = []
+    for vs in model.joint_varsets():
+        p = vs.prop(naming.PROP_TEMPLATE_HANDED)
+        if p is None or not isinstance(p.value, bool):
+            out.append(Finding("template-handed", ADVISORY, vs.name, vs.label,
+                               f"declare '{naming.PROP_TEMPLATE_HANDED}' (a Bool in "
+                               f"group '{naming.TEMPLATE_META_GROUP}'): False when "
+                               f"the joint looks the same from either side, so "
+                               f"Apply never mirrors it; True when it has a hand"))
+    return out
+
+
 SKELETON_RULES = [rule_two_timbers, rule_joint_varset, rule_pairing,
-                  rule_components, rule_ranges]
+                  rule_components, rule_ranges, rule_handed]
 
 
 def skeleton_findings(doc):
@@ -224,10 +241,48 @@ def _sweep_domain(spec, name):
     return lo, hi
 
 
+SYMMETRY_TOLERANCE = 1e-6          # relative volume mismatch
+
+
+def is_mirror_symmetric(shape):
+    """Whether a component, in its own (datum) frame, is its own mirror
+    image across local X — the mirror Apply would otherwise apply."""
+    import FreeCAD as App
+    volume = shape.Volume
+    if volume <= 0:
+        return True
+    mirrored = shape.mirror(App.Vector(0, 0, 0), App.Vector(1, 0, 0))
+    overlap = shape.common(mirrored).Volume
+    return abs(volume - overlap) <= SYMMETRY_TOLERANCE * volume
+
+
+def _handedness_findings(spec, body):
+    """A component declared not handed must be symmetric, or Apply puts
+    it on the wrong side at a datum of the other parity (STRICT). A
+    handed template whose components are all symmetric pays for a
+    mirroring it never needs (ADVISORY, per component)."""
+    from . import measure
+    symmetric = is_mirror_symmetric(measure.local_shape(body))
+    if spec.handed is False and not symmetric:
+        return [Finding("template-handed", STRICT, body.Name, body.Label,
+                        f"the template says {naming.PROP_TEMPLATE_HANDED} = False, "
+                        f"but this component is not its own mirror image across "
+                        f"its datum's X — applied at a datum of the other parity "
+                        f"(the opposite face or end) it would land on the wrong "
+                        f"side. Set {naming.PROP_TEMPLATE_HANDED} = True")]
+    if spec.handed is True and symmetric:
+        return [Finding("template-handed", ADVISORY, body.Name, body.Label,
+                        f"this component is its own mirror image; if every "
+                        f"component is, set {naming.PROP_TEMPLATE_HANDED} = False "
+                        f"and Apply will not mirror it")]
+    return []
+
+
 def check_geometry(path, persist=True):
     """FreeCAD half of the bar, on a copy opened hidden: each timber one
     solid at defaults; each component's solid on the correct side of its
-    origin; and every numeric parameter swept across its declared range
+    origin, and symmetric if the template says it is not handed; and
+    every numeric parameter swept across its declared range
     (or 25-150 % of its default), recording where a timber stops being
     one valid solid. With `persist`, the sweep result is written to the
     VarSet's SweepFindings so the apply dialog can warn from it."""
@@ -261,6 +316,7 @@ def check_geometry(path, persist=True):
                 out.append(Finding("growth-direction", ADVISORY, body.Name, body.Label,
                                    f"an adder is modelled in +Z, but this one "
                                    f"reaches to z = {bb.ZMin:.3f} mm"))
+            out.extend(_handedness_findings(spec, body))
         vs = doc.getObjectsByLabel(spec.varset_label)
         vs = vs[0] if vs else None
         failures = []

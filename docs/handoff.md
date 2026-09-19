@@ -138,6 +138,9 @@ mirroring's loose source body at root is tolerable in the tree.
 - Created-part roles (wedges, pegs), the dovetail rebuilt on the new
   contract, the beam tool, the framer-facing panel.
 - A mirrored component's source body sits at the document root (the
-  Boolean claims the mirroring, not its source).
+  Boolean claims the mirroring, not its source), and the mirroring's
+  link to it is reported out of scope on every GUI recompute. Only
+  handed templates mirror now (`Handed` flag, 2026-09-19); both-hands
+  templates, due with the dovetail, remove mirroring entirely.
 - Headless assemblies need an explicit `solve()` after a parameter
   edit; confirm the GUI does it on recompute.

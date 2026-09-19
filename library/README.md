@@ -48,7 +48,12 @@ and the component bodies into the document, relabels them to the new
 serial, re-points every `<<D_…>>` reference to the target datums,
 mirrors a component across its local X when the target datum's parity
 differs from the authoring datum's (so a component keeps its
-timber-local offsets at either end and on opposite faces), and applies
+timber-local offsets at either end and on opposite faces) — unless the
+template declares `Handed = False` (a Bool in the joint VarSet's
+`Template` group), meaning the joint looks the same from either side
+and is never mirrored. Both shipped templates declare it; the template
+bar checks the claim by mirroring each component onto itself. It then
+applies
 the Booleans in `ComponentOrder`, refusing if a timber stops being one
 solid. Nothing about the geometry is rebuilt, so a template author never
 learns a feature vocabulary.
