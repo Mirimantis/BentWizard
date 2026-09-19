@@ -70,6 +70,19 @@ to the joint VarSet's `HostPlacement`/`MatePlacement`; the linter's
 Verified by a scripted GUI session (visibility after Apply and Remove,
 the width edit recomputing clean).
 
+**Third GUI round (Adam, 2026-09-18/19): bent spacing is blocked.**
+Editing a tie's length moves a bent sub-assembly, and FreeCAD then
+draws that bent's Fixed-joint markers at twice its shift (FreeCAD's
+bug, not ours). A flat-frame spike found two more problems: closed
+loops of Fixed joints break the solver from 4 bents, and even loop-free
+the solver cannot re-space 10 bents. **Read
+[spike-flat-frame-results.md](spike-flat-frame-results.md) before
+touching `assemble.py`**; the design decision is open. Fixed in the
+same round: joint-handle markers under moved containers, Duplicate
+Timbers moving the new assembly, the Apply dialog dropping a chosen
+face. Still open: switching templates in the Apply dialog resets every
+choice.
+
 Things that could only show up in the GUI: recompute ordering
 (`Tool shape is null` was a GUI-only failure in the spikes), the
 tree's rendering of the handle's group extension, whether the
@@ -101,7 +114,9 @@ mirroring's loose source body at root is tolerable in the tree.
 
 ## Running things
 
-- Tests: `C:\Users\Adam\Documents\Projects\FreeCAD_1.1.1-Windows-x86_64-py311\bin\python.exe -m unittest discover -s tests`
+- Tests: `<FreeCAD>\bin\python.exe -m unittest discover -s tests`, where
+  `<FreeCAD>` is the portable install beside the checkout (location
+  varies per machine; see CLAUDE.md → Environment)
 - Lint a file: `... python.exe -m freecad.bentwizard.linter <file.FCStd>`
 - Rebuild the shipped library: `... python.exe scripts/build_library.py`
   (writes `library/Joint_Butt.FCStd` and `library/Joint_HousedMT.FCStd`

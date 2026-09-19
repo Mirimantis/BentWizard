@@ -1,5 +1,5 @@
 # Portable FreeCAD install — dev/testing tool only, not part of the repo
-/FreeCAD_1.1.1-Windows-x86_64-py311/
+/FreeCAD_*/
 
 # FreeCAD backup and transient files
 *.FCBak
@@ -24,6 +24,3 @@ Desktop.ini
 
 # local scratch files directory
 scratch/
-
-# User scratchpad for in-testing thoughts - deliberately untracked
-docs/User Notes.txt

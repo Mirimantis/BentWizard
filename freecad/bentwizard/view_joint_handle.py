@@ -176,7 +176,7 @@ class ViewProviderTimberJointHandle:
             frame = getattr(obj, joint_handle.DATUM_PROP, None)
             if frame is None:
                 return True                 # handle alive, nothing to draw
-            pos = frame.getGlobalPlacement().Base
+            pos = joint_handle.marker_position(obj, frame)
         except ReferenceError:
             return False                    # the handle was deleted
         except (AttributeError, RuntimeError):

@@ -21,7 +21,7 @@ This is a from-scratch rewrite; an earlier attempt that generated custom-coded g
 - `package.xml` + `freecad/bentwizard/` — the workbench, in FreeCAD 1.x addon layout
 - `docs/` — specification documents, spike records and joinery notes
 
-A portable FreeCAD install is expected outside the repo, alongside the project at `C:\Users\Adam\Documents\Projects\FreeCAD_1.1.1-Windows-x86_64-py311\`, for development and testing; it is not part of the repository (kept outside so it isn't exposed through the `Mod\BentWizard` dev-install junction).
+A portable FreeCAD 1.1.x install is expected outside the repo, as a sibling of the checkout (e.g. `..\FreeCAD_1.1.3-Windows-x86_64-py311\`), for development and testing. The exact path and patch version vary per machine. It is not part of the repository (kept outside so it isn't exposed through the `Mod\BentWizard` dev-install junction). Run `scripts\dev-install.ps1 main` once per machine to create that junction.
 
 ## License
 

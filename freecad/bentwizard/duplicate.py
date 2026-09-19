@@ -102,10 +102,11 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
 
     Copies reproduce the sources' relative placements. With
     `assembly_label` the copies are assembled into a new bent
-    sub-assembly of that name, `offset` (App.Vector, mm) placing it
-    relative to the source — a provisional position, overridden once
-    connecting timber joints are applied. Without it, `offset` shifts
-    the loose copies directly; `group_label` files them in a Std Group.
+    sub-assembly of that name. `offset` (App.Vector, mm) shifts the
+    copies from the sources — applied to the timbers themselves, the new
+    assembly staying at identity; with an assembly it is a provisional
+    position, overridden once connecting timber joints are applied.
+    Without one, `group_label` files the loose copies in a Std Group.
 
     Returns (new_bodies: {source -> copy}, new_joints: [VarSet],
     skipped: [joint label]). Caller owns the transaction.
@@ -187,9 +188,13 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
             if len(source_asms) == 1 and None not in source_asms
             else App.Placement())
     shift = App.Placement(offset or App.Vector(), App.Rotation())
+    # The offset goes on the timbers, never on a new bent assembly's own
+    # Placement: FreeCAD's Assembly code draws joint markers (and drags)
+    # wrongly under a moved root assembly — its Fixed-joint markers landed
+    # at twice the offset (Adam's GUI round, 2026-09-18; upstream #17398).
     for src, copy in new_bodies.items():
         rel = base.inverse().multiply(src.getGlobalPlacement())
-        copy.Placement = rel if assembly_label else shift.multiply(base).multiply(rel)
+        copy.Placement = shift.multiply(base).multiply(rel)
     doc.recompute()
 
     assembly_label = (assembly_label or "").strip()
@@ -199,7 +204,6 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
         asm, _skipped, _misfits, _adopted = assemble_timbers(
             doc, list(new_bodies.values()), label=assembly_label,
             grounded=new_bodies[principal_src])
-        asm.Placement = shift.multiply(base)
         doc.recompute()
         refresh_joint_display(asm)
 
