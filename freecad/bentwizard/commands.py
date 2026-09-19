@@ -889,6 +889,10 @@ class _DatumChoice(QtWidgets.QWidget):
         lay.addWidget(self.station)
         self.timber.currentIndexChanged.connect(self._refill)
         self.datum.currentIndexChanged.connect(self._toggle_station)
+        # activated fires on a user pick only, never on a programmatic
+        # setCurrentIndex — so a refill can tell a choice from a default
+        self.datum.activated.connect(self._mark_user_choice)
+        self._user_chose = False
         self._default_face = None
         self._refill()
 
@@ -898,6 +902,14 @@ class _DatumChoice(QtWidgets.QWidget):
 
     def _refill(self):
         body = self.timber.currentData()
+        # A face the user already chose survives a change of timber — the
+        # refill used to snap back to the template's face, silently
+        # turning a chosen -X into +Y (Adam's GUI round, 2026-09-18). An
+        # existing datum is per-timber, so only its face carries over.
+        current = self.datum.currentData()
+        if current is not None and getattr(self, "_user_chose", False):
+            kind, value = current
+            self._default_face = value if kind == "face" else datums.face_of(value)
         self.datum.blockSignals(True)
         self.datum.clear()
         if body is not None:
@@ -919,6 +931,9 @@ class _DatumChoice(QtWidgets.QWidget):
                 break
         self.datum.blockSignals(False)
         self._toggle_station()
+
+    def _mark_user_choice(self, _index):
+        self._user_chose = True
 
     def _toggle_station(self):
         data = self.datum.currentData()
