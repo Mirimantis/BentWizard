@@ -45,7 +45,7 @@ Timber framing workbench for FreeCAD 1.1.1. Timber-owned datums, cutter/adder jo
   - `component.py` — authoring helpers for component bodies (`new_component`, `add_prism`, `apply_boolean`); used by the library build script and the tests
   - `template.py` — `TemplateSpec`: what a template declares, read purely
   - `apply.py` — Apply / Remove Timber Joint; `joint_members`, `joint_datums`, `bent_joints`
-  - `assemble.py` — the two-level structure assembly (container rules, `assimilate_joint`, Assemble Timbers)
+  - `assemble.py` — the two-level structure assembly (container rules, `assimilate_joint`, Assemble Timbers). **Superseded by the flat frame** (2026-09-19, not built yet): one assembly per frame, bents and bays as Std Groups, assembly joints a spanning tree — see the roadmap's *Flat frame* entry before changing it
   - `joint_handle.py` — the per-joint handle (`Joint` and `Datum` links, `TimberJoints_<Assembly>` filing); `view_joint_handle.py` its marker (GUI, transient)
   - `duplicate.py` — Duplicate Timbers (rebuild, re-place datums, re-apply joints)
   - `measure.py` — order length, end projection, solid count, off the finished solid in the timber's own frame

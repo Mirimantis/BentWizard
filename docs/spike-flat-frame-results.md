@@ -8,8 +8,10 @@ Duplicate Timbers and the first tie between two bents.
 <FreeCAD>/bin/python.exe tests/spike/spike_flat_frame.py tree 3
 ```
 
-**Status: open.** No production code follows from this yet; the design
-decision is pending (see *Options still open*).
+**Status: flat frame adopted (Adam, 2026-09-19)** — one assembly per
+frame, bents and bays as Std Groups; see the roadmap's *Flat frame*
+entry. Not built yet. How bent spacing re-solves at scale is still open
+(see *Options still open*).
 
 ## The problem
 
