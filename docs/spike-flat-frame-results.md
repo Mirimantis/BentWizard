@@ -166,13 +166,62 @@ bents loop-free, and at 10 bents moved nothing after a 367 s build.
   so the placement tree mostly follows gravity and edits feel natural —
   a convenience only; nothing structural may depend on it.
 
-### Still to decide before building
+## Round 3: where a Bay edit's time goes (profiled, 5 bents / 1676 objects)
 
-- The Frame assembly's remaining job: a container plus a grounded post
-  (keeping the model ready for FreeCAD's Assembly tools), or no Fixed
-  joints at all.
-- Expression-placed timbers cannot be dragged; a bent moves by editing
-  `Bay` or a station. Right for a parametric frame, but a change in feel.
+Observer timestamps per recomputed object (`slotRecomputedObject`),
+scratchpad harness. A `Bay` edit recomputed **514 objects in 4.5 s** —
+117 sketches, 117 pads, 52 Booleans, 75 bodies. Only ~0.7 s of that is
+the ties, whose length really changed.
+
+| Change | Objects recomputed | Time |
+|---|---|---|
+| `Bay` on the shared `ProjectVars` | 514 | 4.5 s |
+| `Bay` alone on its own VarSet | 337 | 3.1 s |
+| `Span` on the shared `ProjectVars` | 458 | 4.4 s |
+| Moving the whole frame (grounded timber 1 mm) | 46 (bodies, seats, handles) | **0.08 s** |
+| Nothing changed | 0 | 0.00 s |
+| `Bay`, every Boolean `Refine = False` | 514 | 3.9 s |
+
+### Findings
+
+8. **Seats are not the cost.** Moving every timber in the frame
+   recomputes no sketch, pad or Boolean — 0.08 s. Expression seating is
+   cheap; the cost is the cascade from the *size* change.
+9. **FreeCAD's dependency graph is per object, not per value** — the
+   same granularity that forces the seat onto its own VarSet (finding
+   5) makes one edit recompute everything downstream of the whole
+   object. Three levels of it here: (a) `ProjectVars` — changing `Bay`
+   recomputes every datum reading `GirtLine`/`PlateLine` and every beam
+   reading `Span`; splitting `Bay` out saved 30%; (b) the **joint
+   VarSet** — a longer tie moves its end-B datum, the joint VarSet reads
+   that datum, so the post's mortise (which needs only the tie's
+   *section*) recomputes, and with it every later Boolean in that post's
+   chain; (c) the **Dims VarSet** — `LengthZ` sits beside `WidthX/Y`, so
+   a length change counts as a change for anything reading the section.
+10. **`Refine` costs ~15%** of a Bay edit. Keep it on: refined faces are
+    what shop drawings dimension.
+
+**Isolation, not micro-optimisation, is the lead.** The floor is ~0.7 s
+against 4.5 s — roughly **5x** — if a component depends only on what it
+actually uses (joint parameters and the other timber's *section*),
+never on the other timber's datum position or length. That means
+splitting the accessor/Dims objects along those lines, which changes how
+Apply wires expressions: its own spike, measured against the 0.7 s
+floor, before it goes into the build.
+
+### Decided after round 3 (Adam, 2026-09-19)
+
+- **No Assembly object.** Its only remaining job was grounding the
+  principal timber for a solver that no longer runs, and a grounded
+  joint does not lock anything without it. The frame is a Std Group; the
+  principal timber is anchored by binding its `Placement` to a project
+  `FrameOrigin` (an expression-driven value cannot be dragged or typed
+  over, and moving the frame is then one edit). Converting a frame to a
+  native Assembly with Fixed joints becomes an **export** (Phase 2).
+- **Dragging is not wanted**: a timber is positioned by its joints and
+  its variables. Visual editing comes from the layout sketch, whose
+  dimensions carry the same expressions the timbers do (roadmap, front
+  end, item 2).
 
 ## Artifacts for GUI inspection (gitignored, machine-local)
 
