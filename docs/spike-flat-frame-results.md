@@ -201,13 +201,104 @@ the ties, whose length really changed.
 10. **`Refine` costs ~15%** of a Bay edit. Keep it on: refined faces are
     what shop drawings dimension.
 
-**Isolation, not micro-optimisation, is the lead.** The floor is ~0.7 s
-against 4.5 s — roughly **5x** — if a component depends only on what it
-actually uses (joint parameters and the other timber's *section*),
-never on the other timber's datum position or length. That means
-splitting the accessor/Dims objects along those lines, which changes how
-Apply wires expressions: its own spike, measured against the 0.7 s
-floor, before it goes into the build.
+**Isolation, not micro-optimisation, is the lead** — pursued in round 4.
+
+## Round 4: recompute isolation (3.2x, and it reaches the floor)
+
+Harness: `tests/spike/spike_recompute_isolation.py N`. It rewires the
+document round 2 built, one level at a time, profiling a `Bay` edit and
+re-verifying the geometry after each (volumes back at `Bay` = 10 ft,
+every joint seated, one solid each — all levels passed).
+
+| Level | What moves onto its own object | 5 bents: objects recomputed | Time |
+|---|---|---|---|
+| L1 | baseline | 514 of 1676 | 4.60 s |
+| L2 | `Bay` alone on its own VarSet | 337 | 3.15 s |
+| L3 | + `LengthZ` onto `TLen_<timber>`, section stays on `TDim_` | 329 | 3.26 s |
+| L4 | + joint VarSet keeps only parameters; `Plc_<side>` (datum placement) and `Sec_<side>` (section, read from Dims, not through the datum) | 309 | 3.04 s |
+| L5 | + `DepthW` off `Sec_<side>` | **215** | **1.46 s** |
+
+The ratio holds at every size tested — 3 bents: 2.32 s → 0.65 s
+(3.6x); 10 bents: **10.44 s → 3.22 s**, 1099 objects → 480 (3.2x),
+geometry verified identical. Object count grows ~11% (1676 → 1856 at
+five bents; 3551 → 3936 at ten), all of it small VarSets.
+
+### Findings
+
+11. **L5 is the level that pays, and it reaches the floor.** After it,
+    *no post geometry recomputes at all* on a `Bay` edit — only the ties
+    and their tenons, which is exactly the work the change requires. The
+    earlier "~0.7 s floor" under-counted: it attributed component bodies
+    to posts, and the true necessary work is ~1.45 s at five bents.
+12. **Why L5 and not L4:** at an **end** datum `DepthW` *is* the
+    timber's length. Leaving it beside `WidthU`/`WidthV` on one VarSet
+    means a length change touches that object, and every reader of the
+    *section* recomputes — the same per-object leak one level down.
+    L2–L4 without it only shaved 30%.
+13. **A central "master variables" VarSet that others read re-creates
+    the cascade.** Probed directly: editing `Central.Bay` recomputed a
+    box bound to `Central.Span` through its own mirror VarSet, because
+    every mirror reads the same central object. **The object the user
+    edits must be the isolated one** — so the single place to edit
+    everything is the front end's panel (find the right VarSet, write to
+    it), never a mirror object in the model. (Adam's instinct was to
+    bind working variables back to a central source; this is the reason
+    not to.)
+14. **Splitting the accessors breaks structural lookup.**
+    `datums.host_datum` resolves which datum is the host by reading the
+    joint VarSet's `HostPlacement` expression. Move the accessors and
+    that resolution must follow them (the spike cached the pairs before
+    L4 to keep verifying). Anything else resolving through the
+    accessors — the linter's `component-reference-scope`, the template
+    bar, `TemplateSpec` — has to move with it.
+
+### What happens to the accessors
+
+The eight accessors do not disappear; they move off the joint VarSet
+onto small objects, same values, same bindings:
+
+```
+before  J-HousedMT-003  parameters + Host/Mate {Placement, WidthU, WidthV, DepthW}
+                        each reading its datum:  <<D_T-Post-003_XNeg_001>>.WidthU
+after   J-HousedMT-003  parameters only (+ Ranges, Template)
+        Plc_<side>_J-…  .Placement = <<datum>>.Placement
+        Sec_<side>_J-…  .WidthU/V  = <<TDim_<timber>>>.WidthX / .WidthY
+        Dep_<side>_J-…  .DepthW    = <<TDim_…>>.WidthY or <<TLen_…>>.LengthZ
+```
+
+- **The one change of meaning:** the section accessor reads the timber's
+  **Dims VarSet directly instead of through the datum** — that is what
+  buys the isolation, since the datum object moves on every station or
+  length change. The price is that the face→Dims mapping (`WidthU` is
+  `WidthX` on a ±Y face, `WidthY` on a ±X face) now lives both on the
+  datum and in the accessor's expression: Apply resolves it at apply
+  time, a later *re-place* must rewrite it, and the linter should check
+  the binding still matches the datum's face row.
+- **Up to six accessor objects per joint, but only those a component
+  reads need to exist.** `Joint_HousedMT` needs three — `Plc_Host`,
+  `Plc_Mate`, `Sec_Mate`; its tenon reads its own datum directly for
+  widths and nothing reads a depth. Per timber: 2 (`TDim_` section,
+  `TLen_` length).
+- **Pairing comes loose from the accessors.** `datums.pair()` records
+  the pairing as strings on both datums *and* binds the accessors;
+  `host_datum()` then infers which datum is the host by reading the
+  `HostWidthU` expression. That inference must become an explicit record
+  (e.g. a `HostDatum` string on the joint VarSet). The pairing data
+  itself is safe — the datums carry `MateDatum` and `Joint`.
+- **Templates need not change:** keep a template's joint VarSet in
+  today's single-object form (simpler to author) and let Apply expand it
+  into the split form, using the same token substitution it already runs
+  over copied component expressions.
+- The new objects nest under the timber joint's handle beside the
+  parameter VarSet and the seat — four to six small items per handle.
+- **Apply's wiring, the linter rules, the template bar and the
+  conventions in CLAUDE.md all change** — a component's contract becomes
+  "reads its own side's placement, the parameters, and the other side's
+  section", which is more precise than today's "its own datum and its
+  joint VarSet".
+- **Findability gets worse before the panel makes it better** — which is
+  the argument for building the panel's expression tracing alongside,
+  not after (finding 13).
 
 ### Decided after round 3 (Adam, 2026-09-19)
 
