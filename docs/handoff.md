@@ -78,9 +78,10 @@ loops of Fixed joints break the solver from 4 bents, and even loop-free
 the solver cannot re-space 10 bents. **Read
 [spike-flat-frame-results.md](spike-flat-frame-results.md) before
 touching `assemble.py`**. **Decided 2026-09-19: the flat frame** — one
-assembly per frame, bents and bays as Std Groups, assembly joints a
-spanning tree (roadmap, *Flat frame*). Not built; how spacing re-solves
-at 10+ bents is still open. Fixed in the
+assembly per frame, bents and bays as Std Groups, and timbers **seated
+by expression** (a `Seat_J-…` VarSet under each placing joint's
+handle) rather than by the solver — exact to 20 bents (roadmap, *Flat
+frame*; spike round 2). Not built yet. Fixed in the
 same round: joint-handle markers under moved containers, Duplicate
 Timbers moving the new assembly, the Apply dialog dropping a chosen
 face. Still open: switching templates in the Apply dialog resets every

@@ -1,6 +1,8 @@
 # Spike: parametric bent spacing and the frame assembly
 
-Harness: `tests/spike/spike_flat_frame.py`, run with the bundled python.
+Harnesses: `tests/spike/spike_flat_frame.py` (round 1, solver) and
+`tests/spike/spike_expression_seat.py` (round 2, expressions), run with
+the bundled python.
 Session of 2026-09-18/19, FreeCAD 1.1.3, following Adam's GUI round on
 Duplicate Timbers and the first tie between two bents.
 
@@ -10,8 +12,9 @@ Duplicate Timbers and the first tie between two bents.
 
 **Status: flat frame adopted (Adam, 2026-09-19)** — one assembly per
 frame, bents and bays as Std Groups; see the roadmap's *Flat frame*
-entry. Not built yet. How bent spacing re-solves at scale is still open
-(see *Options still open*).
+entry. Not built yet. Bent spacing is resolved by **seating timbers by
+expression** instead of by the solver (round 2, below): exact and
+warning-free to 20 bents.
 
 ## The problem
 
@@ -91,26 +94,94 @@ assembly. Edit: `Bay` 10 ft → 12 ft, recompute, `frame.solve()`.
    ~6.5 s per joint at 48 (each `assimilate_joint` recomputes and solves
    the whole frame). A separate problem, but real for full buildings.
 
-## Options still open
+## Round 2: the seat as an expression (resolves spacing)
 
-- **Expression-driven spacing on a flat frame** (option 4 + 3): each
-  bent's timbers placed from `Bay` × index, so re-spacing is a plain
-  recompute; the solver only keeps timbers within a bent seated, or is
-  not needed for spacing at all. Open question: how ties' Fixed joints
-  coexist with expression-placed bents (likely: ties are loop-closing,
-  so no Fixed joint — finding 2 already requires that).
-- **Pre-seat before solve**: after a parameter edit, walk the spanning
-  tree out from the ground and re-seat each timber exactly (as
-  `assimilate_joint` already does for a new joint), leaving the solver
-  a verification. Keeps Assembly joints authoritative, but BentWizard
-  does most of the solver's work.
+Harness: `tests/spike/spike_expression_seat.py N`. Considered and set
+aside: *pre-seat before solve* (BentWizard would do the solver's work
+and the Assembly joints would only check it) and literal `Bay` × index
+spacing (it would hard-code geometry, e.g. spacing = tie length + post
+width). Tested instead: the **seat itself as an expression** — the same
+`host · flip · mate⁻¹` that `datums.seat_delta` computes, written where
+FreeCAD recomputes it:
 
-## Artifact for GUI inspection
+- Every timber but the grounded first post is placed by the timber
+  joint that first connects it (a **placing joint**). Its `Placement`
+  reads `SeatPlacement` on a per-joint `Seat_J-…` VarSet:
+  `<<Anchor>>.Placement * <<near datum>>.Placement *
+  placement(vector(0; 0; 0); rotation(vector(0; 1; 0); 180)) *
+  minvert(<<far datum>>.Placement)`.
+- Placing joints form a spanning tree. A joint whose two timbers are
+  already placed (the second tie of a bay) places nothing and is only
+  checked (Audit Timbers' misfit).
+- No Fixed assembly joints and no solve; the one Frame assembly holds
+  the timbers and a grounded post.
 
-- `scratch/FlatFrame01.FCStd` (gitignored, machine-local) — loop-free
-  flat frame, 3 bents, built in a scripted GUI session so every Tip is
-  visible. `ProjectVars` (`Bay`, `Span`, `GirtLine`, `PlateLine`) drives
-  it; `Bay` edits solved correctly at this size.
+| Bents | Timbers / joints | Build | `Bay` edit (plain recompute) | Worst misfit, all joints |
+|---|---|---|---|---|
+| 2 | 8 / 8 | ~4 s | 1.2 s | 1e-12 mm |
+| 3 | 13 / 14 | ~8 s | 2.4 s | 4e-12 mm |
+| 5 | 23 / 26 | 16 s | 5.0 s | 6e-12 mm |
+| 10 | 48 / 56 | 42 s | 10 s | 8e-12 mm |
+| 20 | 98 / 116 | 153 s | 24 s | 8e-12 mm |
+
+Bents land at exactly `Bay` + 8 in at every size; loop-closing joints
+close to ~1e-11 mm without being enforced; nothing is left
+Touched/Invalid. A scripted GUI session (3 bents, `Bay` 12 → 8 → 10 ft)
+logged **zero** warnings or errors. Compare the solver: failed at 5
+bents loop-free, and at 10 bents moved nothing after a 367 s build.
+
+### Findings
+
+5. **The seat cannot live on the joint VarSet.** FreeCAD's dependency
+   graph is per object; each timber's component bodies already read the
+   joint VarSet (`HostPlacement`/`MatePlacement`), so the joint VarSet
+   reading a timber's `Placement` is `cyclic reference`. A separate seat
+   VarSet, read only by the placed timber, is clean. It reads the datums
+   directly (a VarSet may link a datum; a Body may not — the scope rule).
+6. **Expression names must avoid unit symbols.** `A * B` fails to parse
+   (`A` is the ampere); real property and label names are fine.
+7. **Cost is linear, ~0.25 s per timber per edit** — predictable, but
+   24 s at 98 timbers is slow for one edit. Posts and beams only *move*
+   on a `Bay` edit; whether a Placement change also recomputes each
+   timber's Booleans is worth measuring before building.
+
+### Decisions (Adam, 2026-09-19)
+
+- **The seat VarSet nests under the timber joint's handle**, beside the
+  parameter VarSet (Adam tested this by hand in `ExprFrame02`). Not a
+  property *of* the handle, though that also works (tested, no cycle):
+  the handle's contract is that deleting it is harmless to geometry, and
+  a nested VarSet survives a deleted handle where a handle property
+  would not. The handle's `onDelete` must move the seat VarSet out of
+  the way too, as it does the parameter VarSet.
+- **The placement tree is not the load path.** Which joint places which
+  timber follows build order (Bent 2's first post is placed *from the
+  tie*), and load paths are redundant graphs, not trees. The structural
+  graph (roadmap Phase 4) is derived from **all** timber joints —
+  loop-closing ones included — plus timber roles, bearing faces and
+  ground supports, all of which the timber joints and timbers already
+  carry. Bent and bay Std Groups give the racking checks their per-bent
+  membership. A later refinement: Apply could prefer the *supporting*
+  side as the anchor (a beam placed from its post, a post from its sill)
+  so the placement tree mostly follows gravity and edits feel natural —
+  a convenience only; nothing structural may depend on it.
+
+### Still to decide before building
+
+- The Frame assembly's remaining job: a container plus a grounded post
+  (keeping the model ready for FreeCAD's Assembly tools), or no Fixed
+  joints at all.
+- Expression-placed timbers cannot be dragged; a bent moves by editing
+  `Bay` or a station. Right for a parametric frame, but a change in feel.
+
+## Artifacts for GUI inspection (gitignored, machine-local)
+
+- `scratch/FlatFrame01.FCStd`, `FlatFrame02.FCStd` — solver-driven
+  flat frames, 3 bents (02: after the `Handed` change, no mirrorings).
+- `scratch/ExprFrame01.FCStd` — expression-seated, 3 bents, seats at
+  root; `ExprFrame02.FCStd` — the same with the seats nested under the
+  handles by hand (Adam). `ProjectVars` (`Bay`, `Span`, `GirtLine`,
+  `PlateLine`) drives each.
 
 ## Fixes landed alongside (branch `claude/per-machine-freecad-path`)
 
