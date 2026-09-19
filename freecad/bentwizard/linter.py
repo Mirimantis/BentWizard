@@ -177,18 +177,35 @@ class Model:
                     return h
         return None
 
-    def component_datum(self, comp):
-        """The datum a component is placed on (via its Placement
-        expression), or None."""
+    def component_placement_ref(self, comp):
+        """What the component's Placement holder reads: ('varset', vs,
+        side) for the joint VarSet's Host/MatePlacement accessor, ('datum',
+        d, None) for a datum read directly, or None."""
         holder = self.component_placement_holder(comp)
         if holder is None:
             return None
         for e in holder.expressions:
             if e.path.lstrip(".") == "Placement":
-                for target, _p in expression_refs(e.expression, self.doc):
+                for target, prop in expression_refs(e.expression, self.doc):
+                    if self.kind.get(target.name) == "joint":
+                        for side in naming.SIDES:
+                            if prop == naming.placement_accessor(side):
+                                return ("varset", target, side)
                     if target.name in self.datum_names:
-                        return target
+                        return ("datum", target, None)
         return None
+
+    def component_datum(self, comp):
+        """The datum a component is placed on — through its joint
+        VarSet's HostPlacement / MatePlacement accessor, or (a defect the
+        'component-placement-direct' rule reports) read directly."""
+        ref = self.component_placement_ref(comp)
+        if ref is None:
+            return None
+        kind, target, side = ref
+        if kind == "varset":
+            return self.accessor_datum(target, side)
+        return target
 
     def component_members(self, comp):
         """The component body and everything inside it."""
@@ -446,7 +463,7 @@ def rule_datum_pairing(model):
                     != {o.name for o in (d, mate) if o is not None}:
                 problems.append(f"'{vs.label}' Host*/Mate* accessors do not "
                                 f"read this pair of datums")
-            missing = [s + a for s in naming.SIDES for a in naming.ACCESSORS
+            missing = [s + a for s in naming.SIDES for a in naming.ALL_ACCESSORS
                        if vs.prop(s + a) is None]
             if missing:
                 problems.append(f"'{vs.label}' lacks accessor(s) {', '.join(missing)}")
@@ -472,13 +489,41 @@ def rule_component_declaration(model):
         if order is None or not isinstance(order.value, int):
             problems.append("no integer ComponentOrder (cutters before adders)")
         if model.component_datum(comp) is None:
-            problems.append("Placement is not bound to a datum "
-                            "('<<D_...>>.Placement' on the body, or on its "
-                            "mirroring)")
+            problems.append("Placement is not bound to a datum through the "
+                            "joint VarSet ('<<J-...>>.HostPlacement' or "
+                            "'.MatePlacement' on the body, or on its mirroring)")
         if problems:
             findings.append(Finding(
                 "component-declaration", STRICT, comp.name, comp.label,
                 "; ".join(problems)))
+    return findings
+
+
+def rule_component_placement_direct(model):
+    """Strict: a component Body must not read a datum's Placement
+    directly. FreeCAD files a datum's child axes and planes under the
+    FIRST GeoFeatureGroup in the datum's in-list without checking
+    membership; a component Body that links the datum can come before
+    the owning timber, and the datum then fails its scope check on the
+    next recompute ('Link(s) to object(s) ... go out of the allowed
+    scope'). Bind to the joint VarSet's HostPlacement / MatePlacement
+    instead. Advisory on a mirroring (not a GeoFeatureGroup, harmless),
+    for uniformity."""
+    findings = []
+    for comp in model.components:
+        ref = model.component_placement_ref(comp)
+        if ref is None or ref[0] != "datum":
+            continue
+        holder = model.component_placement_holder(comp)
+        direct_body = holder is comp
+        findings.append(Finding(
+            "component-placement-direct", STRICT if direct_body else ADVISORY,
+            holder.name, holder.label,
+            f"Placement reads datum '{ref[1].label}' directly; bind it to the "
+            f"joint VarSet's HostPlacement / MatePlacement accessor instead"
+            + (" — a Body reading a datum makes FreeCAD file the datum's "
+               "axes under that Body, and the datum fails its scope check "
+               "on recompute" if direct_body else "")))
     return findings
 
 
@@ -797,6 +842,7 @@ STRICT_RULES = [
     rule_datum_link_scope,
     rule_datum_pairing,
     rule_component_declaration,
+    rule_component_placement_direct,
     rule_component_reference_scope,
     rule_boolean_operand,
 ]

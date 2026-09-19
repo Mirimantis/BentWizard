@@ -92,7 +92,7 @@ def build_housed_mt(doc):
     # deep) and the mortise (TenonLength + HousingDepth + MortiseFit deep),
     # both grown in -Z from the face
     mortise = component.new_component(doc, naming.component_label(
-        "Mortise", "HousedMT", "000"), naming.COMPONENT_CUTTER, 1, host)
+        "Mortise", "HousedMT", "000"), naming.COMPONENT_CUTTER, 1, vs, host)
     component.add_prism(mortise, "Housing", J + ".MateWidthU", J + ".MateWidthV",
                         J + ".HousingDepth", direction=-1)
     component.add_prism(mortise, "MortisePrism", J + ".TenonThickness",
@@ -103,7 +103,7 @@ def build_housed_mt(doc):
     # the tenon, both grown in +Z past the design end
     D = f"<<{mate.Label}>>"
     tenon = component.new_component(doc, naming.component_label(
-        "Tenon", "HousedMT", "000"), naming.COMPONENT_ADDER, 2, mate)
+        "Tenon", "HousedMT", "000"), naming.COMPONENT_ADDER, 2, vs, mate)
     component.add_prism(tenon, "Shoulder", D + ".WidthU", D + ".WidthV",
                         J + ".HousingDepth", direction=+1)
     component.add_prism(tenon, "TenonPrism", J + ".TenonThickness", J + ".TenonWidth",

@@ -106,6 +106,42 @@ class ApplyTest(unittest.TestCase):
 
     # --- the basic application ------------------------------------------
 
+    def test_datum_children_stay_with_their_timber(self):
+        """Adam's second GUI round: editing a girt's WidthX raised
+        'Link(s) to object(s) ... go out of the allowed scope'. FreeCAD
+        files a datum's child axes under the FIRST GeoFeatureGroup in
+        the datum's in-list, so a component Body whose Placement read
+        the datum could claim them. Components bind to the VarSet's
+        placement accessors instead; nothing but the owning timber may
+        be a GeoFeatureGroup in a datum's in-list."""
+        from freecad.bentwizard import datums
+        from freecad.bentwizard.assemble import assimilate_joint
+        from freecad.bentwizard.timber import new_timber
+        post2, _ = new_timber(self.doc, "T-Post-002", "8 in", "8 in", "8 ft")
+        j1 = self.apply(end="EndA").varset
+        j2 = self.apply(post=post2, face="YNeg", end="EndB", serial="002").varset
+        assimilate_joint(self.doc, j1)
+        assimilate_joint(self.doc, j2)
+        self.gdims.WidthX = "5 in"
+        self.doc.recompute()
+        bad = [o.Label for o in self.doc.Objects
+               if "Invalid" in o.State or "Error" in o.State]
+        self.assertEqual(bad, [])
+        gfg = "App::GeoFeatureGroupExtension"
+        for d in datums.all_datums(self.doc):
+            owner = datums.owner(d)
+            for child in d.OutList:
+                if child.TypeId in ("App::Line", "App::Plane", "App::Point"):
+                    self.assertIs(child.getParentGeoFeatureGroup(), owner, d.Label)
+            groups = [o.Label for o in d.InList if o.hasExtension(gfg)]
+            self.assertEqual(groups, [owner.Label], d.Label)
+        for comp in [o for o in self.doc.Objects if hasattr(o, "ComponentRole")]:
+            holder = next((m for m in self.doc.Objects
+                           if m.TypeId == "Part::Mirroring" and m.Source is comp), comp)
+            exprs = dict((p.lstrip("."), e) for p, e in holder.ExpressionEngine)
+            self.assertRegex(exprs.get("Placement", ""),
+                             r"<<J-HousedMT-00[12]>>\.(Host|Mate)Placement$", comp.Label)
+
     def test_volumes_and_objects(self):
         from freecad.bentwizard import datums, joint_handle, measure
         from freecad.bentwizard.apply import joint_components, joint_datums, joint_members
@@ -245,11 +281,11 @@ class ApplyTest(unittest.TestCase):
             J = f"<<{vs.Label}>>"
             bl.add_param(vs, "Depth", "App::PropertyLength", 3 * IN, "cut depth")
             cutter = component.new_component(tdoc, "Notch.Lop.000", naming.COMPONENT_CUTTER,
-                                             1, host)
+                                             1, vs, host)
             component.add_prism(cutter, "NotchPrism", "2 in", "3 in", J + ".Depth",
                                 direction=-1, offset=(1 * IN, 0.5 * IN))
             adder = component.new_component(tdoc, "Tongue.Lop.000", naming.COMPONENT_ADDER,
-                                            2, mate)
+                                            2, vs, mate)
             component.add_prism(adder, "TonguePrism", "2 in", "3 in", J + ".Depth",
                                 direction=+1, offset=(1 * IN, 0.5 * IN))
             tdoc.recompute()

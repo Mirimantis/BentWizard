@@ -294,7 +294,7 @@ def apply_joint(doc, spec, serial, targets, values=None, position_tag=""):
         body.Label = naming.retag_component_label(c["label"], spec.kind, serial)
     # the template's accessor bindings name template datums; pair() rewrites them
     for side in naming.SIDES:
-        for acc in facetable.ACCESSORS:
+        for acc in naming.ALL_ACCESSORS:
             if hasattr(varset, side + acc):
                 varset.setExpression(side + acc, None)
     for name, value in (values or {}).items():
@@ -336,7 +336,7 @@ def apply_joint(doc, spec, serial, targets, values=None, position_tag=""):
             m.Source = body
             m.Base = App.Vector(0, 0, 0)
             m.Normal = App.Vector(1, 0, 0)
-            m.setExpression("Placement", f"<<{target.Label}>>.Placement")
+            m.setExpression("Placement", datums.placement_binding(varset, target))
             holder = m
         placed.append((c, body, holder, target))
     doc.recompute()
@@ -373,6 +373,7 @@ def apply_joint(doc, spec, serial, targets, values=None, position_tag=""):
         if op == "Fuse" and abs(after - before) < 1e-6:
             warnings.append(f"{bo.Label} added no material to {timber.Label}")
         booleans.append(bo)
+        show_tip(timber)
 
     from . import joint_handle
     joint_handle.ensure_handle(varset, host_datum)
@@ -384,6 +385,23 @@ def apply_joint(doc, spec, serial, targets, values=None, position_tag=""):
 # --------------------------------------------------------------------------
 # Remove
 # --------------------------------------------------------------------------
+
+def show_tip(body):
+    """In the GUI, show a Body's Tip and hide its other solid features —
+    what PartDesign's own commands do after adding a feature. Features
+    added from Python leave the previous Tip visible (the stick hides the
+    Boolean's cut) and a removed Tip leaves nothing visible."""
+    if not App.GuiUp:
+        return
+    tip = body.Tip
+    for f in body.Group:
+        vo = getattr(f, "ViewObject", None)
+        if vo is None or not hasattr(f, "BaseFeature"):
+            continue                    # only the solid feature chain
+        vo.Visibility = f is tip
+    if body.ViewObject is not None:
+        body.ViewObject.Visibility = True
+
 
 def _unlink_feature(body, feat):
     """Take a solid feature out of a Body's chain, relinking what
@@ -447,6 +465,7 @@ def remove_joint(varset):
     for t in timbers:
         if t is None:
             continue
+        show_tip(t)
         if "Invalid" in t.State or "Error" in t.State:
             raise JointError(f"{t.Label}: recompute failed after removal ({t.State})")
         if not measure.is_whole(t):

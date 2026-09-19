@@ -12,6 +12,8 @@
 > object-granular dependency cycle), and the parity rule covers opposite
 > faces as well as ends.
 
+**Placement binding (built, 2026-09-18):** §4.3's "the component's Placement is bound to the frame it sits on" is implemented through the joint VarSet — `HostPlacement` / `MatePlacement` accessors that read the datums — not by a Body expression on the datum. FreeCAD files a datum's child axes under the first GeoFeatureGroup in the datum's in-list, so a Body reading a datum directly broke the datum's scope check on recompute.
+
 Supersedes the Phase 0 workflow document. Rev 1 recorded a manual workflow built on a subtractive mandate, typed stick lengths, square-rule layout doctrine, and joints rebuilt sketch-by-sketch on the target timber. Spike rounds 1–3 and the mate-frame GUI tests replaced all of that. Everything below is proven in FreeCAD 1.1.1, headlessly and in the GUI, unless explicitly marked open.
 
 Companions: the roadmap, the friction findings log, and the spike results (`spike-variant-link-results.md`, `spike-copyobject-results.md`, `spike-round2b-results.md`, `spike-round3-results.md`).

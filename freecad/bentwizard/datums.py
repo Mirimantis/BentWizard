@@ -270,6 +270,17 @@ def end_datum(body, end):
 # Pairing
 # --------------------------------------------------------------------------
 
+PLACEMENT_TOOLTIPS = {
+    "Host": "The host datum's Placement. A component on the host binds its "
+            "own Placement to this — never to the datum directly: a Body "
+            "reading a datum makes FreeCAD file the datum's axes under "
+            "that Body, and the datum then fails its scope check.",
+    "Mate": "The mate datum's Placement. A component on the mate binds its "
+            "own Placement to this — never to the datum directly (see "
+            "HostPlacement).",
+}
+
+
 def ensure_accessors(varset):
     """Give a joint VarSet its Host*/Mate* accessor properties (idempotent)."""
     for side in naming.SIDES:
@@ -279,6 +290,28 @@ def ensure_accessors(varset):
                 varset.addProperty(
                     "App::PropertyLength", name, naming.ACCESSOR_GROUP,
                     ACCESSOR_TOOLTIPS[side].format(axis=_AXIS_TEXT[acc]))
+        name = naming.placement_accessor(side)
+        if not hasattr(varset, name):
+            varset.addProperty("App::PropertyPlacement", name,
+                               naming.ACCESSOR_GROUP, PLACEMENT_TOOLTIPS[side])
+
+
+def side_of(varset, datum):
+    """'Host' or 'Mate': which side of joint `varset` `datum` is, by the
+    VarSet's accessors; None when the datum is not paired under it."""
+    pair_ = datums_of_joint(varset)
+    if not pair_ or datum not in pair_:
+        return None
+    return "Host" if pair_[0] is datum else "Mate"
+
+
+def placement_binding(varset, datum):
+    """The expression a component on `datum` binds its Placement to:
+    '<<J-...>>.HostPlacement' or '.MatePlacement'."""
+    side = side_of(varset, datum)
+    if side is None:
+        raise DatumError(f"{datum.Label!r} is not paired under {varset.Label!r}")
+    return f"<<{varset.Label}>>.{naming.placement_accessor(side)}"
 
 
 def pair(host, mate, varset):
@@ -295,7 +328,7 @@ def pair(host, mate, varset):
     if owner(host) is owner(mate):
         raise DatumError("both datums belong to the same timber")
     ensure_accessors(varset)
-    for acc in facetable.ACCESSORS:
+    for acc in naming.ALL_ACCESSORS:
         varset.setExpression("Host" + acc, f"<<{host.Label}>>.{acc}")
         varset.setExpression("Mate" + acc, f"<<{mate.Label}>>.{acc}")
     setattr(host, naming.PROP_MATE_DATUM, mate.Name)
@@ -321,6 +354,10 @@ def unpair(datum):
                 if hasattr(varset, name):
                     varset.setExpression(name, None)
                     setattr(varset, name, 0)
+            name = naming.placement_accessor(side)
+            if hasattr(varset, name):
+                varset.setExpression(name, None)
+                setattr(varset, name, App.Placement())
 
 
 # --------------------------------------------------------------------------
