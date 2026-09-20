@@ -1,18 +1,22 @@
 # Brief: make BentWizard work on FreeCAD 26.3
 
-**For a fresh session.** Adam's decision, 2026-09-20: BentWizard moves
-to 26.3 and takes the fine-grained recomputes. Everything else is
-paused until this session reports — **workstream C is explicitly not to
-start**, because another 26.3 change could move the ground again.
+**For a fresh session — this is the next piece of work.** Adam's
+decision, 2026-09-20: BentWizard moves to 26.3 and takes the
+fine-grained recomputes, and the weekly dev build becomes the primary
+test environment once the workbench runs there. The rest of the rebuild
+waits: **workstream C is not to start** beyond what section 2 needs,
+because another 26.3 change could move the ground again.
 
 Read first:
 - [spike-fine-grained-recompute-results.md](spike-fine-grained-recompute-results.md)
-  — what is already measured on 26.3, and the two findings below.
-- (an upstream issue draft was written and withdrawn: the change is
-  intentional and already carries a compatibility flag)
+  — everything measured on 26.3, findings 1–3. Finding 3 is why
+  workstream B no longer exists.
 - [rebuild-flat-frame-handoff.md](rebuild-flat-frame-handoff.md) and
   [workstream-a-handoff.md](workstream-a-handoff.md) — the rebuild this
-  interrupts. A is built and merged-pending; B is parked; C is paused.
+  interrupts, and the conventions it established.
+- `CLAUDE.md` — conventions, the environment, and the weekly-build rules.
+  An upstream issue draft was written here and withdrawn: the Boolean
+  change is intentional and already carries its compatibility flag.
 
 ## What is already known
 
@@ -38,6 +42,24 @@ The remaining non-Boolean failures are in `measure`: `order_length`
 short by exactly a tenon, and a `None` where a timber is no longer one
 solid. Consistent with the same root cause, but confirm rather than
 assume.
+
+## Where things stand when you start
+
+- **Workstream A is built and merged** (or in PR #20 if not yet):
+  `frame.py`, seats by expression, the Std Group frame, no Assembly
+  object. 123 tests green on 1.1.3, GUI probe clean, Adam's GUI round
+  passed. **Branch from `main`** if A has landed; from
+  `claude/flat-frame-seats` if it has not.
+- **Workstream B is retired** (finding 3). Nothing to build.
+- **Workstream C has not started** and is not yours unless the migration
+  needs it: what a handle holds and what its `onDelete` moves out of the
+  way. Note the accessor VarSet below lands *under the handle*, so the
+  two touch — say which parts you did.
+- **Workstream D is untouched.** One item bites today: `undo_repair`
+  does not re-arm a seat, so undoing an Apply leaves one behind.
+- The 26.3 measurements are all in
+  `spike-fine-grained-recompute-results.md`; the harnesses run on A's
+  branch (`fd284cc`).
 
 ## The work
 
@@ -72,9 +94,40 @@ frame exists to avoid.
 Whatever is chosen has to keep: no Body reads a datum directly (the
 scope rule), datums never read each other, and the mirror/parity rule.
 Route (a) is also the quickest way to unblock the parked measurements in
-section 3, whichever route is chosen for the long run.
+section 4, whichever route is chosen for the long run.
 
-### 2. Sweep for the rest of 26.3's changes
+### 2. Move the accessors to their own VarSet (part of this migration, Adam 2026-09-20)
+
+Today the joint VarSet `J-<Kind>-<serial>` carries both what a framer
+edits (the parameters) and eight tool-written accessors
+(`HostPlacement` … `MateDepthW`) that exist only because **a Body may
+never read a datum's `Placement`** — the scope rule behind the
+`XZ_Plane005` failure of Adam's second GUI round. Split them: **one**
+accessor VarSet per joint, filed under the handle in the `Accessors`
+group Adam picked, leaving the joint VarSet holding only parameters.
+Not B's three-to-six per-side objects — B is dead; this is tidiness.
+
+What resolves *through* the accessors today and must follow them:
+
+- `datums.host_datum` — works out which datum is the host by reading the
+  `HostWidthU` expression. Replace the inference with an explicit
+  record (a `HostDatum` string on the joint VarSet) rather than moving
+  the sniff.
+- `datums.pair`/`unpair`/`ensure_accessors`, `apply.py`'s copy step
+  (it clears and re-binds accessor expressions), `TemplateSpec`'s role
+  resolution, the template bar's pairing rule, the linter's
+  `component-reference-scope` and `component-placement-direct`,
+  `duplicate.py`'s expression rewriting, and the accessor names in
+  `naming.py`.
+- Templates keep today's single-VarSet shape; Apply expands on
+  application, reusing the token substitution it already runs over
+  copied component expressions.
+
+`TDim_<timber>` **stays whole** — no section/length split, and future
+dimension drivers (rafter pitch, brace slope) go in beside
+`WidthX`/`WidthY`/`LengthZ`.
+
+### 3. Sweep for the rest of 26.3's changes
 
 The point of this session is to find the *other* surprises before more
 is built on sand. At minimum:
@@ -99,7 +152,7 @@ is built on sand. At minimum:
 - **Assembly**: only needed for the Phase 2 export now, but confirm
   whether the marker bug that started all of this still exists.
 
-### 3. The parked measurements — the main one is taken
+### 4. The parked measurements — the main one is taken
 
 **Done 2026-09-20 (finding 3): workstream B is retired.** At five bents
 on 26.3 with the flag forced on, the *unsplit* document recomputes 145
