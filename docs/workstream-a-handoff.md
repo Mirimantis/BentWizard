@@ -158,6 +158,16 @@ whole still owes Adam's GUI round before anything reaches `main`.
 
 ## The rest of the plan, as agreed 2026-09-19/20
 
+> **Paused 2026-09-20 — read
+> [freecad-26-3-compatibility-brief.md](freecad-26-3-compatibility-brief.md)
+> first.** A is built and its PR is open. B is parked: FreeCAD 26.3's
+> fine-grained recomputes cover expression edges and are on by default,
+> which probably retires the splits entirely. **C is not to start**,
+> Adam's call — 26.3 also breaks the PartDesign Boolean's operand frame,
+> so the component mechanism itself may change shape, and there is no
+> point building C on ground that is about to move. The plan below
+> resumes once the 26.3 session reports.
+
 - **Order A → B → C → D**, one branch and one PR each, each verified by
   a scripted GUI probe; Adam's interactive GUI round happens once, before
   D merges. **E (export to Assembly) is out of scope** for the rebuild.
