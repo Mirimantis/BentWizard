@@ -13,12 +13,10 @@ geometric effect (the marker is view-only; the handle owns no Placement
 and takes no part in the solve). The ViewProvider is attached only under
 a GUI and lives in the Gui document.
 
-Tree home: the handle holds its joint's VarSet, and files in a
-`TimberJoints_<Assembly>` Std Group inside the assembly the joint
-belongs to — exactly where assimilate_joint put the joint's Fixed
-assembly joint (its bent, or the frame for a joint spanning two bents).
-Joints with no assembly yet fall back to a bare `TimberJoints` group at
-the document root.
+Tree home: the handle holds its joint's VarSet and its seat, and files
+in a `TimberJoints_<Frame>` Std Group inside the frame the joint's
+timbers belong to. Joints whose timbers are in no frame yet fall back to
+a bare `TimberJoints` group at the document root.
 """
 
 from __future__ import annotations
@@ -114,17 +112,13 @@ def marker_position(handle, frame):
 
 
 def joint_container(varset):
-    """The assembly a timber joint belongs to, or None: its Fixed
-    assembly joint's container (the container rules resolved once, by
-    assimilate_joint), else the common assembly of the joint's timbers."""
-    from .assemble import container_assembly, find_fixed_joints
-    doc = varset.Document
-    for fixed in find_fixed_joints(doc, varset):
-        asm = container_assembly(fixed)
-        if asm is not None:
-            return asm
-    homes = {container_assembly(datums.owner(d))
-             for d in datums.datums_of_joint(varset)}
+    """The frame group a timber joint belongs to, or None — the common
+    frame of the two timbers it connects."""
+    from .frame import containing_frame
+    homes = {containing_frame(owner)
+             for owner in (datums.owner(d)
+                           for d in datums.datums_of_joint(varset))
+             if owner is not None}
     homes.discard(None)
     return homes.pop() if len(homes) == 1 else None
 
@@ -143,11 +137,10 @@ def handle_group(doc, container=None):
     for obj in doc.getObjectsByLabel(label):
         if obj.TypeId == GROUP_TYPE:
             return obj
-    if container is None:
-        group = doc.addObject(GROUP_TYPE, GROUP_BASE)
-    else:
-        group = container.newObject(GROUP_TYPE, GROUP_BASE)
+    group = doc.addObject(GROUP_TYPE, GROUP_BASE)
     group.Label = label
+    if container is not None:
+        container.addObject(group)
     return group
 
 

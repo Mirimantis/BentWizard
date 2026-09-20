@@ -31,8 +31,8 @@ Applying a joint is a copy, not a rebuild:
    solid count told a joint from a severed timber.
 
 Removing a joint deletes the Booleans, mirrorings, component bodies,
-handle, Fixed assembly joint and VarSet, and unpairs the datums — which
-stay, because they belong to the timber. The timber returns to its bare
+handle, seat and VarSet, and unpairs the datums — which stay, because
+they belong to the timber. The timber returns to its bare
 stick; nothing about it moved.
 """
 
@@ -420,8 +420,10 @@ def _unlink_feature(body, feat):
 
 def remove_joint(varset):
     """Remove a timber joint: Booleans, mirrorings, components, handle,
-    Fixed assembly joint and VarSet; the datums stay, unpaired. Asserts
-    each timber returns to one solid. Caller owns the transaction."""
+    seat and VarSet; the datums stay, unpaired. A timber this joint
+    placed keeps the position it had — the seat goes, nothing moves.
+    Asserts each timber returns to one solid. Caller owns the
+    transaction."""
     doc = varset.Document
     pair = joint_datums(varset)
     timber_names = [datums.owner(d).Name for d in pair if datums.owner(d) is not None]
@@ -440,9 +442,8 @@ def remove_joint(varset):
                                [f.Name for f in origin.OriginFeatures] if origin else [],
                                origin.Name if origin else None, o.Name))
 
-    from . import assemble, joint_handle
-    for fixed in assemble.find_fixed_joints(doc, varset):
-        doc.removeObject(fixed.Name)
+    from . import frame, joint_handle
+    frame.unseat(varset)
     joint_handle.remove_handle(varset)
 
     for name, body in booleans:

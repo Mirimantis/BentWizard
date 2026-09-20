@@ -115,13 +115,13 @@ class ApplyTest(unittest.TestCase):
         placement accessors instead; nothing but the owning timber may
         be a GeoFeatureGroup in a datum's in-list."""
         from freecad.bentwizard import datums
-        from freecad.bentwizard.assemble import assimilate_joint
+        from freecad.bentwizard.frame import place_on_apply
         from freecad.bentwizard.timber import new_timber
         post2, _ = new_timber(self.doc, "T-Post-002", "8 in", "8 in", "8 ft")
         j1 = self.apply(end="EndA").varset
         j2 = self.apply(post=post2, face="YNeg", end="EndB", serial="002").varset
-        assimilate_joint(self.doc, j1)
-        assimilate_joint(self.doc, j2)
+        place_on_apply(self.doc, j1)
+        place_on_apply(self.doc, j2)
         self.gdims.WidthX = "5 in"
         self.doc.recompute()
         bad = [o.Label for o in self.doc.Objects
@@ -229,7 +229,7 @@ class ApplyTest(unittest.TestCase):
     # --- the matrix -----------------------------------------------------
 
     def test_matrix_every_face_and_end(self):
-        from freecad.bentwizard import assemble, facetable, measure
+        from freecad.bentwizard import facetable, frame, measure
         from freecad.bentwizard.timber import new_timber
         post_cut = round(8 * 8 * 96 - HOUSING - MORTISE, 6)
         girt_add = round(6 * 8 * 72 + SHOULDER + TENON, 6)
@@ -250,8 +250,8 @@ class ApplyTest(unittest.TestCase):
                 # any face or end (a mirroring links outside the timber)
                 self.assertEqual([o.Label for o in doc.Objects
                                   if o.TypeId == "Part::Mirroring"], [], (face, end))
-                assemble.assimilate_joint(doc, vs)
-                mm, deg = assemble.joint_misfit(vs)
+                frame.place_on_apply(doc, vs)
+                mm, deg = frame.joint_misfit(vs)
                 self.assertLess(mm, 1e-6, (face, end))
                 self.assertLess(deg, 1e-9, (face, end))
                 self.assertTrue(measure.is_whole(post) and measure.is_whole(girt), (face, end))
@@ -389,14 +389,14 @@ class ApplyTest(unittest.TestCase):
         self.assertEqual(self.volume(self.post), round(8 * 8 * 96 - HOUSING - MORTISE, 6))
 
     def test_butt_pairs_without_components(self):
-        from freecad.bentwizard import assemble, measure
+        from freecad.bentwizard import frame, measure
         from freecad.bentwizard.apply import joint_components
         vs = self.apply(spec=self.butt).varset
         self.assertEqual(vs.Label, "J-Butt-001")
         self.assertEqual(joint_components(vs), [])
         self.assertEqual(self.volume(self.post), 8 * 8 * 96)
-        assemble.assimilate_joint(self.doc, vs)
-        self.assertLess(assemble.joint_misfit(vs)[0], 1e-6)
+        frame.place_on_apply(self.doc, vs)
+        self.assertLess(frame.joint_misfit(vs)[0], 1e-6)
         self.assertLess(self.post.Shape.common(self.girt.Shape).Volume, 1e-6)
         self.assertEqual(measure.end_projection(self.girt), (0.0, 0.0))
         self.assertEqual(self.lint(), [])
