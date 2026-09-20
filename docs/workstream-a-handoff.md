@@ -160,9 +160,10 @@ whole still owes Adam's GUI round before anything reaches `main`.
 
 > **Paused 2026-09-20 — read
 > [freecad-26-3-compatibility-brief.md](freecad-26-3-compatibility-brief.md)
-> first.** A is built and its PR is open. B is parked: FreeCAD 26.3's
-> fine-grained recomputes cover expression edges and are on by default,
-> which probably retires the splits entirely. **C is not to start**,
+> first.** A is built and its PR is open. **B is retired**: measured on
+> 26.3, the unsplit frame recomputes 145 objects in 0.88 s against
+> 215 / 1.51 s fully split, so the engine beats all five levels
+> (spike-fine-grained-recompute-results, finding 3). **C is not to start**,
 > Adam's call — 26.3 also breaks the PartDesign Boolean's operand frame,
 > so the component mechanism itself may change shape, and there is no
 > point building C on ground that is about to move. The plan below

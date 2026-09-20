@@ -99,15 +99,25 @@ is built on sand. At minimum:
 - **Assembly**: only needed for the Phase 2 export now, but confirm
   whether the marker bug that started all of this still exists.
 
-### 3. Re-run the parked measurements, once the frame builds again
+### 3. The parked measurements — the main one is taken
 
-- `tests/spike/spike_recompute_isolation.py 5` and `10`, with the
-  preference **off** and **on**. The decisive cell is L1-on against
-  L5-off (215 objects / 1.46 s at five bents on the 7010). If the engine
-  gets the unsplit document to roughly L5, workstream B is dead.
-- The shared-vs-apart overlap run (`BayWidth` + `GirtHeight` on one
-  VarSet): it cost 75% on 1.1.3. If that goes to zero, Adam's thematic
-  grouping is free and B collapses to naming and tree work.
+**Done 2026-09-20 (finding 3): workstream B is retired.** At five bents
+on 26.3 with the flag forced on, the *unsplit* document recomputes 145
+objects in 0.88 s against 215 / 1.51 s fully split, and the ladder
+between is flat. The engine beats every level B would have built.
+
+Still worth taking in this session:
+
+- **The overlap probe on 26.3** (`BayWidth` + `GirtHeight` sharing one
+  VarSet cost 75% on 1.1.3). Expected to go to zero, which is what makes
+  thematic grouping free — confirm rather than assume, because the whole
+  layout-variable design now rests on it.
+- **Ten bents**, to check the flat ladder holds with scale.
+- **What B keeps:** the naming decided on 2026-09-20 (`TSection_`,
+  `TLength_`, spelled-out accessor names, Layout Variables) was a
+  readability decision, not a performance one. Whether any of it is
+  still worth doing without the splits is an open question for Adam, not
+  a foregone yes.
 
 ## Decision rules
 

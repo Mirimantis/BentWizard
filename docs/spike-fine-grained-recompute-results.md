@@ -13,7 +13,16 @@ Measurement only; no production code changed.
   commit `fd284cc` repointed `spike_expression_seat` at `frame.py`, so
   the harness runs on A. The workbench imports cleanly on 26.3.
 
-**Verdict: step 1 answered yes, step 2 is blocked but not stuck.**
+**Verdict: workstream B is retired — the engine does it better.** On
+26.3 with fine-grained recomputes on, the *unsplit* five-bent frame
+recomputes 145 objects in 0.88 s, against 215 / 1.51 s for the fully
+split document, and the ladder between them is flat (finding 3). Adam's
+decision, 2026-09-20: keep local-frame operands behind
+`UseLegacyBodyPlacement` for now, and work toward global binding and
+full 26.3 compatibility by release.
+
+**Original verdict, before step 2 was unblocked: step 1 answered yes,
+step 2 blocked but not stuck.**
 Expression edges *are* property-level, which is what workstream B's
 premise turned on. The frame-scale matrix cannot be run as things stand,
 because 26.3 deliberately changed the frame a `PartDesign::Boolean`
@@ -130,16 +139,55 @@ somewhere else); both are silent. Every failure in the suite was a
 `Fuse` only because the anchored posts do not move and the beams and
 ties do.
 
+## Finding 3 — the engine beats the hand-split document (step 2: done)
+
+Taken 2026-09-20 with `UseLegacyBodyPlacement` forced on every Boolean
+as it is created (a document observer in the harness wrapper — no
+production code changed), which is what unblocked the frame. Five bents,
+1666 objects, 26.3, the 7010; the preference toggled **within the same
+build**, so nothing else differs.
+
+| Level | Fine-grained OFF | Fine-grained ON |
+|---|---|---|
+| L1 baseline (unsplit) | 512 obj / 4.92 s | **145 obj / 0.88 s** |
+| L2 `Bay` alone | 335 / 3.39 | 145 / 0.89 |
+| L3 + `TLength_` split | 327 / 3.35 | 145 / 0.87 |
+| L4 + accessors | 307 / 3.30 | 147 / 0.87 |
+| L5 + `DepthW` split | **215 / 1.51** | 147 / 0.88 |
+
+- **The unsplit document on the new engine beats the fully-split
+  document on the old one** — 145 objects against 215, 0.88 s against
+  1.51 s. The decision rule written before the numbers ("L1-on lands at
+  or near 215 → the splits are redundant") is met with room to spare.
+- **The ladder is flat with the preference on.** Splitting buys nothing,
+  and past L3 it costs a little: 147 against 145, because the extra
+  VarSets are themselves objects to recompute. Every level Workstream B
+  would have built is now dead weight.
+- **The OFF column reproduces the 1.1.3 ladder** (512/4.92 → 215/1.51
+  against 514/4.60 → 215/1.46), which is the control: the harness
+  measured the same thing on both builds, so the ON column is the
+  feature and not the release.
+- **Geometry verified at every level**, both ways: volumes back to the
+  baseline at `Bay` = 10 ft, worst misfit 4.5e-12 mm, one solid each,
+  nothing left Touched. An experimental engine feature that silently
+  changed a result would be worse than a slow one; it does not.
+
 ## What this means for workstream B
 
-- **B's premise is gone if 26.3 ships as measured.** Finding 1 says the
-  engine removes the false edges by itself, which is all the splits do.
-  The grouping Adam wants — layout variables grouped by what they drive —
-  costs nothing on a per-property graph.
-- **But the measurement that would prove it at frame scale is blocked**
-  by finding 2. The decisive cell (L1 with the preference on, against
-  215 objects at L5 today) needs a frame that 26.3 cannot currently
-  build.
+- **B is retired**, subject to 26.3 becoming the minimum. Finding 3
+  measures the engine doing better than all five levels, so the splits
+  would be pure cost: more objects, a scattered tree, Apply's wiring
+  rebuilt, the linter and templates following — to land *behind* where
+  the unsplit document already sits.
+- **The grouping Adam wanted is free.** Layout variables can be grouped
+  by what they drive, thematically, the way a framer expects; the
+  overlap penalty finding 15 measured (bay width and girt station
+  sharing one VarSet cost 75%) is a property of the old engine. Re-run
+  that probe on 26.3 to confirm it goes to zero before relying on it.
+- **On 1.1.3 the old cost stands.** Until 26.3 is the minimum, a `Bay`
+  edit is ~4.9 s at five bents. That is a performance dependency, not a
+  correctness one: the document recomputes to identical geometry either
+  way, just slowly.
 - **Adopting 26.3 is now the bigger question**, and it is not a
   performance question: it is whether to keep local-frame operands
   behind `UseLegacyBodyPlacement` — a flag on every Boolean we create,
