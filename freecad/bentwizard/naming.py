@@ -117,6 +117,10 @@ RANGES_GROUP = "Ranges"
 RANGE_MIN_SUFFIX = "Min"
 RANGE_MAX_SUFFIX = "Max"
 PROP_SWEEP_FINDINGS = "SweepFindings"
+# Bool in the Template group. False: the joint looks the same from either
+# side, so Apply never mirrors it. True, or absent (a template predating
+# the flag): Apply mirrors a component on a datum of the other parity.
+PROP_TEMPLATE_HANDED = "Handed"
 
 _CAMEL = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 

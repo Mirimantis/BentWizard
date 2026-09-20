@@ -77,7 +77,11 @@ bug, not ours). A flat-frame spike found two more problems: closed
 loops of Fixed joints break the solver from 4 bents, and even loop-free
 the solver cannot re-space 10 bents. **Read
 [spike-flat-frame-results.md](spike-flat-frame-results.md) before
-touching `assemble.py`**; the design decision is open. Fixed in the
+touching `assemble.py`**. **Decided 2026-09-19: the flat frame** — one
+assembly per frame, bents and bays as Std Groups, and timbers **seated
+by expression** (a `Seat_J-…` VarSet under each placing joint's
+handle) rather than by the solver — exact to 20 bents (roadmap, *Flat
+frame*; spike round 2). Not built yet. Fixed in the
 same round: joint-handle markers under moved containers, Duplicate
 Timbers moving the new assembly, the Apply dialog dropping a chosen
 face. Still open: switching templates in the Apply dialog resets every
@@ -138,6 +142,9 @@ mirroring's loose source body at root is tolerable in the tree.
 - Created-part roles (wedges, pegs), the dovetail rebuilt on the new
   contract, the beam tool, the framer-facing panel.
 - A mirrored component's source body sits at the document root (the
-  Boolean claims the mirroring, not its source).
+  Boolean claims the mirroring, not its source), and the mirroring's
+  link to it is reported out of scope on every GUI recompute. Only
+  handed templates mirror now (`Handed` flag, 2026-09-19); both-hands
+  templates, due with the dovetail, remove mirroring entirely.
 - Headless assemblies need an explicit `solve()` after a parameter
   edit; confirm the GUI does it on recompute.

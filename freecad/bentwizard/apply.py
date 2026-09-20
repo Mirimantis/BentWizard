@@ -17,8 +17,11 @@ Applying a joint is a copy, not a rebuild:
    x/y offsets at either end and on opposite faces (Part H2/H3): when
    the target datum's parity is not the authoring datum's, a
    ``Part::Mirroring`` across the component's local X carries the
-   Placement instead of the body. Symmetric components mirror to
-   themselves, so this is unconditional rather than a user choice.
+   Placement instead of the body. Only for a template that is handed
+   (or predates the ``Handed`` flag): one declared ``Handed = False``
+   looks the same from either side and is never mirrored — a mirroring
+   links a component body outside the timber, which FreeCAD's GUI
+   reports as an out-of-scope link on every recompute (2026-09-19).
 5. **Boolean**, in declared order, ``Cut`` for a cutter and ``Fuse`` for
    an adder, into the timber that owns the datum. The Boolean seats its
    operand in the timber Body's LOCAL frame (round 3), which is why the
@@ -326,7 +329,7 @@ def apply_joint(doc, spec, serial, targets, values=None, position_tag=""):
         # a template authored with a mirroring in it is unusual; the
         # authoring parity is the datum's the component was bound to
         authored_parity = facetable.parity(spec.datum_face[t_datum_label])
-        mirror = authored_parity != datums.parity(target)
+        mirror = spec.mirrors and authored_parity != datums.parity(target)
         holder = body
         if mirror:
             body.setExpression("Placement", None)

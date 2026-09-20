@@ -77,8 +77,21 @@ class TemplateSpec:
         self.datum_face = {host_datum.label: self.model.datum_face(host_datum),
                            mate_datum.label: self.model.datum_face(mate_datum)}
 
+        handed = self.varset.prop(naming.PROP_TEMPLATE_HANDED)
+        # None = undeclared: a template predating the flag keeps the
+        # mirror rule — a missing flag must never silently un-mirror a
+        # handed joint
+        self.handed = handed.value if handed is not None and isinstance(
+            handed.value, bool) else None
+
         self.parameters = self._parameters()
         self.components = self._components()
+
+    @property
+    def mirrors(self):
+        """Whether Apply mirrors a component whose target datum's parity
+        differs from its authoring datum's: everything but Handed = False."""
+        return self.handed is not False
 
     # -- parameters ---------------------------------------------------------
 

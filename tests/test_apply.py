@@ -246,6 +246,10 @@ class ApplyTest(unittest.TestCase):
                     self.spec.mate_role: {"body": girt, "face": end}}).varset
                 self.assertEqual(round(post.Shape.Volume / IN3, 6), post_cut, (face, end))
                 self.assertEqual(round(girt.Shape.Volume / IN3, 6), girt_add, (face, end))
+                # HousedMT declares Handed = False: never a mirroring, on
+                # any face or end (a mirroring links outside the timber)
+                self.assertEqual([o.Label for o in doc.Objects
+                                  if o.TypeId == "Part::Mirroring"], [], (face, end))
                 assemble.assimilate_joint(doc, vs)
                 mm, deg = assemble.joint_misfit(vs)
                 self.assertLess(mm, 1e-6, (face, end))
