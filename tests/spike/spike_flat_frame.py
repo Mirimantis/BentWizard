@@ -3,6 +3,16 @@ member, bents as Std Groups (tree organisation only) — and whether
 parametric bent spacing survives on it. Findings in
 ``docs/spike-flat-frame-results.md``.
 
+**HISTORICAL — does not run against the current code.** This is round 1,
+the version that drove spacing with the Assembly solver: closed loops of
+Fixed joints returned a wrong answer at 4 bents and failed at 5, and even
+loop-free the solver could not re-space 10. Workstream A removed
+``assemble.py`` along with the whole Fixed-joint path, so this harness
+has nothing left to call. It is kept as the record of what was measured
+and why the solver was abandoned; to run it, check out a commit before
+``assemble.py`` was deleted. Its successor is
+``spike_expression_seat.py``.
+
 Run with the bundled python (it reports with print)::
 
     <FreeCAD>/bin/python.exe tests/spike/spike_flat_frame.py [tree] N
@@ -29,7 +39,17 @@ import FreeCAD as App  # noqa: E402
 
 _repo_path.graft()
 
-from freecad.bentwizard import apply as ap, assemble as asm_mod, joint_handle  # noqa: E402
+try:
+    from freecad.bentwizard import assemble as asm_mod  # noqa: E402
+except ImportError:                                     # pragma: no cover
+    raise SystemExit(
+        "spike_flat_frame is historical: it drives the Assembly solver "
+        "through freecad/bentwizard/assemble.py, which workstream A "
+        "removed with the rest of the Fixed-joint path. Check out a "
+        "commit before that removal to run it, or use "
+        "spike_expression_seat.py, which is how spacing works now.")
+
+from freecad.bentwizard import apply as ap, joint_handle  # noqa: E402
 from freecad.bentwizard.template import TemplateSpec  # noqa: E402
 from freecad.bentwizard.timber import new_timber  # noqa: E402
 
