@@ -286,6 +286,18 @@ durable result.
     splits cannot block a cascade that starts upstream of them. So
     per-variable VarSets are load-bearing, and **findability has to be
     solved by the panel, not avoided by keeping one friendly VarSet**.
+16. **A Spreadsheet is not a way out** (Adam asked, 2026-09-20; the
+    documentation does not settle it, so it was measured). A
+    `Spreadsheet::Sheet` is one object like a VarSet, with **no per-cell
+    dependency tracking**: a probe with two boxes reading two aliased
+    cells recomputed *both* when either cell changed. At frame scale the
+    same 5-bent frame with the four project variables moved into a sheet
+    recomputed **514 objects in 4.66 s** — indistinguishable from the
+    VarSet's 514 / 4.76 s. Worse in daily use: **typing a note into an
+    empty cell** cost a full 514-object, 4.82 s recompute, because any
+    edit touches the sheet object. A spreadsheet is fine as a *reader* —
+    a schedule or report that consumes values — never as the home of
+    variables the framer edits.
 
 ### What happens to the accessors
 
