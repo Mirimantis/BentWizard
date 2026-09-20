@@ -113,11 +113,33 @@ Still worth taking in this session:
   thematic grouping free — confirm rather than assume, because the whole
   layout-variable design now rests on it.
 - **Ten bents**, to check the flat ladder holds with scale.
-- **What B keeps:** the naming decided on 2026-09-20 (`TSection_`,
-  `TLength_`, spelled-out accessor names, Layout Variables) was a
-  readability decision, not a performance one. Whether any of it is
-  still worth doing without the splits is an open question for Adam, not
-  a foregone yes.
+### What survives of workstream B (Adam, 2026-09-20)
+
+The splits are gone; the readability decisions carry forward, minus the
+ones that only existed to serve the splits.
+
+- **`TDim_<timber>` stays whole.** No `TSection_`/`TLength_` split: a
+  timber's dimensions belong in one VarSet, and that is where future
+  ones go too — pitch or slope for rafters and braces was the example.
+  The split existed only for recompute isolation, which the engine now
+  does.
+- **Accessors are still needed, and move to their own VarSet.** Not for
+  performance — because of the scope rule: a Body may never read a
+  datum's `Placement` (the `XZ_Plane005` out-of-scope failure of Adam's
+  second GUI round), so a VarSet reads the datums and components read
+  the VarSet. What changes is tidiness: **one** accessor VarSet per
+  joint rather than B's three-to-six per-side objects, filed away from
+  the user, leaving the joint VarSet holding only what a framer edits.
+  Carry with it: `datums.host_datum` resolves the pairing by reading the
+  `HostWidthU` expression, so that lookup follows the accessors wherever
+  they go, as does `TemplateSpec`'s role resolution and the linter's
+  `component-reference-scope`.
+- **Naming carries forward**: Layout Variables rather than project
+  variables, labels descriptive of what they drive
+  (`<<SecondFloorBeam>>.Height`), spelled-out accessor names, and
+  single-letter abbreviations only for the two central objects, T and J.
+- **Layout variables may be grouped thematically** — the reason the
+  splits were resisted, now free (confirm with the overlap probe).
 
 ## Decision rules
 
@@ -133,9 +155,23 @@ Still worth taking in this session:
 
 ## Practical
 
-- Build: `C:\Users\Admin\projects\FreeCAD_weekly-2026.09.16-Windows-x86_64-experimental`,
+- **The weekly dev build becomes the primary test environment** once the
+  workbench runs on it (Adam, 2026-09-20); he installs a fresh weekly
+  each week until 26.3 releases. So: expect the install folder to change
+  name every week, quote the build's git hash with any measurement, and
+  **do not hard-code the path** — find it as
+  `..\FreeCAD_weekly-*-Windows-x86_64-experimental\` beside the
+  checkout, the same rule as the 1.1.x installs.
+- One junction serves every weekly: all 26.3 builds share the
+  `%APPDATA%\FreeCAD\v26-3` config folder, so
+  `scripts\dev-install.ps1 -FreeCadVersion v26-3 main` is a one-time
+  setup that survives each new install — Adam runs it from a shell
+  outside the Claude desktop app.
+- Current build: `FreeCAD_weekly-2026.09.16-Windows-x86_64-experimental`,
   26.3.0, git `a4ce44d33b`, `bin\python.exe` as usual. Tag it `26.3`
   beside the `7010` / `i9` machine tags in any timing.
+- **1.1.3 stays the compatibility target** until the suite is green and
+  a GUI round passes on 26.3 — `main` must keep working there.
 - Branch from `claude/flat-frame-seats` (workstream A: the seats and the
   frame container this all now rests on), not from `main`.
 - The harnesses run on A's branch since `fd284cc`; the older
