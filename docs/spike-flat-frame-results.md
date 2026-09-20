@@ -273,6 +273,19 @@ durable result.
     L4 to keep verifying). Anything else resolving through the
     accessors — the linter's `component-reference-scope`, the template
     bar, `TemplateSpec` — has to move with it.
+15. **Both halves are needed; neither carries the win alone.** Adam
+    asked whether the plumbing splits could spare the project variables
+    their fragmentation (`spike_recompute_isolation.py skip-l2 5`,
+    7010, 2026-09-20): L3–L5 with `Bay` left on the shared `ProjectVars`
+    gives only 4.75 s → 3.71 s (1.3x, 423 objects, all 52 Booleans still
+    recomputing), against 3.15 s for L2 alone (1.5x) and 1.46 s for the
+    two together (3.2x, 16 Booleans). `Bay` shares `ProjectVars` with
+    `GirtLine`, `PlateLine` and `Span`, so editing it recomputes every
+    datum reading a station and every beam reading the span; their
+    components move and the Booleans follow. The accessor and `DepthW`
+    splits cannot block a cascade that starts upstream of them. So
+    per-variable VarSets are load-bearing, and **findability has to be
+    solved by the panel, not avoided by keeping one friendly VarSet**.
 
 ### What happens to the accessors
 

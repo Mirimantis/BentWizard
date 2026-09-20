@@ -36,8 +36,7 @@ the whole frame.
 ## Non-negotiables (do not relitigate)
 
 1. **Tier 1 and Tier 2 hold.** Seats, anchors and splits are all native
-   objects and expressions. Uninstall the workbench: the model still
-   opens, edits and recomputes. No Proxy on anything geometric.
+   objects and expressions. The model still opens, edits and recomputes without the workbench. No Proxy on anything geometric.
 2. **The placement tree is not the load path.** Which joint places which
    timber follows build order. The structural graph (Phase 4) derives
    from *all* timber joints plus roles, bearing faces and supports.
@@ -45,7 +44,7 @@ the whole frame.
 3. **No central "master variables" object.** Measured: a VarSet others
    read re-creates the cascade the splits remove. The single place to
    edit everything is the front-end panel, which writes to the isolated
-   VarSet directly.
+   VarSets directly.
 4. **A datum is still never read by a Body**, and datums never read each
    other. VarSets read datums; Bodies read VarSets.
 5. **Geometry unchanged.** Same cuts, same volumes, same seats as today.
@@ -174,7 +173,13 @@ sub-assembly mis-draws its markers).
 1. **Project-variable granularity.** One VarSet per variable is maximal
    isolation and maximal clutter. Grouping only variables that always
    change together is the compromise — which grouping does a framer
-   expect to see in the tree?
+   expect to see in the tree? **Measured 2026-09-20 (finding 15): the
+   split is not optional.** Skipping it and keeping L3–L5 gives 1.3x
+   (4.75 → 3.71 s) against 3.2x for both halves, because a shared
+   `ProjectVars` cascades from upstream of everything the plumbing
+   splits protect. What remains open is only *how far* to group:
+   variables read by exactly the same objects may share one, anything
+   else must not.
 2. **Migration.** Existing documents (`scratch/*.FCStd`, and anything
    Adam has saved) carry Fixed joints, a frame assembly and un-split
    VarSets. Build a one-shot converter, or declare pre-rebuild files
