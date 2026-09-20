@@ -8,8 +8,8 @@ start**, because another 26.3 change could move the ground again.
 Read first:
 - [spike-fine-grained-recompute-results.md](spike-fine-grained-recompute-results.md)
   — what is already measured on 26.3, and the two findings below.
-- [upstream-issue-boolean-operand-frame.md](upstream-issue-boolean-operand-frame.md)
-  — the repro for the blocking defect, for Adam to file.
+- (an upstream issue draft was written and withdrawn: the change is
+  intentional and already carries a compatibility flag)
 - [rebuild-flat-frame-handoff.md](rebuild-flat-frame-handoff.md) and
   [workstream-a-handoff.md](workstream-a-handoff.md) — the rebuild this
   interrupts. A is built and merged-pending; B is parked; C is paused.
@@ -22,13 +22,16 @@ Read first:
    of that property. This is why Adam wants the move: it retires
    workstream B's five levels of hand-splitting and lets layout
    variables be grouped the way a framer expects.
-2. **A `PartDesign::Boolean` no longer resolves its operand in the
-   target Body's local frame.** A moved Body no longer intersects its
+2. **A `PartDesign::Boolean` resolves its operand globally now, by
+   design, with an escape hatch.** A moved Body no longer intersects its
    own operand: `Fuse` gives two solids, `Cut` silently removes nothing.
-   This breaks the component mechanism — every joint is a component Body
+   That is upstream #30393 → #30575, and the old behaviour lives behind
+   a per-Boolean `UseLegacyBodyPlacement` (App::PropertyBool, default
+   False, settable from Python, absent on 1.1.3; setting it True
+   restores the old result exactly). It is why the suite on 26.3 is 2
+   failures + 13 errors of 123 — every joint is a component Body
    booleaned into a timber, bound to its datum's *local* placement
-   precisely because of the old contract — and it is why the suite on
-   26.3 is 2 failures + 13 errors of 123. Not caused by fine-grained
+   precisely because of the old contract. Not caused by fine-grained
    recomputes (identical with the preference off).
 
 The remaining non-Boolean failures are in `measure`: `order_length`
@@ -38,27 +41,38 @@ assume.
 
 ## The work
 
-### 1. Settle the Boolean contract (blocks everything else)
+### 1. Decide the operand contract (blocks everything else)
 
-Adam files the upstream issue. Meanwhile, assume it is intentional and
-design for it, because a release is weeks away and waiting is not a
-plan. The obvious repair — bind a component to its datum's **global**
-placement — is not a one-line change: the joint VarSet cannot read a
-timber's `Placement` without the cycle round 2 found (a timber's own
-components already read that VarSet). Options worth prototyping in a
-scratch harness, not production:
+Nothing to report upstream and nothing to wait for: the change is
+intentional and the flag is the escape hatch. Two routes, and this is
+the session's first decision:
 
-- A per-side placement object that reads the timber *and* the datum, the
-  way `Seat_J-…` already does (a seat VarSet reads the anchor timber's
-  `Placement` and both datums without a cycle — **this is the existing
-  proof that the shape works**).
-- Leaving components in local space and giving the Boolean a target
-  whose placement is identity — i.e. moving the seat off the timber Body
-  and onto a container. Probably worse: it reintroduces a moved
-  container, which is what the flat frame exists to avoid.
+**(a) Keep local-frame operands behind the flag.** Set
+`UseLegacyBodyPlacement = True` on every Boolean BentWizard creates
+(`apply.py`, `component.py`) and on the ones inside the shipped
+templates, which carry their own. Cheap, unblocks the suite immediately,
+and nothing else in the mechanism moves. The debt: a compatibility flag
+on a growing number of objects, pinned against upstream's chosen
+direction, and it must tolerate the property's absence on 1.1.3.
+**Documents saved before the flag existed restore it at its default —
+so pre-rebuild documents adopt the new semantics on open regardless.**
+
+**(b) Follow upstream: bind components globally.** The joint VarSet
+cannot read a timber's `Placement` without the cycle round 2 found (a
+timber's own components already read that VarSet), so this needs a
+placement object that reads the timber *and* the datum — exactly the
+shape `Seat_J-…` already has, which is **the existing proof it works**.
+More design, but it ends the divergence.
+
+Rejected before it is proposed: leaving components local and giving the
+Boolean a target whose placement is identity, by moving the seat onto a
+container. That reintroduces a moved container, which is what the flat
+frame exists to avoid.
 
 Whatever is chosen has to keep: no Body reads a datum directly (the
 scope rule), datums never read each other, and the mirror/parity rule.
+Route (a) is also the quickest way to unblock the parked measurements in
+section 3, whichever route is chosen for the long run.
 
 ### 2. Sweep for the rest of 26.3's changes
 

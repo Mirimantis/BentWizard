@@ -13,11 +13,14 @@ Measurement only; no production code changed.
   commit `fd284cc` repointed `spike_expression_seat` at `frame.py`, so
   the harness runs on A. The workbench imports cleanly on 26.3.
 
-**Verdict: step 1 answered yes, step 2 is blocked.** Expression edges
-*are* property-level, which is what workstream B's premise turned on —
-but the frame-scale matrix cannot be run, because 26.3 breaks the
-component mechanism itself for any timber that has been moved. B stays
-parked; 26.3 compatibility is now the larger question.
+**Verdict: step 1 answered yes, step 2 is blocked but not stuck.**
+Expression edges *are* property-level, which is what workstream B's
+premise turned on. The frame-scale matrix cannot be run as things stand,
+because 26.3 deliberately changed the frame a `PartDesign::Boolean`
+resolves its operand in — but that change ships with a per-Boolean
+compatibility flag that restores the old behaviour exactly, so the
+matrix is a short step away rather than blocked on upstream. B stays
+parked; adopting 26.3 is now the larger question.
 
 ## Finding 1 — expression edges are property-level (step 1: yes)
 
@@ -42,7 +45,51 @@ opt-in" does not describe the weekly. Read the parameter, do not assume.
 Note for anyone writing probes: `<<VS>>.A` fails to parse — `A` is the
 ampere (round 2, finding 6). Name probe properties `Bay`/`Span`.
 
-## Finding 2 — 26.3 breaks the Boolean's local frame (step 2: blocked)
+## Finding 2 — 26.3 changes the Boolean's operand frame, on purpose, with an escape hatch (step 2: blocked until we take it)
+
+**Corrected 2026-09-20 (Adam).** The first version of this finding
+called the change a regression and guessed at OpenCASCADE 8. Both wrong,
+and the evidence recorded here already said so — a plain `Part.fuse` is
+unaffected and the result is identical with fine-grained recomputes on
+and off, which rules the kernel out. The measurements below stand; the
+attribution did not.
+
+It is an **intentional** change: upstream issue #30393 ("PartDesign
+boolean cut does not respect Transformed position of bodies", reported
+against 1.2.0dev, May 2026), fixed by PR #30575. Someone moved a master
+body, ran a cut, and objected that the tool snapped back to the
+untransformed position — the opposite of what this workbench relies on.
+Operands now resolve **globally**, and the old semantics live behind a
+per-Boolean compatibility flag, `UseLegacyBodyPlacement`:
+
+```cpp
+if (UseLegacyBodyPlacement.getValue()) {
+    return getTopoShape(object, Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform);
+}
+return getTopoShapeInLocalCoordinates(object);
+```
+
+Measured on this build: the flag is present on `PartDesign::Boolean`, is
+an `App::PropertyBool`, **defaults to False**, is settable from Python,
+and setting it True restores the old result exactly (1 solid, 2032000 —
+the same number 1.1.3 gives). It is absent on 1.1.3, so code that sets
+it must tolerate its absence.
+
+Consequences to carry into the 26.3 work:
+
+- The flag is **per Boolean object**, not a preference: every Boolean
+  BentWizard creates would have to set it — `apply.py`, `component.py`
+  — and the **shipped library templates carry their own Booleans**, so
+  they need it set or rebuilding.
+- Documents saved before the flag existed restore it at its default
+  (False), so **pre-existing documents adopt the new semantics on open**
+  in 26.3 whatever we do to new ones.
+- Therefore the real question is not "how do we get unblocked" — the
+  flag does that — but **whether to keep local-frame operands behind a
+  compatibility flag or move to global binding**, which is where
+  upstream is heading. See the compatibility brief.
+
+### The measurements (unchanged)
 
 `spike_recompute_isolation.py` cannot build its frame on 26.3:
 
@@ -73,9 +120,15 @@ A minimal fuse is unaffected — two boxes meeting on one coincident face
 still give one solid on both builds, with and without `Refine` — so this
 is about the operand's frame, not the kernel's boolean.
 
-Untested: whether a `Cut` (a mortise into a moved host) fails the same
-way. Every failure observed was a `Fuse`, because in these frames the
-anchored posts do not move and the beams and ties do.
+**`Cut` behaves the same way, and quietly.** In a workbench-free repro
+(a 100×100×200 stick, a 40³ tool straddling its top face, the Body moved
+1000/500 and rotated 30°): `Fuse` gives 2 solids and 2064000 — the stick
+plus the *whole* tool, added as a disjoint lump — while `Cut` gives 1
+solid and 2000000, the bare stick, having removed nothing and reported
+success. Both are correct under the new contract (the tool is simply
+somewhere else); both are silent. Every failure in the suite was a
+`Fuse` only because the anchored posts do not move and the beams and
+ties do.
 
 ## What this means for workstream B
 
@@ -87,22 +140,28 @@ anchored posts do not move and the beams and ties do.
   by finding 2. The decisive cell (L1 with the preference on, against
   215 objects at L5 today) needs a frame that 26.3 cannot currently
   build.
-- **26.3 compatibility is now the bigger question**, and it is not a
-  performance question: it is whether the component mechanism survives a
-  change to how a Boolean frames its operand. Binding components to a
-  datum's *global* placement is the obvious repair, but the joint VarSet
-  cannot read a timber's `Placement` without a cycle (round 2, finding
-  5), so it needs design, not a one-line change.
+- **Adopting 26.3 is now the bigger question**, and it is not a
+  performance question: it is whether to keep local-frame operands
+  behind `UseLegacyBodyPlacement` — a flag on every Boolean we create,
+  including the ones inside the shipped templates — or to follow
+  upstream to global binding. Global binding is where the project is
+  heading, but the joint VarSet cannot read a timber's `Placement`
+  without the cycle round 2 found (finding 5), so it needs design. The
+  `Seat_J-…` VarSet is the precedent that the shape works.
 
 ## Suggested next steps
 
-1. **Report finding 2 upstream** with the three-step repro above. If it
-   is a regression it should be fixed before 26.3 releases; if it is
-   intentional, BentWizard needs to know the new contract.
-2. **Re-run step 2 once the frame builds** — either after an upstream
-   fix or against a variant that binds components globally.
+1. **Nothing to report upstream.** A draft issue was written here and
+   withdrawn: the change is intentional (#30393 → #30575) and already
+   carries its compatibility flag. Filing it would have been noise.
+2. **Unblock step 2 with the flag**, then re-run the matrix: set
+   `UseLegacyBodyPlacement` on the Booleans the harness creates and the
+   frame builds again, giving the decisive L1-on cell without waiting on
+   anyone.
 3. **Keep B parked.** Do not start the splits on the strength of
    finding 1 alone, and do not abandon them until the frame-scale number
    exists.
-4. **Do not adopt 26.3 as a minimum** on the strength of finding 1: as
-   measured, the workbench does not work on it.
+4. **Decide the operand contract deliberately** (see the compatibility
+   brief): the flag is an unblock, not an answer. Upstream's default is
+   global, and a compatibility flag set on every Boolean is a debt that
+   grows with every template and saved document.
