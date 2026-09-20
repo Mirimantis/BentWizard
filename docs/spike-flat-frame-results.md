@@ -210,18 +210,39 @@ document round 2 built, one level at a time, profiling a `Bay` edit and
 re-verifying the geometry after each (volumes back at `Bay` = 10 ft,
 every joint seated, one solid each — all levels passed).
 
-| Level | What moves onto its own object | 5 bents: objects recomputed | Time |
-|---|---|---|---|
-| L1 | baseline | 514 of 1676 | 4.60 s |
-| L2 | `Bay` alone on its own VarSet | 337 | 3.15 s |
-| L3 | + `LengthZ` onto `TLen_<timber>`, section stays on `TDim_` | 329 | 3.26 s |
-| L4 | + joint VarSet keeps only parameters; `Plc_<side>` (datum placement) and `Sec_<side>` (section, read from Dims, not through the datum) | 309 | 3.04 s |
-| L5 | + `DepthW` off `Sec_<side>` | **215** | **1.46 s** |
+| Level | What moves onto its own object | 5 bents: objects recomputed | 7010 | i9 |
+|---|---|---|---|---|
+| L1 | baseline | 514 of 1676 | 4.60 s | 2.48 s |
+| L2 | `Bay` alone on its own VarSet | 337 | 3.15 s | 1.66 s |
+| L3 | + `LengthZ` onto `TLen_<timber>`, section stays on `TDim_` | 329 | 3.26 s | 1.63 s |
+| L4 | + joint VarSet keeps only parameters; `Plc_<side>` (datum placement) and `Sec_<side>` (section, read from Dims, not through the datum) | 309 | 3.04 s | 1.64 s |
+| L5 | + `DepthW` off `Sec_<side>` | **215** | **1.46 s** | **0.77 s** |
 
 The ratio holds at every size tested — 3 bents: 2.32 s → 0.65 s
-(3.6x); 10 bents: **10.44 s → 3.22 s**, 1099 objects → 480 (3.2x),
-geometry verified identical. Object count grows ~11% (1676 → 1856 at
-five bents; 3551 → 3936 at ten), all of it small VarSets.
+(3.6x, 7010); 10 bents: **10.44 s → 3.22 s** on the 7010 and **5.58 s
+→ 1.71 s** on the i9, 1099 objects → 480 (3.2x), geometry verified
+identical. Object count grows ~11% (1676 → 1856 at five bents; 3551
+→ 3936 at ten), all of it small VarSets.
+
+### Machines
+
+Two machines have run this harness. **Every object count is identical
+on both, at both sizes** — the levels are a property of the dependency
+graph, not of the hardware, so the findings below do not depend on
+which machine measured them. The times differ by a flat **1.9x at
+every level and every size**, the signature of a single-thread
+clock/IPC difference rather than a different bottleneck.
+
+| Tag | Machine | Notes |
+|---|---|---|
+| 7010 | Dell OptiPlex 7010 | the `Admin` checkout; original round-4 measurements, FreeCAD 1.1.3 |
+| i9 | Intel Core i9-9980HK, 8C/16T, 2.4 GHz base, 32 GB RAM | the `Adam` checkout; re-run 2026-09-19, FreeCAD 1.1.1 |
+
+Both under the bundled python, headless. Build time at ten bents: 23 s
+on the i9. Quote the tag with any future timing; the i9 is itself a
+2019 mobile part, so a current desktop would shift these again — treat
+the absolute numbers as machine-relative and the object counts as the
+durable result.
 
 ### Findings
 
@@ -229,7 +250,8 @@ five bents; 3551 → 3936 at ten), all of it small VarSets.
     *no post geometry recomputes at all* on a `Bay` edit — only the ties
     and their tenons, which is exactly the work the change requires. The
     earlier "~0.7 s floor" under-counted: it attributed component bodies
-    to posts, and the true necessary work is ~1.45 s at five bents.
+    to posts, and the true necessary work is ~1.45 s at five bents
+    (7010; 0.77 s on the i9).
 12. **Why L5 and not L4:** at an **end** datum `DepthW` *is* the
     timber's length. Leaving it beside `WidthU`/`WidthV` on one VarSet
     means a length change touches that object, and every reader of the
@@ -251,6 +273,31 @@ five bents; 3551 → 3936 at ten), all of it small VarSets.
     L4 to keep verifying). Anything else resolving through the
     accessors — the linter's `component-reference-scope`, the template
     bar, `TemplateSpec` — has to move with it.
+15. **Both halves are needed; neither carries the win alone.** Adam
+    asked whether the plumbing splits could spare the project variables
+    their fragmentation (`spike_recompute_isolation.py skip-l2 5`,
+    7010, 2026-09-20): L3–L5 with `Bay` left on the shared `ProjectVars`
+    gives only 4.75 s → 3.71 s (1.3x, 423 objects, all 52 Booleans still
+    recomputing), against 3.15 s for L2 alone (1.5x) and 1.46 s for the
+    two together (3.2x, 16 Booleans). `Bay` shares `ProjectVars` with
+    `GirtLine`, `PlateLine` and `Span`, so editing it recomputes every
+    datum reading a station and every beam reading the span; their
+    components move and the Booleans follow. The accessor and `DepthW`
+    splits cannot block a cascade that starts upstream of them. So
+    per-variable VarSets are load-bearing, and **findability has to be
+    solved by the panel, not avoided by keeping one friendly VarSet**.
+16. **A Spreadsheet is not a way out** (Adam asked, 2026-09-20; the
+    documentation does not settle it, so it was measured). A
+    `Spreadsheet::Sheet` is one object like a VarSet, with **no per-cell
+    dependency tracking**: a probe with two boxes reading two aliased
+    cells recomputed *both* when either cell changed. At frame scale the
+    same 5-bent frame with the four project variables moved into a sheet
+    recomputed **514 objects in 4.66 s** — indistinguishable from the
+    VarSet's 514 / 4.76 s. Worse in daily use: **typing a note into an
+    empty cell** cost a full 514-object, 4.82 s recompute, because any
+    edit touches the sheet object. A spreadsheet is fine as a *reader* —
+    a schedule or report that consumes values — never as the home of
+    variables the framer edits.
 
 ### What happens to the accessors
 

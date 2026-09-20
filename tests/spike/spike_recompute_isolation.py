@@ -195,7 +195,11 @@ def profile(doc, var, value, label):
     return dt, n
 
 
-def main(n_bents):
+def main(n_bents, skip_l2=False):
+    """`skip_l2`: leave every project variable on one shared ProjectVars
+    and run L3-L5 only — does the plumbing-level isolation (accessors,
+    DepthW) carry the win on its own, or do per-variable VarSets earn
+    their tree clutter? (Adam's question, 2026-09-20.)"""
     doc = App.newDocument("Isolation")
     pv, frame, bents, joints, closing, timbers, tb = es.build(doc, n_bents)
     print(f"built {n_bents} bents: {len(timbers)} timbers, {len(joints)} joints, "
@@ -209,10 +213,13 @@ def main(n_bents):
     profile(doc, var, "12 ft", "L1 baseline               ")
     verify(doc, pairs, timbers, base)
 
-    bv = level2_project_vars(doc, pv)
-    var = (bv, "Bay")
-    profile(doc, var, "8 ft", "L2 Bay on its own VarSet  ")
-    verify(doc, pairs, timbers, base)
+    if skip_l2:
+        print("L2 skipped: Bay stays on the shared ProjectVars")
+    else:
+        bv = level2_project_vars(doc, pv)
+        var = (bv, "Bay")
+        profile(doc, var, "8 ft", "L2 Bay on its own VarSet  ")
+        verify(doc, pairs, timbers, base)
 
     made = level3_dims_split(doc)
     profile(doc, var, "12 ft", f"L3 + Dims split ({made} timbers)")
@@ -235,4 +242,5 @@ def main(n_bents):
 
 
 if __name__ == "__main__":
-    main(int(sys.argv[-1]) if sys.argv[-1].isdigit() else 5)
+    main(int(sys.argv[-1]) if sys.argv[-1].isdigit() else 5,
+         skip_l2="skip-l2" in sys.argv)
