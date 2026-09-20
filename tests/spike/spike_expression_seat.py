@@ -35,7 +35,7 @@ import FreeCAD as App  # noqa: E402
 
 _repo_path.graft()
 
-from freecad.bentwizard import apply as ap, assemble as asm_mod, datums, joint_handle  # noqa: E402
+from freecad.bentwizard import apply as ap, datums, frame as frame_mod, joint_handle  # noqa: E402
 from freecad.bentwizard.template import TemplateSpec  # noqa: E402
 from freecad.bentwizard.timber import new_timber  # noqa: E402
 
@@ -92,7 +92,7 @@ def build(doc, n_bents=2):
                            ("PlateLine", "84 in", "beam station on the posts")):
         pv.addProperty("App::PropertyLength", name, "Layout", tip)
         setattr(pv, name, val)
-    frame = asm_mod.new_assembly(doc, "Frame-001", base="Frame")
+    frame = frame_mod.frame_group(doc, "Frame-001")
 
     t0 = time.perf_counter()
     bents, ties = [], []
@@ -117,7 +117,7 @@ def build(doc, n_bents=2):
         ties.append(pair)
     doc.recompute()
 
-    asm_mod.ground(frame, bents[0][0])
+    frame_mod.anchor(doc, bents[0][0])
     placed = {bents[0][0]}
     plan = []
     for i, (p1, p2, bm) in enumerate(bents):
@@ -154,7 +154,7 @@ def report(doc, bents, joints, closing):
     bad = [o.Label for o in doc.Objects
            if "Invalid" in o.State or "Error" in o.State or "Touched" in o.State]
     asms = [a.Placement.isIdentity() for a in doc.Objects
-            if a.TypeId == asm_mod.ASSEMBLY_TYPE]
+            if a.TypeId == "Assembly::AssemblyObject"]
     print(f"  worst misfit, all {len(joints)} joints: {worst[0]:.2e} mm / {worst[1]:.2e} deg;"
           f" loop-closing {len(closing)}: {worst_closing[0]:.2e} mm")
     print(f"  bent X positions (in): {xs}")

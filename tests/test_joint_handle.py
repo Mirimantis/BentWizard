@@ -57,15 +57,15 @@ class JointHandleTest(unittest.TestCase):
         self.assertIs(joint_handle.find_handle(self.vs), h)
         self.assertTrue(joint_handle.is_handle(h))
 
-    def test_files_into_the_bent(self):
+    def test_files_into_the_frame(self):
         from freecad.bentwizard import joint_handle
-        from freecad.bentwizard.assemble import assimilate_joint, container_assembly
-        assimilate_joint(self.doc, self.vs)
+        from freecad.bentwizard.frame import containing_frame, place_on_apply
+        place_on_apply(self.doc, self.vs)
         h = joint_handle.find_handle(self.vs)
         group = h.getParentGroup()
-        bent = container_assembly(self.post)
-        self.assertEqual(group.Label, f"TimberJoints_{bent.Label}")
-        self.assertIs(group.getParentGeoFeatureGroup(), bent)
+        frame = containing_frame(self.post)
+        self.assertEqual(group.Label, f"TimberJoints_{frame.Label}")
+        self.assertIs(group.getParentGroup(), frame)
         self.assertEqual([o for o in self.doc.Objects
                           if o.TypeId == "App::DocumentObjectGroup"
                           and o.Label == "TimberJoints"], [])

@@ -94,19 +94,17 @@ def _copy_datums(src, copy, renames):
 
 
 def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
-                   position_tag="", group_label="", assembly_label="",
-                   offset=None):
+                   position_tag="", group_label="", offset=None, seat=True):
     """Duplicate the timbers in member_map ({source body -> new label})
     plus every joint fully inside the set (joint_serial_map: {source
     joint VarSet label -> new serial}).
 
-    Copies reproduce the sources' relative placements. With
-    `assembly_label` the copies are assembled into a new bent
-    sub-assembly of that name. `offset` (App.Vector, mm) shifts the
-    copies from the sources — applied to the timbers themselves, the new
-    assembly staying at identity; with an assembly it is a provisional
-    position, overridden once connecting timber joints are applied.
-    Without one, `group_label` files the loose copies in a Std Group.
+    Copies reproduce the sources' relative placements, shifted by
+    `offset` (App.Vector, mm). `group_label` files them in a bent Std
+    Group inside the frame. With `seat` the copies are seated to each
+    other through their own joints, rooted at the copy of the principal
+    timber, which keeps the offset placement — a provisional root, until
+    a timber joint ties these copies to the frame and re-roots them.
 
     Returns (new_bodies: {source -> copy}, new_joints: [VarSet],
     skipped: [joint label]). Caller owns the transaction.
@@ -181,40 +179,31 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
         new_joints.append(applied.varset)
 
     # --- placement: copies reproduce the sources' relative layout -------
-    from .assemble import (assemble_timbers, container_assembly,
-                           refresh_joint_display)
-    source_asms = {container_assembly(src) for src in member_map}
-    base = (source_asms.pop().getGlobalPlacement()
-            if len(source_asms) == 1 and None not in source_asms
-            else App.Placement())
+    from .frame import frame_group, rebuild_seats, subgroup
     shift = App.Placement(offset or App.Vector(), App.Rotation())
-    # The offset goes on the timbers, never on a new bent assembly's own
-    # Placement: FreeCAD's Assembly code draws joint markers (and drags)
-    # wrongly under a moved root assembly — its Fixed-joint markers landed
-    # at twice the offset (Adam's GUI round, 2026-09-18; upstream #17398).
+    # Timber placements are global now that no assembly holds them, so
+    # the offset goes straight on each copy.
     for src, copy in new_bodies.items():
-        rel = base.inverse().multiply(src.getGlobalPlacement())
-        copy.Placement = shift.multiply(base).multiply(rel)
+        copy.Placement = shift.multiply(src.getGlobalPlacement())
     doc.recompute()
 
-    assembly_label = (assembly_label or "").strip()
-    if assembly_label:
+    group_label = (group_label or "").strip()
+    if group_label:
+        subgroup(frame_group(doc), group_label).addObjects(
+            list(new_bodies.values()))
+
+    # The copies are their own placement component: the copy of the
+    # principal timber keeps the offset placement above and roots them
+    # provisionally, the rest seat from it. The first timber joint tying
+    # them to the frame re-roots the whole component onto the frame
+    # (frame.place_on_apply), and the offset stops mattering.
+    if seat:
         principal_src = next((src for src in member_map if grounded_by(src, inside)),
                              None) or next(iter(member_map))
-        asm, _skipped, _misfits, _adopted = assemble_timbers(
-            doc, list(new_bodies.values()), label=assembly_label,
-            grounded=new_bodies[principal_src])
+        rebuild_seats(doc, list(new_bodies.values()),
+                      principal=new_bodies[principal_src],
+                      anchor_principal=False)
         doc.recompute()
-        refresh_joint_display(asm)
-
-    group_label = (group_label or "").strip()
-    if group_label and not assembly_label:
-        group = next((o for o in doc.getObjectsByLabel(group_label)
-                      if o.TypeId == "App::DocumentObjectGroup"), None)
-        if group is None:
-            group = doc.addObject("App::DocumentObjectGroup", "BentGroup")
-            group.Label = group_label
-        group.addObjects(list(new_bodies.values()))
 
     return new_bodies, new_joints, [v.Label for v in outside]
 
@@ -222,12 +211,12 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
 def grounded_by(body, joints):
     """True when `body` hosts a joint in `joints` without ever being the
     entering half — the principal-timber heuristic."""
-    from .assemble import _engagement_datums
+    from .frame import joint_timbers
     movers, anchors = set(), set()
     for varset in joints:
-        pair = _engagement_datums(varset)
+        pair = joint_timbers(varset)
         if pair is None:
             continue
-        movers.add(pair[0][0])
-        anchors.add(pair[1][0])
-    return body in anchors and body not in movers
+        anchors.add(pair[0].Name)
+        movers.add(pair[1].Name)
+    return body.Name in anchors and body.Name not in movers

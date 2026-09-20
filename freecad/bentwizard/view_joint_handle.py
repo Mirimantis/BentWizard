@@ -17,7 +17,7 @@ solver), so the marker's position is read from the joint's host datum
 at draw time and refreshed after every document recompute by one shared
 observer. That covers what an object-local update cannot: a host datum
 moving with Joint_Station, and a whole bent seating in the frame — the
-same blind spot assemble.refresh_joint_display exists for.
+same blind spot a moved container leaves in FreeCAD's own markers.
 """
 
 from __future__ import annotations

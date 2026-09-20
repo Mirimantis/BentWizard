@@ -1,5 +1,5 @@
 """Duplicate Timbers: copies match, stay independent, carry project
-bindings and datums, re-apply their joints, and assemble as a new bent."""
+bindings and datums, re-apply their joints, and seat as a new bent."""
 
 import sys
 import tempfile
@@ -31,7 +31,7 @@ class DuplicateBentTest(unittest.TestCase):
 
     def setUp(self):
         from freecad.bentwizard.apply import apply_joint
-        from freecad.bentwizard.assemble import assimilate_joint
+        from freecad.bentwizard.frame import place_on_apply
         from freecad.bentwizard.timber import new_timber
         self.doc = App.newDocument("DupTest")
         pv = self.doc.addObject("App::VarSet", "PV")
@@ -53,8 +53,8 @@ class DuplicateBentTest(unittest.TestCase):
         self.j2 = apply_joint(self.doc, self.spec, "002", {
             self.spec.host_role: {"body": self.post2, "face": "YNeg", "station": "48 in"},
             self.spec.mate_role: {"body": self.beam, "face": "EndB"}}).varset
-        assimilate_joint(self.doc, self.j1)
-        assimilate_joint(self.doc, self.j2)
+        place_on_apply(self.doc, self.j1)
+        place_on_apply(self.doc, self.j2)
         self.sources = [self.post1, self.post2, self.beam]
 
     def tearDown(self):
@@ -100,35 +100,28 @@ class DuplicateBentTest(unittest.TestCase):
         self.assertAlmostEqual(measure.order_length(new_bodies[self.beam]) / IN,
                                144 + 5.5 + 4.5, places=3)
 
-    def test_copies_assemble_into_an_offset_bent(self):
-        from freecad.bentwizard.assemble import (container_assembly, joint_misfit,
-                                                 root_assembly)
-        new_bodies, new_joints, _ = self.duplicate(assembly_label="Bent-002",
+    def test_copies_seat_in_an_offset_bent_group(self):
+        from freecad.bentwizard import frame
+        new_bodies, new_joints, _ = self.duplicate(group_label="Bent-002",
                                                    offset=App.Vector(120 * IN, 0, 0))
-        bent2 = container_assembly(new_bodies[self.post1])
+        copy1 = new_bodies[self.post1]
+        bent2 = copy1.getParentGroup()
         self.assertEqual(bent2.Label, "Bent-002")
-        self.assertIsNot(bent2, container_assembly(self.post1))
-        self.assertIs(root_assembly(bent2), bent2)     # no tie yet: two loose bents
+        self.assertIsNot(bent2, self.post1.getParentGroup())
+        # a bent is tree organisation only — a Std Group, never an Assembly
+        self.assertEqual(bent2.TypeId, "App::DocumentObjectGroup")
+        self.assertEqual([o.Label for o in self.doc.Objects
+                          if o.TypeId == "Assembly::AssemblyObject"], [])
         for vs in new_joints:
-            self.assertLess(joint_misfit(vs)[0], 1e-3, vs.Label)
-        self.assertAlmostEqual(new_bodies[self.post1].getGlobalPlacement().Base.x / IN,
-                               120, places=6)
-        # the offset rides on the timbers, never on the new assembly:
-        # FreeCAD draws its Fixed-joint markers at twice a moved root
-        # assembly's offset (Adam's GUI round, 2026-09-18)
-        self.assertTrue(bent2.Placement.isIdentity())
-        # the joint markers draw under the offset bent, which applies its
-        # own placement: drawn there, each lands on its datum, not at twice
-        # the offset (Adam's GUI round, 2026-09-18)
-        from freecad.bentwizard import joint_handle
+            self.assertLess(frame.joint_misfit(vs)[0], 1e-3, vs.Label)
+        # the offset rides on the copies; the copy of the principal timber
+        # roots them provisionally until a joint ties them to the frame
+        self.assertAlmostEqual(copy1.getGlobalPlacement().Base.x / IN, 120, places=6)
+        self.assertIsNone(frame.seat_driving(copy1))
+        self.assertFalse(frame.is_anchored(copy1))
+        self.assertIs(frame.anchored_timber(self.doc), self.post1)
         for vs in new_joints:
-            handle = joint_handle.find_handle(vs)
-            self.assertIs(handle.getParentGeoFeatureGroup(), bent2, vs.Label)
-            datum = getattr(handle, joint_handle.DATUM_PROP)
-            drawn = bent2.getGlobalPlacement().multVec(
-                joint_handle.marker_position(handle, datum))
-            self.assertLess((drawn - datum.getGlobalPlacement().Base).Length, 1e-6,
-                            vs.Label)
+            self.assertIsNotNone(frame.places(vs), vs.Label)
 
     def test_partial_set_skips_boundary_joints(self):
         new_bodies, new_joints, skipped = self.duplicate([self.post1, self.beam])
@@ -137,7 +130,7 @@ class DuplicateBentTest(unittest.TestCase):
 
     def test_output_lints_clean(self):
         from freecad.bentwizard.linter import lint
-        self.duplicate(assembly_label="Bent-002")
+        self.duplicate(group_label="Bent-002")
         with tempfile.TemporaryDirectory() as td:
             path = str(Path(td) / "dup.FCStd")
             self.doc.saveAs(path)
