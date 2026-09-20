@@ -21,8 +21,8 @@ Timber framing workbench for FreeCAD 1.1.1. Timber-owned datums, cutter/adder jo
 ## Environment
 
 - A portable FreeCAD 1.1.x install lives **outside the repo**, as a sibling of the checkout (not repo content). **Its location and patch version differ per machine** — find it as `..\FreeCAD_1.1.*-Windows-x86_64-py311\` next to the checkout, and never hard-code one machine's path into code or docs. Known locations (update when a machine changes):
-  - `C:\Users\Adam\Documents\Projects\FreeCAD_1.1.1-Windows-x86_64-py311\`
-  - `C:\Users\Admin\projects\FreeCAD_1.1.3-Windows-x86_64-py311\`
+  - `C:\Users\Adam\Documents\Projects\FreeCAD_1.1.1-Windows-x86_64-py311\` — Intel Core i9-9980HK, 8C/16T, 32 GB (tag `i9` in the spike timings)
+  - `C:\Users\Admin\projects\FreeCAD_1.1.3-Windows-x86_64-py311\` — Dell OptiPlex 7010 (tag `7010`)
 
   Below, `<FreeCAD>` means that install's root.
   - GUI: `<FreeCAD>\bin\freecad.exe`

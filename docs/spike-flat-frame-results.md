@@ -210,18 +210,39 @@ document round 2 built, one level at a time, profiling a `Bay` edit and
 re-verifying the geometry after each (volumes back at `Bay` = 10 ft,
 every joint seated, one solid each — all levels passed).
 
-| Level | What moves onto its own object | 5 bents: objects recomputed | Time |
-|---|---|---|---|
-| L1 | baseline | 514 of 1676 | 4.60 s |
-| L2 | `Bay` alone on its own VarSet | 337 | 3.15 s |
-| L3 | + `LengthZ` onto `TLen_<timber>`, section stays on `TDim_` | 329 | 3.26 s |
-| L4 | + joint VarSet keeps only parameters; `Plc_<side>` (datum placement) and `Sec_<side>` (section, read from Dims, not through the datum) | 309 | 3.04 s |
-| L5 | + `DepthW` off `Sec_<side>` | **215** | **1.46 s** |
+| Level | What moves onto its own object | 5 bents: objects recomputed | 7010 | i9 |
+|---|---|---|---|---|
+| L1 | baseline | 514 of 1676 | 4.60 s | 2.48 s |
+| L2 | `Bay` alone on its own VarSet | 337 | 3.15 s | 1.66 s |
+| L3 | + `LengthZ` onto `TLen_<timber>`, section stays on `TDim_` | 329 | 3.26 s | 1.63 s |
+| L4 | + joint VarSet keeps only parameters; `Plc_<side>` (datum placement) and `Sec_<side>` (section, read from Dims, not through the datum) | 309 | 3.04 s | 1.64 s |
+| L5 | + `DepthW` off `Sec_<side>` | **215** | **1.46 s** | **0.77 s** |
 
 The ratio holds at every size tested — 3 bents: 2.32 s → 0.65 s
-(3.6x); 10 bents: **10.44 s → 3.22 s**, 1099 objects → 480 (3.2x),
-geometry verified identical. Object count grows ~11% (1676 → 1856 at
-five bents; 3551 → 3936 at ten), all of it small VarSets.
+(3.6x, 7010); 10 bents: **10.44 s → 3.22 s** on the 7010 and **5.58 s
+→ 1.71 s** on the i9, 1099 objects → 480 (3.2x), geometry verified
+identical. Object count grows ~11% (1676 → 1856 at five bents; 3551
+→ 3936 at ten), all of it small VarSets.
+
+### Machines
+
+Two machines have run this harness. **Every object count is identical
+on both, at both sizes** — the levels are a property of the dependency
+graph, not of the hardware, so the findings below do not depend on
+which machine measured them. The times differ by a flat **1.9x at
+every level and every size**, the signature of a single-thread
+clock/IPC difference rather than a different bottleneck.
+
+| Tag | Machine | Notes |
+|---|---|---|
+| 7010 | Dell OptiPlex 7010 | the `Admin` checkout; original round-4 measurements, FreeCAD 1.1.3 |
+| i9 | Intel Core i9-9980HK, 8C/16T, 2.4 GHz base, 32 GB RAM | the `Adam` checkout; re-run 2026-09-19, FreeCAD 1.1.1 |
+
+Both under the bundled python, headless. Build time at ten bents: 23 s
+on the i9. Quote the tag with any future timing; the i9 is itself a
+2019 mobile part, so a current desktop would shift these again — treat
+the absolute numbers as machine-relative and the object counts as the
+durable result.
 
 ### Findings
 
@@ -229,7 +250,8 @@ five bents; 3551 → 3936 at ten), all of it small VarSets.
     *no post geometry recomputes at all* on a `Bay` edit — only the ties
     and their tenons, which is exactly the work the change requires. The
     earlier "~0.7 s floor" under-counted: it attributed component bodies
-    to posts, and the true necessary work is ~1.45 s at five bents.
+    to posts, and the true necessary work is ~1.45 s at five bents
+    (7010; 0.77 s on the i9).
 12. **Why L5 and not L4:** at an **end** datum `DepthW` *is* the
     timber's length. Leaving it beside `WidthU`/`WidthV` on one VarSet
     means a length change touches that object, and every reader of the
