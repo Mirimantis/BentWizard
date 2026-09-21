@@ -22,21 +22,129 @@ from .timber import TimberError, dims_varset, new_timber, timber_bodies
 
 
 def _quantity_field(default, unit="mm"):
-    """A native Gui::QuantitySpinBox — parses and displays in the user's
-    unit schema, so unitless input means whatever their schema says
-    (inches under Building US, cm under Building Euro), same as every
-    stock workbench field. `unit` is the raw-value unit."""
+    """A native Gui::QuantitySpinBox — displays in the user's unit
+    schema, same as every stock workbench field. `unit` is the raw-value
+    unit.
+
+    Bounds go through `_set_range`, never straight in: the widget reads
+    `minimum`/`maximum` in the DISPLAYED unit while `rawValue` stays
+    internal, so a range meant as 50.8 mm was taken as 50.8 in and the
+    first step clamped a 4" default up to 4' 2¾" (Adam's GUI round,
+    2026-09-21). Reproduced identically on 1.1.3 and 26.3 — not a 26.3
+    regression, it was always wrong.
+
+    Note a bare typed number means mm on 26.3 and the displayed unit on
+    1.1.3; that one is upstream's, with no property-level workaround
+    (docs/spike-26-3-gui-results.md, finding 9)."""
+    global _STEP_COMMIT
     field = Gui.UiLoader().createWidget("Gui::QuantitySpinBox")
     field.setProperty("unit", unit)
-    field.setProperty("minimum", -1e9)
-    field.setProperty("maximum", 1e9)
+    field.setProperty("_bw_unit", unit)     # `unit` reads back as the
+                                            # DISPLAY unit, so keep ours
+    _set_range(field, -1e9, 1e9, unit)
     field.setProperty("rawValue", default)
+    if _STEP_COMMIT is None:
+        _STEP_COMMIT = _StepCommit()
+    field.installEventFilter(_STEP_COMMIT)
     return field
+
+
+class _StepCommit(QtCore.QObject):
+    """Commit a stepper change that FreeCAD 26.3 leaves uncommitted.
+
+    On 26.3 `Gui::QuantitySpinBox`'s up/down buttons (and Up/Down, and
+    the wheel) move the *displayed text* but never write it to the
+    widget's value, so the next focus-out redraws from the stale value
+    and the edit vanishes — Adam's GUI round, 2026-09-21: "the spinner
+    buttons are what reset immediately when I click away". Reproduced in
+    all seven ways of configuring the widget; 1.1.3 holds in all seven.
+
+    **This is upstream's bug, not ours** — Adam confirmed Part → Box's
+    Length stepper reverts identically on the same build, so every
+    FreeCAD dialog using this widget is affected in 26.3.0 `a4ce44d33b`.
+    1.1.3 holds in all seven configurations.
+
+    So after a step we push the shown text back into the value, which
+    the same probe confirmed sticks. The check is on the VALUE, not the
+    version: when upstream fixes the widget the text and the value agree
+    and this does nothing, so it retires itself. **Delete this class and
+    its install once a fixed weekly lands** — it is a stopgap so the
+    dialogs work while 26.3 is the test environment, not a design.
+    """
+
+    def eventFilter(self, field, event):
+        kind = event.type()
+        stepped = (kind in (QtCore.QEvent.Wheel,
+                            QtCore.QEvent.MouseButtonPress,
+                            QtCore.QEvent.MouseButtonRelease)
+                   or (kind == QtCore.QEvent.KeyPress
+                       and event.key() in (QtCore.Qt.Key_Up,
+                                           QtCore.Qt.Key_Down)))
+        if stepped:
+            # after Qt has handled the step, not during
+            QtCore.QTimer.singleShot(0, lambda: _commit_shown(field))
+        return False            # never consume: the widget still steps
+
+
+_STEP_COMMIT = None
+
+
+def _commit_shown(field):
+    """Make the widget's value agree with the text it is showing."""
+    try:
+        shown = field.lineEdit().text().strip()
+        if not shown:
+            return
+        unit = field.property("_bw_unit") or "mm"
+        quantity = App.Units.Quantity(shown)
+        if not quantity.Unit:           # bare number: the field's own unit
+            quantity = App.Units.Quantity(float(shown), unit)
+        raw = float(field.property("rawValue"))
+        if abs(float(quantity.getValueAs(unit)) - raw) > 1e-9:
+            field.setProperty("value", quantity)
+    except Exception:
+        pass        # a half-typed value is not an error
+
+
+def _display_factor(unit="mm"):
+    """How many raw `unit`s one displayed unit is worth, under the
+    user's schema (25.4 for mm under Building US, 1.0 under Standard)."""
+    try:
+        factor = App.Units.Quantity(1.0, unit).getUserPreferred()[1]
+        return float(factor) or 1.0
+    except Exception:
+        return 1.0
+
+
+def _set_range(field, low, high, unit="mm"):
+    """Deliberately does NOT bound the widget — the range is enforced in
+    `ApplyJointDialog.request`, where the unit is unambiguous.
+
+    `Gui::QuantitySpinBox` reads `minimum`/`maximum` in the DISPLAYED
+    unit when stepping but as RAW values on focus-out, so no number is
+    right for both paths:
+
+    - 50.8 meant as mm made a 4" value step to 4' 2¾" (it was read as
+      50.8 in, and the step clamped up to that "minimum")
+    - converting to 6.0 in for a 152.4 mm maximum then let focus-out
+      clamp a legitimate 4" down to 6 mm — silently destroying it
+    - a `Base::Quantity` is accepted but leaves the bound unset
+
+    Both misreads are present on 1.1.3 as well as 26.3. Leaving the
+    widget unbounded is the only behaviour that is correct in both
+    paths, and the guard loses nothing: it never worked."""
+    return
 
 
 def _mm(value):
     """A length in mm shown in the user's unit schema."""
     return App.Units.Quantity(float(value), "mm").UserString
+
+
+def _shown(value, unit="mm"):
+    """A raw value in `unit`, shown in the user's unit schema (angles
+    are in degrees, so `_mm` is not enough)."""
+    return App.Units.Quantity(float(value), unit).UserString
 
 
 # Property types worth offering in expression autocomplete (dimension
@@ -996,6 +1104,7 @@ class ApplyJointDialog(QtWidgets.QDialog):
         layout.addWidget(buttons)
         self.role_widgets = {}
         self.param_widgets = {}
+        self.param_ranges = {}
         self.template_box.currentIndexChanged.connect(self._load)
         self._load()
 
@@ -1009,6 +1118,7 @@ class ApplyJointDialog(QtWidgets.QDialog):
         self._clear(self.params_form)
         self.role_widgets.clear()
         self.param_widgets.clear()
+        self.param_ranges.clear()
         self.spec = None
         self.problem.setText("")
         if not path:
@@ -1065,10 +1175,9 @@ class ApplyJointDialog(QtWidgets.QDialog):
                           include_dims=False, include_joints=False, unit=unit)
             if p["expression"]:
                 w.set_expression(p["expression"])
-            if p["min"] is not None:
-                w.spin.setProperty("minimum", float(p["min"]))
-            if p["max"] is not None:
-                w.spin.setProperty("maximum", float(p["max"]))
+            _set_range(w.spin, p["min"], p["max"], unit)
+            if p["min"] is not None or p["max"] is not None:
+                self.param_ranges[p["name"]] = (p["min"], p["max"], unit)
         else:
             w = QtWidgets.QLineEdit(str(p["default"] or ""), self)
         tip = p["doc"]
@@ -1093,8 +1202,32 @@ class ApplyJointDialog(QtWidgets.QDialog):
                 values[name] = w.value()
             else:
                 values[name] = w.text()
+        self._check_ranges(values)
         return (self.spec, self.serial.text().strip(), targets, values,
                 self.assemble.isChecked())
+
+    def _check_ranges(self, values):
+        """The template's declared ranges, enforced here rather than on
+        the spin box — see `_set_range` for why the widget cannot hold
+        them. An expression is passed through: its value is not known
+        until it is bound."""
+        out = []
+        for name, (low, high, unit) in sorted(self.param_ranges.items()):
+            value = values.get(name)
+            if isinstance(value, str):
+                continue                    # an expression, not a literal
+            try:
+                raw = float(App.Units.Quantity(value).getValueAs(unit))
+            except Exception:
+                continue
+            if low is not None and raw < float(low) - 1e-9:
+                out.append(f"{name} is {_shown(raw, unit)}, below the "
+                           f"template's minimum of {_shown(low, unit)}")
+            if high is not None and raw > float(high) + 1e-9:
+                out.append(f"{name} is {_shown(raw, unit)}, above the "
+                           f"template's maximum of {_shown(high, unit)}")
+        if out:
+            raise JointError("; ".join(out))
 
 
 class ApplyJointCommand:
