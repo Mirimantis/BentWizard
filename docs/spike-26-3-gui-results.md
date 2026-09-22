@@ -267,25 +267,34 @@ itself when upstream fixes this.
 seven configurations all give 10 mm. Typing `10"` or `10 in` works on
 both. Unfixed, and the only one of the three still open.
 
-**(b) is confirmed application-wide, not ours** (Adam, 2026-09-21):
-**Part → Box's Length stepper reverts the same way** on this weekly. So
-every FreeCAD dialog built on `Gui::QuantitySpinBox` has lost its
-steppers in 26.3.0 `a4ce44d33b`, and this belongs upstream. (c) is
-plausibly the same defect seen from the other side — the widget losing
-track of its display unit in both directions — though that has not been
-checked against a stock dialog.
+**(b) and (c) were both already reported, and both are fixed by one
+upstream PR** (Adam, 2026-09-21). They were indeed one defect seen from
+two sides:
 
-`_StepCommit` stays for now: Adam is testing on this build and the
-dialogs have to work, it is about twenty lines, and it is keyed to the
-value rather than the version, so it stops acting the moment a fixed
-weekly lands. **Delete it, and this note, once upstream ships the fix.**
-Nothing else in the workbench should grow a workaround for this — one
-event filter on one factory function is the whole of it.
+| | upstream | state |
+|---|---|---|
+| (b) steppers do not commit | [#32717](https://github.com/FreeCAD/FreeCAD/issues/32717) "changing value in quantity spinboxes with arrow buttons broken" | closed by **PR #32707**, Blocker / Regression |
+| (c) unitless input read as mm | [#32700](https://github.com/FreeCAD/FreeCAD/issues/32700) "Document units not respected in spinboxes" | closed by the same **PR #32707** |
 
-Not yet reported. `CLAUDE.md`'s precedent applies — the last upstream
-draft was withdrawn because the change turned out to be intentional —
-but a stepper that moves the text and not the value is hard to read as
-intentional, and the 1.1.3-vs-26.3 table above is the reproduction.
+#32700 names the cause: a regression from PR #30139, "if you type in a
+unit in a spin box with no units, it evaluates it to a metric value.
+This didn't use to be the case, it would stay the document units."
+
+**A drafted issue for (c) was written and withdrawn** — both defects
+were already on file before we got there. Nothing to report; the lesson
+is to search upstream before drafting, which cost a round here.
+
+**So `_StepCommit` has an expiry date.** It stays only while the
+2026.09.16 weekly is the test environment; it is keyed to the value
+rather than the FreeCAD version, so it goes quiet by itself on a fixed
+build. **Delete the class, its install in `_quantity_field`, and this
+paragraph once Adam is on a weekly carrying #32707** — which also
+resolves (c) with no work from us.
+
+The `minimum`/`maximum` inconsistency in (a) is **not** covered by
+either, and is not a 26.3 regression at all: it behaves the same on
+1.1.3. `_set_range` sidesteps it permanently by not setting bounds, so
+there is nothing to wait for and probably nothing worth reporting.
 
 ## Finding 10 — Adam's issues 3 and 4 are both finding 2
 
