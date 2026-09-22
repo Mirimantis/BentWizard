@@ -154,9 +154,21 @@ def datums_of_joint(varset):
 
 
 def host_datum(varset):
-    """The datum the VarSet's Host* accessors read, or None."""
-    for path, expr in varset.ExpressionEngine:
-        if path.lstrip(".") == "HostWidthU":
+    """The joint's host datum, or None.
+
+    Read from the `HostDatum` record the pairing writes. The fallback
+    infers it from the Host* accessor expression the way this used to,
+    for a joint paired before that property existed — and it must look
+    on the accessor VarSet, not the joint VarSet, for one paired after
+    the split but before `HostDatum` was written."""
+    name = getattr(varset, naming.PROP_HOST_DATUM, "")
+    if name:
+        found = varset.Document.getObject(name)
+        if found is not None and is_datum(found):
+            return found
+    holder = accessors_varset(varset)
+    for path, expr in holder.ExpressionEngine:
+        if path.lstrip(".") == "Host" + facetable.ACCESSORS[0]:
             for d in all_datums(varset.Document):
                 if f"<<{d.Label}>>" in expr:
                     return d
@@ -280,20 +292,87 @@ PLACEMENT_TOOLTIPS = {
             "HostPlacement).",
 }
 
+HOST_DATUM_TOOLTIP = (
+    "Which of this joint's two datums is the host — the one that stays "
+    "put while the other timber is seated onto it. Written by Apply; "
+    "changing it by hand does not re-point anything.")
 
-def ensure_accessors(varset):
-    """Give a joint VarSet its Host*/Mate* accessor properties (idempotent)."""
+
+def is_accessors_varset(obj):
+    """An accessor VarSet: structural, on HostPlacement — the label is a
+    convenience, the property is the definition."""
+    return (obj.TypeId == "App::VarSet"
+            and hasattr(obj, naming.placement_accessor("Host"))
+            and naming.is_accessors_label(obj.Label))
+
+
+def accessors_varset(varset):
+    """Where joint `varset`'s accessors live: its own `Accessors_…`
+    VarSet when it has one, otherwise the joint VarSet itself.
+
+    Both shapes are live — a template holds its accessors directly, an
+    applied joint holds them on a VarSet of its own, and a document from
+    before the split holds them directly too. Resolving it here is what
+    lets every caller stay ignorant of which (see `naming`)."""
+    for obj in varset.Document.getObjectsByLabel(
+            naming.accessors_label(varset.Label)):
+        if is_accessors_varset(obj):
+            return obj
+    return varset
+
+
+def _add_accessor_props(target):
     for side in naming.SIDES:
         for acc in facetable.ACCESSORS:
             name = side + acc
-            if not hasattr(varset, name):
-                varset.addProperty(
+            if not hasattr(target, name):
+                target.addProperty(
                     "App::PropertyLength", name, naming.ACCESSOR_GROUP,
                     ACCESSOR_TOOLTIPS[side].format(axis=_AXIS_TEXT[acc]))
         name = naming.placement_accessor(side)
-        if not hasattr(varset, name):
-            varset.addProperty("App::PropertyPlacement", name,
+        if not hasattr(target, name):
+            target.addProperty("App::PropertyPlacement", name,
                                naming.ACCESSOR_GROUP, PLACEMENT_TOOLTIPS[side])
+
+
+def ensure_accessors(varset, separate=True):
+    """Give joint `varset` its Host*/Mate* accessors and return the object
+    that carries them (idempotent).
+
+    `separate` puts them on an `Accessors_<joint>` VarSet filed under the
+    joint's handle, which is what an applied joint gets. Template
+    authoring passes False to keep the template a single object: every
+    template already saved on disk stays valid, and Apply expands the
+    accessors as it copies.
+
+    An existing separate VarSet wins regardless, so calling this on an
+    already-expanded joint never splits it a second time or silently
+    moves the accessors back."""
+    existing = accessors_varset(varset)
+    if existing is not varset:
+        _add_accessor_props(existing)
+        return existing
+    if not separate:
+        _add_accessor_props(varset)
+        return varset
+    doc = varset.Document
+    target = doc.addObject("App::VarSet", "Accessors")
+    target.Label = naming.accessors_label(varset.Label)
+    _add_accessor_props(target)
+    _file_accessors(varset, target)
+    return target
+
+
+def _file_accessors(varset, target):
+    """Under the joint's handle, beside its seat. Imported here rather
+    than at module scope: joint_handle imports this module."""
+    try:
+        from . import joint_handle
+        handle = joint_handle.find_handle(varset)
+    except Exception:
+        return
+    if handle is not None and target.getParentGroup() is not handle:
+        handle.addObject(target)
 
 
 def side_of(varset, datum):
@@ -306,18 +385,23 @@ def side_of(varset, datum):
 
 
 def placement_binding(varset, datum):
-    """The expression a component on `datum` binds its Placement to:
-    '<<J-...>>.HostPlacement' or '.MatePlacement'."""
+    """The expression a component on `datum` binds its Placement to —
+    '<<Accessors_J-...>>.HostPlacement' on an applied joint,
+    '<<J-...>>.HostPlacement' on a template."""
     side = side_of(varset, datum)
     if side is None:
         raise DatumError(f"{datum.Label!r} is not paired under {varset.Label!r}")
-    return f"<<{varset.Label}>>.{naming.placement_accessor(side)}"
+    holder = accessors_varset(varset)
+    return f"<<{holder.Label}>>.{naming.placement_accessor(side)}"
 
 
-def pair(host, mate, varset):
+def pair(host, mate, varset, separate=True):
     """Pair two datums under a joint VarSet: record the pairing on both
-    (strings) and bind the VarSet's Host*/Mate* accessors through them.
-    Refuses a datum that is already paired, or two datums on one timber."""
+    (strings), record which is the host on the VarSet, and bind the
+    Host*/Mate* accessors through them. Refuses a datum that is already
+    paired, or two datums on one timber.
+
+    `separate` is passed through to `ensure_accessors` — see there."""
     for d in (host, mate):
         if not is_datum(d):
             raise DatumError(f"{d.Label!r} is not a datum")
@@ -327,10 +411,16 @@ def pair(host, mate, varset):
                              f"remove that timber joint first")
     if owner(host) is owner(mate):
         raise DatumError("both datums belong to the same timber")
-    ensure_accessors(varset)
+    holder = ensure_accessors(varset, separate=separate)
     for acc in naming.ALL_ACCESSORS:
-        varset.setExpression("Host" + acc, f"<<{host.Label}>>.{acc}")
-        varset.setExpression("Mate" + acc, f"<<{mate.Label}>>.{acc}")
+        holder.setExpression("Host" + acc, f"<<{host.Label}>>.{acc}")
+        holder.setExpression("Mate" + acc, f"<<{mate.Label}>>.{acc}")
+    # which datum is the host, stated rather than inferred from an
+    # expression that no longer lives on this object
+    if not hasattr(varset, naming.PROP_HOST_DATUM):
+        varset.addProperty("App::PropertyString", naming.PROP_HOST_DATUM,
+                           naming.ACCESSOR_GROUP, HOST_DATUM_TOOLTIP)
+    setattr(varset, naming.PROP_HOST_DATUM, host.Name)
     setattr(host, naming.PROP_MATE_DATUM, mate.Name)
     setattr(mate, naming.PROP_MATE_DATUM, host.Name)
     setattr(host, naming.PROP_JOINT, varset.Name)
@@ -348,16 +438,19 @@ def unpair(datum):
             setattr(d, naming.PROP_MATE_DATUM, "")
             setattr(d, naming.PROP_JOINT, "")
     if varset is not None:
+        if hasattr(varset, naming.PROP_HOST_DATUM):
+            setattr(varset, naming.PROP_HOST_DATUM, "")
+        holder = accessors_varset(varset)
         for side in naming.SIDES:
             for acc in facetable.ACCESSORS:
                 name = side + acc
-                if hasattr(varset, name):
-                    varset.setExpression(name, None)
-                    setattr(varset, name, 0)
+                if hasattr(holder, name):
+                    holder.setExpression(name, None)
+                    setattr(holder, name, 0)
             name = naming.placement_accessor(side)
-            if hasattr(varset, name):
-                varset.setExpression(name, None)
-                setattr(varset, name, App.Placement())
+            if hasattr(holder, name):
+                holder.setExpression(name, None)
+                setattr(holder, name, App.Placement())
 
 
 # --------------------------------------------------------------------------

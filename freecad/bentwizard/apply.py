@@ -230,6 +230,32 @@ def _substitute(objs, old_label, new_label):
                 obj.setExpression(path, new)
 
 
+def _redirect_accessors(objs, joint_label, holder_label):
+    """Move accessor references from the joint VarSet onto its accessor
+    VarSet, leaving parameter references alone.
+
+    A template holds its accessors on its own joint VarSet, so a copied
+    component asks `<<J-Kind-001>>.MateWidthU` for them and
+    `<<J-Kind-001>>.TenonLength` for a parameter. Apply expands the
+    accessors onto `Accessors_J-Kind-001`; only the first kind moves.
+    Both the ``<<Label>>`` and the bare ``Label.Prop`` spellings are
+    matched, as in `_substitute`."""
+    head = (r"(?:<<" + re.escape(joint_label) + r">>|(?<![\w.])"
+            + re.escape(joint_label) + r")")
+    accessors = [side + acc for side in naming.SIDES
+                 for acc in naming.ALL_ACCESSORS]
+    # longest first: MateWidthU must not be matched as a prefix of a
+    # longer accessor name should one ever be added
+    pattern = re.compile(head + r"\.(" + "|".join(
+        sorted((re.escape(a) for a in accessors), key=len, reverse=True))
+        + r")(?![\w])")
+    for obj in objs:
+        for path, expr in list(obj.ExpressionEngine):
+            new = pattern.sub(rf"<<{holder_label}>>.\1", expr)
+            if new != expr:
+                obj.setExpression(path, new)
+
+
 def _copy_set(body):
     """A component body with its own features and Origin — the set that
     copies cleanly with `with_dependencies=False` (Part H finding 10)."""
@@ -308,6 +334,7 @@ def apply_joint(doc, spec, serial, targets, values=None, position_tag=""):
         for acc in naming.ALL_ACCESSORS:
             if hasattr(varset, side + acc):
                 varset.setExpression(side + acc, None)
+
     for name, value in (values or {}).items():
         if not hasattr(varset, name):
             raise JointError(f"{label} has no parameter {name!r}")
@@ -324,7 +351,22 @@ def apply_joint(doc, spec, serial, targets, values=None, position_tag=""):
     setattr(varset, naming.PROP_POSITION_TAG, (position_tag or "").strip())
 
     # --- pair ---------------------------------------------------------------
+    # expands the accessors onto Accessors_<joint>; the copied components
+    # still name the joint VarSet for them, so redirect those references
     datums.pair(host_datum, mate_datum, varset)
+    holder = datums.accessors_varset(varset)
+    if holder is not varset:
+        for _c, _body, block in components:
+            _redirect_accessors(block, varset.Label, holder.Label)
+        # the copy inherited the TEMPLATE's accessor properties; drop them
+        # now that nothing reads them there, so the joint VarSet a framer
+        # opens holds only parameters. After the redirect, never before:
+        # removing a property the components still name breaks them.
+        for side in naming.SIDES:
+            for acc in naming.ALL_ACCESSORS:
+                name = side + acc
+                if hasattr(varset, name):
+                    varset.removeProperty(name)
 
     # --- re-point and place each component ------------------------------
     target_datum = {spec.host_datum_label: host_datum,
@@ -471,7 +513,13 @@ def remove_joint(varset):
                 doc.removeObject(name)
     for d in pair:
         datums.unpair(d)
+    # the accessor VarSet belongs to the joint, not the timbers — resolve
+    # it before the joint VarSet goes, since that is what names it
+    accessors = datums.accessors_varset(varset)
+    accessors_name = accessors.Name if accessors is not varset else None
     doc.removeObject(varset.Name)
+    if accessors_name and doc.getObject(accessors_name) is not None:
+        doc.removeObject(accessors_name)
     joint_handle.prune_root_group(doc)
     doc.recompute()
     timbers = [doc.getObject(n) for n in timber_names]

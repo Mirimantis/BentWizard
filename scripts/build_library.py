@@ -54,7 +54,9 @@ def skeleton(doc, kind, handed=None):
                   "mirrors a component applied at a datum of the other "
                   "parity (the opposite face or end).",
                   naming.TEMPLATE_META_GROUP)
-    datums.pair(host, mate, vs)
+    # a template stays one object: its accessors live on its own joint
+    # VarSet, and Apply expands them onto Accessors_<joint> as it copies
+    datums.pair(host, mate, vs, separate=False)
     doc.recompute()
     girt.Placement = datums.seat_delta(host, mate).multiply(girt.Placement)
     doc.recompute()

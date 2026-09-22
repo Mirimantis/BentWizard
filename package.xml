@@ -14,5 +14,5 @@
       <subdirectory>freecad/bentwizard</subdirectory>
     </workbench>
   </content>
-  <freecadmin>1.1</freecadmin>
+  <freecadmin>26.3</freecadmin>
 </package>

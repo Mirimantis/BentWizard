@@ -148,7 +148,8 @@ class LinterRules(unittest.TestCase):
     def test_datum_pairing_varset_reads_another_datum(self):
         from freecad.bentwizard import datums
         other = datums.add_datum(self.post, "XPos", "30 in")
-        self.vs.setExpression("HostWidthU", f"<<{other.Label}>>.WidthU")
+        datums.accessors_varset(self.vs).setExpression(
+            "HostWidthU", f"<<{other.Label}>>.WidthU")
         self.assertIn("datum-pairing", self.rules("strict"))
 
     def test_component_declaration(self):

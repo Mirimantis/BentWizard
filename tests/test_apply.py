@@ -140,7 +140,8 @@ class ApplyTest(unittest.TestCase):
                            if m.TypeId == "Part::Mirroring" and m.Source is comp), comp)
             exprs = dict((p.lstrip("."), e) for p, e in holder.ExpressionEngine)
             self.assertRegex(exprs.get("Placement", ""),
-                             r"<<J-HousedMT-00[12]>>\.(Host|Mate)Placement$", comp.Label)
+                             r"<<Accessors_J-HousedMT-00[12]>>\.(Host|Mate)"
+                             r"Placement$", comp.Label)
 
     def test_volumes_and_objects(self):
         from freecad.bentwizard import datums, joint_handle, measure
@@ -161,7 +162,8 @@ class ApplyTest(unittest.TestCase):
         self.assertIs(datums.owner(mate), self.girt)
         self.assertEqual(datums.face_of(host), "YPos")
         self.assertEqual(datums.face_of(mate), "EndB")
-        self.assertEqual(round(vs.MateWidthU / IN, 6), 6)
+        self.assertEqual(
+            round(datums.accessors_varset(vs).MateWidthU / IN, 6), 6)
         handle = joint_handle.find_handle(vs)
         self.assertIsNotNone(handle)
         self.assertIs(handle.Datum, host)
@@ -366,6 +368,36 @@ class ApplyTest(unittest.TestCase):
         # the datums are reusable
         self.apply(serial="002")
         self.assertEqual(self.volume(self.post), round(8 * 8 * 96 - HOUSING - MORTISE, 6))
+
+    def test_accessors_move_to_their_own_varset(self):
+        """The joint VarSet holds only what a framer edits; the accessors
+        it needs for the scope rule live on their own VarSet under the
+        handle, and the components read them there."""
+        from freecad.bentwizard import datums, joint_handle, naming
+        applied = self.apply()
+        vs = applied.varset
+        acc = datums.accessors_varset(vs)
+
+        self.assertIsNot(acc, vs, "the accessors did not expand on apply")
+        self.assertEqual(acc.Label, naming.accessors_label(vs.Label))
+        # every accessor on the accessor VarSet, none on the joint VarSet
+        for side in naming.SIDES:
+            for name in (s + a for s in [side] for a in naming.ALL_ACCESSORS):
+                self.assertTrue(hasattr(acc, name), name)
+                self.assertFalse(hasattr(vs, name), f"{name} left on {vs.Label}")
+        # the parameters stayed put
+        self.assertTrue(hasattr(vs, "TenonLength"))
+        # the pairing is recorded, not inferred
+        self.assertEqual(vs.HostDatum, datums.host_datum(vs).Name)
+        # filed under the handle, beside the seat
+        handle = joint_handle.find_handle(vs)
+        self.assertIsNotNone(handle)
+        self.assertIs(acc.getParentGroup(), handle)
+        # and every component reads the accessor VarSet for its placement
+        for comp in [o for o in self.doc.Objects if hasattr(o, "ComponentRole")]:
+            exprs = dict((p.lstrip("."), e) for p, e in comp.ExpressionEngine)
+            self.assertIn(acc.Label, exprs.get("Placement", ""), comp.Label)
+        self.assertEqual(self.lint(), [])
 
     def test_two_joints_on_one_post(self):
         from freecad.bentwizard.timber import new_timber
