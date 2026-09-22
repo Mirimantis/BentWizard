@@ -312,6 +312,84 @@ cause where the timber was already placed.
 
 Nothing to fix here separately. Both close with section 1.
 
+## Finding 11 — on 26.3, `import FreeCAD` deletes names imported before it
+
+`scripts/build_library.py` died on 26.3 with `NameError: name 'Path' is
+not defined` — from a function, after `from pathlib import Path` had run
+cleanly at module level. It is not a clearing part-way through: the name
+never survives the FreeCAD import.
+
+```python
+import sys
+from pathlib import Path
+import FreeCAD as App
+print("Path" in globals())     # 26.3: False.  1.1.3: True
+```
+
+`import FreeCAD` removes from `__main__`'s globals any name that
+collides with one of FreeCAD's own modules — `Path` is FreeCAD's old CAM
+workbench — **without raising**. Import FreeCAD *first* and everything
+survives, including `Path`. 1.1.3 does not do this.
+
+The failure mode is nasty: no error at import, a `NameError` much later
+from whatever function first uses the name. **Rule: in any script that
+runs under 26.3, `import FreeCAD` comes before every other import.**
+`build_library.py` is fixed that way. Note several test modules still
+import `pathlib` before FreeCAD; they are safe today only because they
+use `Path` before the FreeCAD import, and are worth reordering.
+
+## Finding 12 — route (a) taken: the suite is green on both builds
+
+Adam's decision, 2026-09-21 (brief section 1): **route (a)**, pin the
+operand frame with `UseLegacyBodyPlacement`. Route (b) was measured
+first and the brief's sketch of it does not work — see below.
+
+`component.set_legacy_placement` sets the flag on every Boolean the
+workbench creates (`apply.py` and `component.apply_boolean`), guarded by
+`hasattr` so 1.1.x, where the property does not exist and the old
+behaviour is simply what happens, is untouched. One binding choice, not
+two mechanisms. `ensure_legacy_placement(doc)` brings an older document
+up to the contract and is called at the top of `apply_joint`; it writes
+the flag INTO the file rather than fixing it on open, so the document
+still opens correctly without the workbench (Tier 1).
+
+| | 1.1.3 | 26.3 |
+|---|---|---|
+| before | 123/123 | 2 failures + 13 errors |
+| after | **123/123** | **123/123** |
+
+Two `test_measure` cases needed the contract in their own Boolean
+helper — that test deliberately moves its timber off the origin and
+places operands "in the BODY's local frame", so it *is* the contract
+under test.
+
+On Adam's `Scratch/26.3DevGuiTest.FCStd`: T-Beam-001 opens as **2
+solids** (his issue 4, the detached tenon adder), migrates to **1**, and
+stays whole when the beam is lengthened by 2 ft — the edit that broke it.
+Issue 3 is the same fix at apply time, covered by
+`test_apply.test_matrix_every_face_and_end`, which passes on 26.3 now.
+
+### Why route (b) was not taken
+
+Measured before deciding, so the choice rests on numbers rather than the
+brief's expectation. Binding a component **to its own host timber's
+`Placement`** — the brief's sketch — is a dependency cycle:
+`timber.Shape → Boolean → Component → timber.Placement`. It is a cycle
+on **both** builds (`getOutListRecursive(): cyclic dependency
+detected!`), with the Body left invalid on 26.3 and the accessor frozen.
+Finding 1's property-level expression edges do **not** rescue it. The
+brief's "`Seat_J-…` is the existing proof it works" does not carry: a
+seat places a *different* timber, not the one the component is
+booleaned into.
+
+Binding instead to whatever **drives** the timber's placement (the
+anchor or the seat, never the timber) does work — no cycle, one solid,
+zero errors, and the cut follows the timber — so route (b) has a viable
+shape when it is wanted. But the cut volume differs between builds at
+the same position, i.e. the geometry is version-specific, so route (b)
+means making 26.3 the minimum. That is a decision for after the GUI
+round, not before it.
+
 ## What this does not prove
 
 1. **Rendering is unverified.** The scene graphs *build and attach*;

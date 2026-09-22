@@ -42,9 +42,15 @@ class MeasureTest(unittest.TestCase):
         return b
 
     def boolean(self, op, operand):
+        from freecad.bentwizard import component
         bo = self.body.newObject("PartDesign::Boolean", op)
         bo.Group = [operand]
         bo.Type = op
+        # the operand is in the BODY's local frame (see `box`), which is
+        # the workbench's contract — so pin it the way every Boolean the
+        # workbench creates is pinned, or 26.3 resolves it globally and
+        # the adders land outside the moved stick
+        component.set_legacy_placement(bo)
         self.doc.recompute()
         return bo
 

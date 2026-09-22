@@ -25,7 +25,10 @@ Applying a joint is a copy, not a rebuild:
 5. **Boolean**, in declared order, ``Cut`` for a cutter and ``Fuse`` for
    an adder, into the timber that owns the datum. The Boolean seats its
    operand in the timber Body's LOCAL frame (round 3), which is why the
-   binding is the datum's local Placement.
+   binding is the datum's local Placement. FreeCAD 26.3 resolves the
+   operand globally instead, so every Boolean created here is pinned
+   with ``UseLegacyBodyPlacement`` — see
+   ``component.set_legacy_placement``.
 6. **Assert one solid** after every Boolean. Three different errors
    produced exactly the expected volume with wrong geometry; only the
    solid count told a joint from a severed timber.
@@ -43,7 +46,8 @@ from collections import namedtuple
 
 import FreeCAD as App
 
-from . import datums, facetable, measure, naming, template_library
+from . import (component, datums, facetable, measure, naming,
+               template_library)
 from .datums import DatumError
 from .template import JointError, TemplateSpec
 from .timber import dim_input, dims_varset
@@ -245,6 +249,10 @@ def apply_joint(doc, spec, serial, targets, values=None, position_tag=""):
     """
     if not isinstance(spec, TemplateSpec):
         spec = TemplateSpec(spec)
+    # a document whose joinery predates the operand flag opens on 26.3
+    # with its components detached; bring it up to the contract first,
+    # so the joint being added is not the only sound one in the file
+    component.ensure_legacy_placement(doc)
     serial = str(serial).strip()
     if not serial.isdigit():
         raise JointError(f"serial must be digits, got {serial!r}")
@@ -361,6 +369,7 @@ def apply_joint(doc, spec, serial, targets, values=None, position_tag=""):
         bo.Group = [holder]          # direct assignment: addObjects would
         bo.Type = op                 # drag a mirroring's Source in too
         bo.Refine = True
+        component.set_legacy_placement(bo)   # operand frame: see there
         doc.recompute()
         if "Invalid" in bo.State or "Error" in bo.State:
             raise JointError(f"{bo.Label}: recompute failed ({bo.State})")

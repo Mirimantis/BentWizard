@@ -11,16 +11,22 @@ files are exactly what New Timber, Add Datum and the component helpers
 produce, so the library is a test of the tool as much as a product.
 """
 
-import os
-import sys
-from pathlib import Path
+import FreeCAD as App  # noqa: E402  FIRST — see below
+# On FreeCAD 26.3, `import FreeCAD` REMOVES from __main__'s globals any
+# name imported before it that collides with one of FreeCAD's own
+# modules — `Path` (pathlib) being the one that bit: bound at module
+# level, then gone by the time a function used it, with no error. A
+# script's FreeCAD import therefore comes before everything else.
+# 1.1.3 does not do this.
+import os  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "tests"))
 import _repo_path  # noqa: E402
 
-import FreeCAD as App  # noqa: E402
 _repo_path.graft()
 
 from freecad.bentwizard import component, datums, naming  # noqa: E402

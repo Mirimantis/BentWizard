@@ -114,6 +114,58 @@ def add_prism(body, label, width_x, width_y, length_z, direction=+1,
     return pad
 
 
+LEGACY_PLACEMENT = "UseLegacyBodyPlacement"
+
+
+def set_legacy_placement(boolean):
+    """Pin a Boolean to the operand frame BentWizard's components are
+    modelled in, and say so in the file.
+
+    FreeCAD 26.3 resolves a `PartDesign::Boolean`'s operand GLOBALLY
+    (upstream #30393 → #30575); 1.1.x resolves it in the target Body's
+    local frame. Every component here is placed from its joint VarSet's
+    `HostPlacement`/`MatePlacement`, which are timber-LOCAL, so a moved
+    timber's `Fuse` gives two solids and its `Cut` removes nothing —
+    the joint applies cleanly while the timber sits at the origin and
+    breaks the moment it is seated.
+
+    `UseLegacyBodyPlacement` is upstream's escape hatch: True restores
+    the old result exactly. It does not exist on 1.1.x, where the old
+    behaviour is simply what happens — hence the `hasattr` guard. This
+    is one binding choice rather than two mechanisms (Adam, 2026-09-21,
+    brief section 1 route (a)); binding components globally instead is
+    route (b), and is the long-run direction.
+
+    Because the default is False, a document saved before this existed
+    adopts 26.3's semantics on open — see `ensure_legacy_placement`.
+    """
+    if hasattr(boolean, LEGACY_PLACEMENT):
+        setattr(boolean, LEGACY_PLACEMENT, True)
+        return True
+    return False            # 1.1.x: no property, and none needed
+
+
+def ensure_legacy_placement(doc):
+    """Bring every Boolean in `doc` up to the contract above. Returns
+    how many needed it.
+
+    A document built before the flag existed carries Booleans that
+    restore at the default, so it would open on 26.3 with its joinery
+    detached. Writing the flag INTO the document is deliberate: the file
+    then opens correctly without the workbench, which a fix-on-open
+    observer would not give (Tier 1)."""
+    fixed = 0
+    for obj in doc.Objects:
+        if obj.TypeId != "PartDesign::Boolean":
+            continue
+        if not hasattr(obj, LEGACY_PLACEMENT):
+            break                   # 1.1.x: nothing to do anywhere
+        if getattr(obj, LEGACY_PLACEMENT) is not True:
+            set_legacy_placement(obj)
+            fixed += 1
+    return fixed
+
+
 def apply_boolean(timber, component_or_mirroring, role, label=None):
     """The Boolean that applies a component to a timber — direct Group
     assignment, because addObjects would drag a mirroring's Source in
@@ -122,6 +174,7 @@ def apply_boolean(timber, component_or_mirroring, role, label=None):
     bo.Group = [component_or_mirroring]
     bo.Type = naming.BOOLEAN_OP[role]
     bo.Refine = True
+    set_legacy_placement(bo)
     if label:
         bo.Label = label
     return bo
