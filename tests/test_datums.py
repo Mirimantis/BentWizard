@@ -157,26 +157,36 @@ class DatumTest(unittest.TestCase):
         self.assertEqual(host.Joint, vs.Name)
         self.assertIs(datums.mate_of(host), mate)
         self.assertIs(datums.joint_of(mate), vs)
-        self.assertEqual(tuple(map(inches, (vs.HostWidthU, vs.HostWidthV, vs.HostDepthW))),
+        # the accessors live on the joint's own Accessors_ VarSet, not on
+        # the joint VarSet, which holds only what a framer edits
+        acc = datums.accessors_varset(vs)
+        self.assertIsNot(acc, vs)
+        self.assertEqual(acc.Label, "Accessors_" + vs.Label)
+        self.assertFalse(hasattr(vs, "HostWidthU"))
+        self.assertEqual(tuple(map(inches, (acc.HostWidthU, acc.HostWidthV,
+                                            acc.HostDepthW))),
                          (6, 96, 10))
-        self.assertEqual(tuple(map(inches, (vs.MateWidthU, vs.MateWidthV, vs.MateDepthW))),
+        self.assertEqual(tuple(map(inches, (acc.MateWidthU, acc.MateWidthV,
+                                            acc.MateDepthW))),
                          (4, 8, 72))
         self.assertEqual(datums.datums_of_joint(vs), [host, mate])
+        # the host is recorded, not inferred from an expression
+        self.assertEqual(vs.HostDatum, host.Name)
         self.assertIs(datums.host_datum(vs), host)
         # the placement accessors: what a component binds to, so that no
         # Body ever reads a datum directly
-        self.assertEqual(vs.HostPlacement, host.Placement)
-        self.assertEqual(vs.MatePlacement, mate.Placement)
+        self.assertEqual(acc.HostPlacement, host.Placement)
+        self.assertEqual(acc.MatePlacement, mate.Placement)
         self.assertEqual(datums.side_of(vs, host), "Host")
         self.assertEqual(datums.side_of(vs, mate), "Mate")
         self.assertEqual(datums.placement_binding(vs, mate),
-                         f"<<{vs.Label}>>.MatePlacement")
+                         f"<<{acc.Label}>>.MatePlacement")
         with self.assertRaises(datums.DatumError):
             datums.placement_binding(vs, datums.end_datum(self.girt, "EndA"))
-        # the girt's section change reaches the host side through the VarSet
+        # the girt's section change reaches the host side through the accessors
         self.gdims.WidthX = "5 in"
         self.doc.recompute()
-        self.assertEqual(inches(vs.MateWidthU), 5)
+        self.assertEqual(inches(acc.MateWidthU), 5)
         # no datum reads another datum (object-granular cycle)
         for d in (host, mate):
             self.assertFalse(any("D_" in e for _p, e in d.ExpressionEngine))
@@ -206,9 +216,11 @@ class DatumTest(unittest.TestCase):
         for d in (host, mate):
             self.assertFalse(datums.is_paired(d))
             self.assertEqual(d.Joint, "")
-        self.assertEqual(vs.HostWidthU, 0)
-        self.assertEqual(vs.HostPlacement, App.Placement())
-        self.assertEqual(vs.ExpressionEngine, [])
+        acc = datums.accessors_varset(vs)
+        self.assertEqual(acc.HostWidthU, 0)
+        self.assertEqual(acc.HostPlacement, App.Placement())
+        self.assertEqual(acc.ExpressionEngine, [])
+        self.assertEqual(vs.HostDatum, "")
         self.assertEqual(datums.datums_of_joint(vs), [])
         # and the datums can pair again
         datums.pair(host, mate, vs)
@@ -267,8 +279,11 @@ class DatumTest(unittest.TestCase):
             self.assertEqual(datums.verify_datum(host), [])
             self.assertTrue(datums.is_paired(host))
             vs = datums.joint_of(host)
-            self.assertEqual(inches(vs.MateWidthU), 4)
+            # the accessor VarSet and the HostDatum record survive a
+            # round trip, so the pairing resolves without the old sniff
+            self.assertEqual(inches(datums.accessors_varset(vs).MateWidthU), 4)
             self.assertEqual(datums.datums_of_joint(vs)[0], host)
+            self.assertIs(datums.host_datum(vs), host)
 
 
 if __name__ == "__main__":

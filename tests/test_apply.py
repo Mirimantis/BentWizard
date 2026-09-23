@@ -104,6 +104,14 @@ class ApplyTest(unittest.TestCase):
             self.doc.saveAs(path)
             return [str(f) for f in lint(path)]
 
+    def strict_findings(self):
+        from freecad.bentwizard.linter import STRICT, lint
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "a.FCStd")
+            self.doc.saveAs(path)
+            return [str(f) for f in lint(path) if f.severity == STRICT]
+
     # --- the basic application ------------------------------------------
 
     def test_datum_children_stay_with_their_timber(self):
@@ -140,7 +148,8 @@ class ApplyTest(unittest.TestCase):
                            if m.TypeId == "Part::Mirroring" and m.Source is comp), comp)
             exprs = dict((p.lstrip("."), e) for p, e in holder.ExpressionEngine)
             self.assertRegex(exprs.get("Placement", ""),
-                             r"<<J-HousedMT-00[12]>>\.(Host|Mate)Placement$", comp.Label)
+                             r"<<Accessors_J-HousedMT-00[12]>>\.(Host|Mate)"
+                             r"Placement$", comp.Label)
 
     def test_volumes_and_objects(self):
         from freecad.bentwizard import datums, joint_handle, measure
@@ -161,7 +170,8 @@ class ApplyTest(unittest.TestCase):
         self.assertIs(datums.owner(mate), self.girt)
         self.assertEqual(datums.face_of(host), "YPos")
         self.assertEqual(datums.face_of(mate), "EndB")
-        self.assertEqual(round(vs.MateWidthU / IN, 6), 6)
+        self.assertEqual(
+            round(datums.accessors_varset(vs).MateWidthU / IN, 6), 6)
         handle = joint_handle.find_handle(vs)
         self.assertIsNotNone(handle)
         self.assertIs(handle.Datum, host)
@@ -366,6 +376,74 @@ class ApplyTest(unittest.TestCase):
         # the datums are reusable
         self.apply(serial="002")
         self.assertEqual(self.volume(self.post), round(8 * 8 * 96 - HOUSING - MORTISE, 6))
+
+    def test_accessors_move_to_their_own_varset(self):
+        """The joint VarSet holds only what a framer edits; the accessors
+        it needs for the scope rule live on their own VarSet under the
+        handle, and the components read them there."""
+        from freecad.bentwizard import datums, joint_handle, naming
+        applied = self.apply()
+        vs = applied.varset
+        acc = datums.accessors_varset(vs)
+
+        self.assertIsNot(acc, vs, "the accessors did not expand on apply")
+        self.assertEqual(acc.Label, naming.accessors_label(vs.Label))
+        # every accessor on the accessor VarSet, none on the joint VarSet
+        for side in naming.SIDES:
+            for name in (s + a for s in [side] for a in naming.ALL_ACCESSORS):
+                self.assertTrue(hasattr(acc, name), name)
+                self.assertFalse(hasattr(vs, name), f"{name} left on {vs.Label}")
+        # the parameters stayed put
+        self.assertTrue(hasattr(vs, "TenonLength"))
+        # the pairing is recorded, not inferred
+        self.assertEqual(vs.HostDatum, datums.host_datum(vs).Name)
+        # filed under the handle, beside the seat
+        handle = joint_handle.find_handle(vs)
+        self.assertIsNotNone(handle)
+        self.assertIs(acc.getParentGroup(), handle)
+        # and every component reads the accessor VarSet for its placement
+        for comp in [o for o in self.doc.Objects if hasattr(o, "ComponentRole")]:
+            exprs = dict((p.lstrip("."), e) for p, e in comp.ExpressionEngine)
+            self.assertIn(acc.Label, exprs.get("Placement", ""), comp.Label)
+        self.assertEqual(self.lint(), [])
+
+    def test_renaming_the_joint_keeps_its_accessors(self):
+        """A framer may rename a joint VarSet in the tree. The accessor
+        VarSet is found by the internal Name the joint records, so the
+        link survives: no false lint findings, and Remove still takes the
+        accessors with it. Finding it by `Accessors_<label>` alone broke
+        on exactly this (2026-09-22)."""
+        from freecad.bentwizard import datums, naming
+        from freecad.bentwizard.apply import remove_joint
+        applied = self.apply()
+        vs = applied.varset
+        acc = datums.accessors_varset(vs)
+        self.assertEqual(vs.Accessors, acc.Name)
+
+        vs.Label = "J-HousedMT-NorthPost"
+        self.doc.recompute()
+        self.assertIs(datums.accessors_varset(vs), acc)
+        # No STRICT findings. Two ADVISORY naming-convention findings are
+        # expected and correct: the components are still labelled
+        # '…HousedMT.001' under a joint no longer called that. Before the
+        # Name-keyed link this rename gave eight strict findings instead
+        # (datum-pairing, component-declaration, component-reference-scope)
+        # and no naming finding at all — the linter could not trace the
+        # components back to their joint through the broken lookup.
+        self.assertEqual(self.strict_findings(), [])
+        # renaming the accessor VarSet itself is survived too
+        acc.Label = "Whatever"
+        self.doc.recompute()
+        self.assertIs(datums.accessors_varset(vs), acc)
+        self.assertEqual(self.strict_findings(), [])
+
+        acc_name = acc.Name
+        remove_joint(vs)
+        self.assertIsNone(self.doc.getObject(acc_name),
+                          "Remove left the accessor VarSet behind")
+        self.assertEqual([o.Label for o in self.doc.Objects
+                          if naming.is_accessors_label(o.Label)
+                          or o.Label == "Whatever"], [])
 
     def test_two_joints_on_one_post(self):
         from freecad.bentwizard.timber import new_timber

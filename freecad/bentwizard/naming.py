@@ -94,10 +94,35 @@ ACCESSORS = ("WidthU", "WidthV", "DepthW")
 PLACEMENT_ACCESSOR = "Placement"
 ALL_ACCESSORS = ACCESSORS + (PLACEMENT_ACCESSOR,)
 
-# Joint VarSet: the cross-timber accessors it carries once paired
-# (a datum never reads another datum — object-granular cycle)
-ACCESSOR_GROUP = "Datums"
+# The accessors live on a VarSet of their own, one per joint, labelled
+# `Accessors_<joint label>` and filed under the joint's handle — the same
+# shape as `Seat_<joint label>`. The joint VarSet then holds only what a
+# framer edits. They exist for the scope rule above, not for tidiness: a
+# VarSet reads the datums and components read the VarSet.
+#
+# A TEMPLATE keeps them on its own joint VarSet (one object, and every
+# template already saved on disk stays valid); Apply expands them onto a
+# separate VarSet as it copies. Both shapes are therefore live, and
+# `datums.accessors_varset` resolves whichever a joint has rather than
+# anything being configured.
+ACCESSORS_PREFIX = "Accessors_"
+ACCESSOR_GROUP = "Accessors"
 SIDES = ("Host", "Mate")
+# Which datum is the host, recorded rather than inferred. The old
+# inference read it back out of the HostWidthU expression, which stops
+# working the moment that expression lives on another object.
+PROP_HOST_DATUM = "HostDatum"    # internal Name of the host datum
+# The accessor VarSet, by internal Name — the same reason datums carry
+# `Joint` and `MateDatum` as Names: a label is the framer's to change,
+# a Name never changes. Finding it by `Accessors_<joint label>` alone
+# broke the moment a joint VarSet was renamed in the tree: false strict
+# lint findings on a sound joint, and Remove left the accessors behind.
+PROP_ACCESSORS = "Accessors"     # internal Name of the accessor VarSet
+
+
+def accessors_label(joint_label):
+    """'J-HousedMT-001' -> 'Accessors_J-HousedMT-001'."""
+    return f"{ACCESSORS_PREFIX}{joint_label}"
 JOINT_GROUP = "Joint"            # the template author's parameters
 
 # Component Body (a cutter or adder in a joint template)
@@ -262,9 +287,17 @@ def is_template_metadata(name, group=None):
 
 
 def is_accessor_property(name):
-    """True for a joint VarSet's cross-timber accessor (HostWidthU ...),
-    which the tool writes and a user never edits."""
-    return any(name == side + acc for side in SIDES for acc in ALL_ACCESSORS)
+    """True for a cross-timber accessor (HostWidthU ...) or the pairing
+    record beside it — tool-written, never user-edited, and never a
+    joint parameter."""
+    return (name in (PROP_HOST_DATUM, PROP_ACCESSORS)
+            or any(name == side + acc
+                   for side in SIDES for acc in ALL_ACCESSORS))
+
+
+def is_accessors_label(label):
+    """True for an accessor VarSet's label."""
+    return str(label).startswith(ACCESSORS_PREFIX)
 
 
 def placement_accessor(side):

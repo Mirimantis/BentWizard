@@ -106,10 +106,20 @@ class Model:
                        for d in self.datums
                        if d.prop(naming.PROP_JOINT) is not None
                        and d.prop(naming.PROP_JOINT).value}
+        # accessor VarSets, by the internal Name their joint records — a
+        # label test alone misses one whose joint (or itself) was renamed
+        accessor_names = {v.prop(naming.PROP_ACCESSORS).value
+                          for v in self.varsets
+                          if v.prop(naming.PROP_ACCESSORS) is not None
+                          and v.prop(naming.PROP_ACCESSORS).value}
         for vs in self.varsets:
             if vs.name in self.kind:
                 continue
-            if (naming.is_joint_varset_label(vs.label)
+            # an accessor VarSet carries the same Host*/Mate* properties as
+            # a template's joint VarSet, so it is tested first
+            if vs.name in accessor_names or naming.is_accessors_label(vs.label):
+                self.kind[vs.name] = "accessors"
+            elif (naming.is_joint_varset_label(vs.label)
                     or vs.name in joint_names
                     or any(vs.prop(s + a) is not None
                            for s in naming.SIDES for a in naming.ACCESSORS)):
@@ -153,9 +163,43 @@ class Model:
     def joint_datums(self, vs):
         return [d for d in self.datums if self.datum_joint(d) is vs]
 
+    def accessors_of(self, vs):
+        """Where a joint's accessors live: its accessor VarSet when it has
+        one, else the joint VarSet itself (a template, or a document from
+        before the split). By the recorded internal Name first, as
+        `datums.accessors_varset` does; the label is only a fallback."""
+        p = vs.prop(naming.PROP_ACCESSORS)
+        if p is not None and p.value:
+            obj = self.doc.objects.get(p.value)
+            if obj is not None and self.kind.get(obj.name) == "accessors":
+                return obj
+        want = naming.accessors_label(vs.label)
+        for obj in self.varsets:
+            if obj.label == want and self.kind.get(obj.name) == "accessors":
+                return obj
+        return vs
+
+    def joint_of_accessors(self, obj):
+        """The joint VarSet an accessor VarSet belongs to, or None — the
+        joint that records its Name, else the one its label names."""
+        if self.kind.get(obj.name) != "accessors":
+            return None
+        for vs in self.varsets:
+            p = vs.prop(naming.PROP_ACCESSORS)
+            if p is not None and p.value == obj.name \
+                    and self.kind.get(vs.name) == "joint":
+                return vs
+        if naming.is_accessors_label(obj.label):
+            stem = obj.label[len(naming.ACCESSORS_PREFIX):]
+            for vs in self.varsets:
+                if vs.label == stem and self.kind.get(vs.name) == "joint":
+                    return vs
+        return None
+
     def accessor_datum(self, vs, side):
-        """The datum a joint VarSet's <side>WidthU accessor reads, or None."""
-        for e in vs.expressions:
+        """The datum a joint's <side>WidthU accessor reads, or None —
+        looked up wherever that joint's accessors live."""
+        for e in self.accessors_of(vs).expressions:
             if e.path.lstrip(".") == side + "WidthU":
                 for target, _p in expression_refs(e.expression, self.doc):
                     if target.name in self.datum_names:
@@ -187,10 +231,17 @@ class Model:
         for e in holder.expressions:
             if e.path.lstrip(".") == "Placement":
                 for target, prop in expression_refs(e.expression, self.doc):
-                    if self.kind.get(target.name) == "joint":
+                    # an applied joint's components read the accessor
+                    # VarSet; report the JOINT either way, so nothing
+                    # downstream needs to know which shape this is
+                    vs = (self.joint_of_accessors(target)
+                          if self.kind.get(target.name) == "accessors"
+                          else target if self.kind.get(target.name) == "joint"
+                          else None)
+                    if vs is not None:
                         for side in naming.SIDES:
                             if prop == naming.placement_accessor(side):
-                                return ("varset", target, side)
+                                return ("varset", vs, side)
                     if target.name in self.datum_names:
                         return ("datum", target, None)
         return None
@@ -463,10 +514,12 @@ def rule_datum_pairing(model):
                     != {o.name for o in (d, mate) if o is not None}:
                 problems.append(f"'{vs.label}' Host*/Mate* accessors do not "
                                 f"read this pair of datums")
+            acc_vs = model.accessors_of(vs)
             missing = [s + a for s in naming.SIDES for a in naming.ALL_ACCESSORS
-                       if vs.prop(s + a) is None]
+                       if acc_vs.prop(s + a) is None]
             if missing:
-                problems.append(f"'{vs.label}' lacks accessor(s) {', '.join(missing)}")
+                problems.append(f"'{acc_vs.label}' lacks accessor(s) "
+                                f"{', '.join(missing)}")
         if problems:
             findings.append(Finding(
                 "datum-pairing", STRICT, d.name, d.label,
@@ -528,17 +581,21 @@ def rule_component_placement_direct(model):
 
 
 def rule_component_reference_scope(model):
-    """§4.3 strict: joinery references only the datum it is placed on
-    and its joint VarSet — host data through the datum's own accessors,
-    mate data through the VarSet's Mate* accessors, never a timber's
-    Dims, another datum, or another timber's objects. Referencing the
-    mate's datum directly gives the right numbers today and the wrong
-    ones after a re-pair, and makes the template non-portable."""
+    """§4.3 strict: joinery references only the datum it is placed on,
+    its joint VarSet, and that joint's accessor VarSet — host data
+    through the datum's own accessors, mate data through the Mate*
+    accessors, never a timber's Dims, another datum, or another timber's
+    objects. Referencing the mate's datum directly gives the right
+    numbers today and the wrong ones after a re-pair, and makes the
+    template non-portable."""
     findings = []
     for comp in model.components:
         datum = model.component_datum(comp)
         vs = model.datum_joint(datum) if datum is not None else None
-        allowed = {o.name for o in (datum, vs) if o is not None}
+        # the accessors are the joint's own object; a component reading
+        # them is reading its joint, one indirection out
+        acc = model.accessors_of(vs) if vs is not None else None
+        allowed = {o.name for o in (datum, vs, acc) if o is not None}
         members = model.component_members(comp) + model.mirrorings_of(comp)
         own = {m.name for m in members}
         for obj in members:
@@ -548,7 +605,8 @@ def rule_component_reference_scope(model):
                         continue
                     if target.is_type("App::Origin", "App::Plane", "App::Line"):
                         continue
-                    if vs is None and model.kind.get(target.name) == "joint":
+                    if vs is None and model.kind.get(target.name) in (
+                            "joint", "accessors"):
                         continue        # unpaired template geometry: the joint VarSet is fine
                     what = ("its own timber's Dims"
                             if model.kind.get(target.name) == "dims" else

@@ -11,6 +11,11 @@ Read first:
 - [spike-fine-grained-recompute-results.md](spike-fine-grained-recompute-results.md)
   — everything measured on 26.3, findings 1–3. Finding 3 is why
   workstream B no longer exists.
+- [spike-26-3-gui-results.md](spike-26-3-gui-results.md) — findings 4–8,
+  section 3's GUI and suite bullets. The GUI loads clean, and all 15
+  suite failures are finding 2 and nothing else: 123/123 green on 26.3
+  with `UseLegacyBodyPlacement` forced on 221 Booleans. **The whole 26.3
+  gap is now the section 1 decision.**
 - [rebuild-flat-frame-handoff.md](rebuild-flat-frame-handoff.md) and
   [workstream-a-handoff.md](workstream-a-handoff.md) — the rebuild this
   interrupts, and the conventions it established.
@@ -96,7 +101,34 @@ scope rule), datums never read each other, and the mirror/parity rule.
 Route (a) is also the quickest way to unblock the parked measurements in
 section 4, whichever route is chosen for the long run.
 
-### 2. Move the accessors to their own VarSet (part of this migration, Adam 2026-09-20)
+### 2. Move the accessors to their own VarSet — **DONE 2026-09-21**
+
+Built as specified, with three things worth recording:
+
+- **`ensure_accessors` / `pair` take `separate=`, and everything else
+  resolves rather than assumes.** `datums.accessors_varset(joint_vs)`
+  returns the `Accessors_<joint>` VarSet when a joint has one and the
+  joint VarSet when it does not, so templates (single object),
+  applied joints (split) and documents saved before the split all work
+  through one call. Nothing downstream is configured for a shape.
+- **Apply also drops the inherited accessor properties.** The copied
+  joint VarSet arrived carrying the template's eight accessor
+  properties; clearing their expressions was not enough, so Apply
+  removes them after redirecting the components — before, and the
+  components' own references break.
+- **The filing happens in `joint_handle.ensure_handle`, not at
+  creation**, because pairing runs before the handle exists.
+
+`HostDatum` on the joint VarSet replaced the `HostWidthU` sniff, with
+the sniff kept as a fallback for joints paired before it existed (and
+it now looks on the accessor VarSet, where that expression lives).
+
+Verified: 124/124 on 26.3, GUI probe 47/47 console-silent, both shipped
+templates rebuilt and clean through the template bar, and a real applied
+joint lints clean with the joint VarSet holding only parameters. The
+original brief text follows.
+
+#### Original brief (Adam 2026-09-20)
 
 Today the joint VarSet `J-<Kind>-<serial>` carries both what a framer
 edits (the parameters) and eight tool-written accessors
@@ -132,16 +164,25 @@ dimension drivers (rafter pitch, brace slope) go in beside
 The point of this session is to find the *other* surprises before more
 is built on sand. At minimum:
 
-- **The suite**, triaged failure by failure, cause by cause — not just
-  a count.
-- **The GUI**: does the workbench load at all (`InitGui`, toolbar,
-  commands, the Coin3D markers in `view_joint_handle` and
-  `view_face_marks`)? Qt and Coin versions move between releases. Use
-  the scripted GUI probe pattern in `CLAUDE.md`; the junction for 26.3
-  is a *different* config folder, `%APPDATA%\FreeCAD\v26-3\Mod`, so
-  `scripts\dev-install.ps1 -FreeCadVersion v26-3 main` must be run **by
-  Adam from a shell outside the Claude desktop app** (MSIX redirects
-  `%APPDATA%` writes; an in-app `Test-Path` is not proof).
+- ~~**The suite**, triaged failure by failure, cause by cause — not just
+  a count.~~ **Done 2026-09-20 (findings 7–8):** 12 tests die at Apply
+  on the one-solid assertion, 3 measure short past it, and all 15 clear
+  under the flag. No independent `measure` regression — the section's
+  own suspicion, confirmed rather than assumed. Note the 11 `test_frame`
+  behaviours are *untested* on 26.3, not failing: they die in fixture
+  setup.
+- ~~**The GUI**: does the workbench load at all~~ **Done 2026-09-20
+  (findings 4–6):** yes — 47 checks, 0 failures, console silent. The
+  runtime under it moved a long way (Python 3.11 → **3.14**, PySide6
+  6.8 → **6.11**, pivy relocated to `Mod\pivy`) and none of it bit.
+  Still unproven: **rendering** (visual, needs Adam's GUI round) and
+  **Apply Timber Joint's GUI path**, which the section 1 decision
+  unblocks rather than more probing. The junction for 26.3 is a
+  *different* config folder, `%APPDATA%\FreeCAD\v26-3\Mod` — already in
+  place on the 7010, and `scripts\dev-install.ps1 -FreeCadVersion v26-3
+  main` must be run **by Adam from a shell outside the Claude desktop
+  app** (MSIX redirects `%APPDATA%` writes; an in-app `Test-Path` is
+  not proof).
 - **Expression engine**: `minvert`, placement multiplication and the
   `<<Label>>` forms the seats depend on.
 - **Datums**: `Part::LocalCoordinateSystem` placement and the
@@ -196,9 +237,15 @@ ones that only existed to serve the splits.
 
 ## Decision rules
 
-- **26.3 becomes the minimum FreeCAD** only when the suite is green on
+- ~~**26.3 becomes the minimum FreeCAD** only when the suite is green on
   it *and* the GUI round passes. Until then 1.1.3 remains the target and
-  `main` must keep working there.
+  `main` must keep working there.~~ **Done 2026-09-21: 26.3 IS the
+  minimum.** Both conditions were met — 123/123 on 26.3 (and on 1.1.3)
+  after route (a) landed, and Adam's GUI round passed. `package.xml`
+  declares `<freecadmin>26.3</freecadmin>`; the 1.1.x installs stay on
+  disk as comparison builds for diagnosing weekly regressions, not as a
+  target to keep green. See findings 9–12 in
+  [spike-26-3-gui-results.md](spike-26-3-gui-results.md).
 - **Supporting both** is acceptable only if it costs a binding choice,
   not two mechanisms. If the Boolean contract differs by version, say so
   plainly and pick one — a workbench that builds geometry two ways is

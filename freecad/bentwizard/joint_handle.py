@@ -181,6 +181,13 @@ def ensure_handle(varset, host_datum=None):
     home = varset.getParentGroup()
     if home is not handle and home is not group:
         handle.addObject(varset)
+    # The accessor VarSet is tool-owned and always sits under the handle,
+    # beside the seat — unlike the joint's parameters, there is no reason
+    # for a user to keep it elsewhere. Filed here rather than where it is
+    # created, because pairing runs before the handle exists.
+    accessors = datums.accessors_varset(varset)
+    if accessors is not varset and accessors.getParentGroup() is not handle:
+        handle.addObject(accessors)
     prune_root_group(doc)
     if created and App.GuiUp:
         attach_view(handle)
