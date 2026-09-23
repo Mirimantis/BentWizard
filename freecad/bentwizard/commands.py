@@ -969,6 +969,16 @@ class RemoveJointCommand:
 # Apply Timber Joint
 # --------------------------------------------------------------------------
 
+def _datum_station(datum):
+    """A datum's station as the field would hold it: ('expr', text) when
+    Station is bound — a project variable, or LengthZ at end B — so the
+    framer sees WHY it sits there; else ('literal', mm)."""
+    for path, expr in datum.ExpressionEngine:
+        if path.lstrip(".") == naming.PROP_STATION:
+            return ("expr", expr)
+    return ("literal", float(getattr(datum, naming.PROP_STATION).Value))
+
+
 class _DatumChoice(QtWidgets.QWidget):
     """Where one role lands: an existing unpaired datum on the chosen
     timber, or a new datum on a face at a station."""
@@ -992,6 +1002,12 @@ class _DatumChoice(QtWidgets.QWidget):
         self.station.setToolTip(
             "Where along the timber (from end A) a new face datum sits. "
             "May be an expression on a project variable.")
+        # What the user has entered for a NEW datum, kept aside while the
+        # field shows an existing datum's station instead — so picking a
+        # free datum and then going back to "New datum" gives back their
+        # value, never the datum's. Captured before the first refill.
+        self._own_station = self._capture_station()
+        self._showing_datum = False
         lay.addWidget(self.timber)
         lay.addWidget(self.datum)
         lay.addWidget(self.station)
@@ -1044,8 +1060,47 @@ class _DatumChoice(QtWidgets.QWidget):
         self._user_chose = True
 
     def _toggle_station(self):
+        """Enable the field for a new datum; for an existing one, show
+        THAT datum's station, greyed.
+
+        It used to only grey the field, leaving the dialog's 4' default in
+        it — so a freed datum at 2' 6" sat beside a field reading 4'
+        (Adam's GUI round, 2026-09-22). Display only: `target` never
+        reads the field for an existing datum."""
         data = self.datum.currentData()
-        self.station.setEnabled(bool(data) and data[0] == "face")
+        new = bool(data) and data[0] == "face"
+        if new:
+            if self._showing_datum:
+                self._show_station(self._own_station)
+                self._showing_datum = False
+        elif data:
+            if not self._showing_datum:
+                self._own_station = self._capture_station()
+                self._showing_datum = True
+            self._show_station(_datum_station(data[1]))
+        self.station.setEnabled(new)
+
+    def _capture_station(self):
+        """The field's own content: ('expr', text) or ('literal', mm).
+        An ƒx toggle over an empty expression counts as the literal it
+        falls back to in `_DimField.value` — restoring it as an empty
+        expression would pop the autocomplete list."""
+        f = self.station
+        if f.fx.isChecked() and f.expr.text().strip():
+            return ("expr", f.expr.text())
+        return ("literal", float(f.spin.property("rawValue")))
+
+    def _show_station(self, state):
+        kind, value = state
+        f = self.station
+        if kind == "expr":
+            # text BEFORE the toggle: `_DimField._swap` pops the
+            # completer when ƒx turns on over an empty field
+            f.expr.setText(value.lstrip("=").strip())
+            f.fx.setChecked(True)
+        else:
+            f.fx.setChecked(False)
+            f.spin.setProperty("rawValue", value)
 
     def target(self):
         body = self.timber.currentData()
