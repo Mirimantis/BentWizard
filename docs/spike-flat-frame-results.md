@@ -292,7 +292,10 @@ durable result.
     splits cannot block a cascade that starts upstream of them. So
     per-variable VarSets are load-bearing, and **findability has to be
     solved by the panel, not avoided by keeping one friendly VarSet**.
-16. **A Spreadsheet is not a way out** (Adam asked, 2026-09-20; the
+16. *(Superseded on 26.3 — a sheet is tracked per cell there, and a
+    note in an empty cell costs one object; see finding 16 in
+    `spike-fine-grained-recompute-results.md`. True of 1.1.3's engine.)*
+    **A Spreadsheet is not a way out** (Adam asked, 2026-09-20; the
     documentation does not settle it, so it was measured). A
     `Spreadsheet::Sheet` is one object like a VarSet, with **no per-cell
     dependency tracking**: a probe with two boxes reading two aliased

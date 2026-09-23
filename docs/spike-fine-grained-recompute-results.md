@@ -219,7 +219,7 @@ measurements are findings 13–15 below. Kept as the record of the plan.
    global, and a compatibility flag set on every Boolean is a debt that
    grows with every template and saved document.
 
-## Findings 13–15 — sharing a VarSet is free, and it scales (brief section 4)
+## Findings 13–16 — sharing a VarSet or a Spreadsheet is free, and it scales (brief sections 3–4)
 
 Taken 2026-09-22 on current `main` (`86c1e05`: route (a) in production
 code, accessors on their own VarSet), 26.3.0 weekly `2026.09.16`
@@ -303,3 +303,39 @@ never a mirror object in the model". The same probe on 26.3:
 **Overturned on 26.3.** A central variables object is safe. The panel
 may still be the better place to *find* a variable, but that is now a
 design choice for the front end, not something the engine forces.
+
+### Finding 16 — a Spreadsheet is tracked per cell too (brief section 3)
+
+Flat-frame finding 16 found, on 1.1.3, that a `Spreadsheet::Sheet` had
+**no per-cell dependency tracking**: editing either of two aliased cells
+recomputed the readers of both, the five-bent frame with its variables
+in a sheet recomputed as much as with them in a VarSet, and typing a
+note into an empty cell cost a full frame recompute. It concluded that a
+spreadsheet is "fine as a *reader* … never as the home of variables the
+framer edits". Harness: `tests/spike/spike_spreadsheet.py N`, same build
+and machine as findings 13–15.
+
+| | fine-grained ON | OFF (control) |
+|---|---|---|
+| edit the `Bay` cell (two boxes) | `BoxBay` and the sheet; `BoxSpan` untouched | both boxes |
+| note in an empty cell (two boxes) | **the sheet only** | both boxes |
+| 5-bent `Bay` edit, VarSet → sheet | 145 → 145 objects, 0.89 → 0.91 s | 460 → 460, 4.87 → 4.87 s |
+| … compared by set | **0 extra, 0 missing** | 0 extra, 0 missing |
+| 5-bent note in an empty cell | **1 object, 0.01 s** | 460 objects, 4.89 s |
+
+The frame comparison runs both ways deliberately: *extra* objects would
+be a cost, *missing* ones a correctness problem — something the edit
+needed that the sheet path skipped. Neither occurs, and the geometry
+holds (misfit 4.5e-12 mm, one solid each, nothing Touched).
+
+**So flat-frame finding 16 is overturned on 26.3.** A spreadsheet is as
+good a home for layout variables as a VarSet — same recompute set, per
+cell — and the everyday edit that made it unusable, typing a note,
+costs nothing. That matters for the front end: a sheet is the form most
+framers already keep numbers in.
+
+Scope: this is about where *layout variables* can live. It does not
+change the roadmap's Phase 2 rule that a timber's specification fields
+(species, grade, moisture) are Tier 2 properties on the timber and a
+cut-list sheet is output, never the source of truth — that rule is
+about which object owns the data, not about recompute cost.

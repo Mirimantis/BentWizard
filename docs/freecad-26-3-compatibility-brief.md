@@ -187,9 +187,14 @@ is built on sand. At minimum:
   `<<Label>>` forms the seats depend on.
 - **Datums**: `Part::LocalCoordinateSystem` placement and the
   child-axis scope behaviour recorded in `CLAUDE.md`.
-- **VarSets and the Spreadsheet**: re-run the finding-16 probe — per-cell
+- ~~**VarSets and the Spreadsheet**: re-run the finding-16 probe — per-cell
   tracking may now exist, which would change the "spreadsheets are for
-  reading" guidance.
+  reading" guidance.~~ **Done 2026-09-22 (finding 16):** it does. A
+  `Bay` edit through aliased cells recomputes the identical set as
+  through a VarSet (0 extra, 0 missing), and a note typed into an empty
+  cell recomputes only the sheet — 1 object against 460 with the old
+  engine. The "spreadsheets are for reading" guidance is retired for
+  layout variables.
 - **Assembly**: only needed for the Phase 2 export now, but confirm
   whether the marker bug that started all of this still exists.
 
