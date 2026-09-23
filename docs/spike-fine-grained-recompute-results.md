@@ -199,6 +199,11 @@ build**, so nothing else differs.
 
 ## Suggested next steps
 
+**All four done by 2026-09-22** — the operand contract was decided
+(route (a), finding 12 in [spike-26-3-gui-results.md](spike-26-3-gui-results.md)),
+26.3 is the minimum, and B is retired for good; the last parked
+measurements are findings 13–15 below. Kept as the record of the plan.
+
 1. **Nothing to report upstream.** A draft issue was written here and
    withdrawn: the change is intentional (#30393 → #30575) and already
    carries its compatibility flag. Filing it would have been noise.
@@ -213,3 +218,124 @@ build**, so nothing else differs.
    brief): the flag is an unblock, not an answer. Upstream's default is
    global, and a compatibility flag set on every Boolean is a debt that
    grows with every template and saved document.
+
+## Findings 13–16 — sharing a VarSet or a Spreadsheet is free, and it scales (brief sections 3–4)
+
+Taken 2026-09-22 on current `main` (`86c1e05`: route (a) in production
+code, accessors on their own VarSet), 26.3.0 weekly `2026.09.16`
+(git `a4ce44d33b`; the build itself reports its hash as `Unknown`),
+the 7010. Harness: `tests/spike/spike_overlap_scale.py N`. Each
+fine-grained setting gets a freshly built document, and the harness
+restores the user's preference afterwards.
+
+The numbering continues from findings 4–12 in
+[spike-26-3-gui-results.md](spike-26-3-gui-results.md). The flat-frame
+record has findings 13 and 15 of its own, from its round 4; those are
+cited below as **flat-frame finding 13** and **flat-frame finding 15**.
+
+### Finding 13 — the overlap penalty is zero, at every size
+
+A `Bay` edit with `Bay` sharing `ProjectVars` with `GirtLine`,
+`PlateLine` and `Span` (L1), against `Bay` alone on a VarSet of its own
+(L2). Compared **by set** as well as by count — equal counts could hide
+objects trading places, equal sets cannot.
+
+| bents | ON: L1 / L2 objects | ON penalty | OFF: L1 / L2 objects | OFF penalty |
+|---|---|---|---|---|
+| 2 | 37 / 37 | **0** | 145 / 84 | 61 |
+| 5 | 145 / 145 | **0** | 460 / 303 | 157 |
+| 10 | 325 / 325 | **0** | 985 / 668 | 317 |
+
+With fine-grained ON the recomputed sets are **identical** shared and
+isolated, and none of the objects that read only `GirtLine` / `PlateLine`
+/ `Span` recompute on a `Bay` edit — 0 of 10, 0 of 31, 0 of 66. With it
+OFF, on the same build, every one of them does, and the penalty grows
+with the frame: the control reproduces flat-frame finding 15.
+
+**So flat-frame finding 15 is overturned on 26.3.** Per-variable VarSets
+are no longer load-bearing; layout variables can be grouped however a
+framer finds natural — thematically, by level, in one place — at no
+recompute cost. This is what the layout-variable design rests on, and it
+is now measured rather than inferred from finding 1's two boxes.
+
+### Finding 14 — the cost is linear in bays, and the accessor split cost nothing
+
+| bents | bays | ON: objects | per bay | seconds (7010) |
+|---|---|---|---|---|
+| 2 | 1 | 37 | 37 | 0.22 |
+| 5 | 4 | 145 | 36.3 | 0.90 |
+| 10 | 9 | 325 | 36.1 | 2.15 |
+
+About **36 objects and 0.23 s per bay**, flat from 2 to 10 bents — which
+is exactly the necessary work: every tie that changes length and every
+bent that moves past it. At the roadmap's ~12-bent target that projects
+to ~400 objects and ~2.5 s on the 7010 (about half that on the i9, by
+the flat 1.9x ratio in the flat-frame record). Geometry held throughout:
+worst misfit 7.3e-12 mm at ten bents, one solid each, nothing left
+Touched or Invalid.
+
+Against the old engine on the same build (the OFF column), ten bents is
+**985 → 325 objects and 11.5 → 2.15 s, 5.3x**. For context only — a
+different build and older code — 1.1.3's fully hand-split ten-bent frame
+took 3.22 s (flat-frame round 4, L5); the unsplit document on 26.3 beats
+it, as finding 3 found at five bents.
+
+**The accessor split cost nothing.** Five bents recompute 145 objects on
+a `Bay` edit, exactly finding 3's L1, which was measured before the
+split. The document grew by 26 objects (1666 → 1692) — one accessor
+VarSet per joint, and there are 26 — and a `Bay` edit touches none of
+them.
+
+### Finding 15 — a central "master variables" VarSet no longer cascades
+
+Flat-frame finding 13 measured, on 1.1.3, that a central VarSet read by
+per-variable mirror VarSets re-created the cascade — editing
+`Central.Bay` recomputed a box bound to `Central.Span` through its own
+mirror — and concluded that the object a user edits must be the
+isolated one, so "the single place to edit everything is the panel,
+never a mirror object in the model". The same probe on 26.3:
+
+| fine-grained | editing `Central.Bay` recomputes |
+|---|---|
+| ON | `Central`, `MirrorBay`, `BoxBay` — `MirrorSpan` and `BoxSpan` untouched |
+| OFF | adds `MirrorSpan` and `BoxSpan`: the 1.1.3 cascade, reproduced |
+
+**Overturned on 26.3.** A central variables object is safe. The panel
+may still be the better place to *find* a variable, but that is now a
+design choice for the front end, not something the engine forces.
+
+### Finding 16 — a Spreadsheet is tracked per cell too (brief section 3)
+
+Flat-frame finding 16 found, on 1.1.3, that a `Spreadsheet::Sheet` had
+**no per-cell dependency tracking**: editing either of two aliased cells
+recomputed the readers of both, the five-bent frame with its variables
+in a sheet recomputed as much as with them in a VarSet, and typing a
+note into an empty cell cost a full frame recompute. It concluded that a
+spreadsheet is "fine as a *reader* … never as the home of variables the
+framer edits". Harness: `tests/spike/spike_spreadsheet.py N`, same build
+and machine as findings 13–15.
+
+| | fine-grained ON | OFF (control) |
+|---|---|---|
+| edit the `Bay` cell (two boxes) | `BoxBay` and the sheet; `BoxSpan` untouched | both boxes |
+| note in an empty cell (two boxes) | **the sheet only** | both boxes |
+| 5-bent `Bay` edit, VarSet → sheet | 145 → 145 objects, 0.89 → 0.91 s | 460 → 460, 4.87 → 4.87 s |
+| … compared by set | **0 extra, 0 missing** | 0 extra, 0 missing |
+| 5-bent note in an empty cell | **1 object, 0.01 s** | 460 objects, 4.89 s |
+
+The frame comparison runs both ways deliberately: *extra* objects would
+be a cost, *missing* ones a correctness problem — something the edit
+needed that the sheet path skipped. Neither occurs, and the geometry
+holds (misfit 4.5e-12 mm, one solid each, nothing Touched).
+
+**So flat-frame finding 16 is overturned on 26.3.** A spreadsheet is as
+good a home for layout variables as a VarSet — same recompute set, per
+cell — and the everyday edit that made it unusable, typing a note,
+costs nothing. That matters for the front end: a sheet is the form most
+framers already keep numbers in.
+
+Scope: this is about where *layout variables* can live. It does not
+change the roadmap's Phase 2 rule that a timber's specification fields
+(species, grade, moisture) are Tier 2 properties on the timber and a
+cut-list sheet is output, never the source of truth — that rule is
+about which object owns the data, not about recompute cost.

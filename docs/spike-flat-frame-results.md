@@ -257,7 +257,10 @@ durable result.
     means a length change touches that object, and every reader of the
     *section* recomputes — the same per-object leak one level down.
     L2–L4 without it only shaved 30%.
-13. **A central "master variables" VarSet that others read re-creates
+13. *(Superseded on 26.3 — the same probe no longer cascades; see
+    finding 15 in `spike-fine-grained-recompute-results.md`. True of
+    1.1.3's engine.)*
+    **A central "master variables" VarSet that others read re-creates
     the cascade.** Probed directly: editing `Central.Bay` recomputed a
     box bound to `Central.Span` through its own mirror VarSet, because
     every mirror reads the same central object. **The object the user
@@ -273,7 +276,10 @@ durable result.
     L4 to keep verifying). Anything else resolving through the
     accessors — the linter's `component-reference-scope`, the template
     bar, `TemplateSpec` — has to move with it.
-15. **Both halves are needed; neither carries the win alone.** Adam
+15. *(Superseded on 26.3 — sharing a VarSet costs nothing there; see
+    finding 13 in `spike-fine-grained-recompute-results.md`. True of
+    1.1.3's engine.)*
+    **Both halves are needed; neither carries the win alone.** Adam
     asked whether the plumbing splits could spare the project variables
     their fragmentation (`spike_recompute_isolation.py skip-l2 5`,
     7010, 2026-09-20): L3–L5 with `Bay` left on the shared `ProjectVars`
@@ -286,7 +292,10 @@ durable result.
     splits cannot block a cascade that starts upstream of them. So
     per-variable VarSets are load-bearing, and **findability has to be
     solved by the panel, not avoided by keeping one friendly VarSet**.
-16. **A Spreadsheet is not a way out** (Adam asked, 2026-09-20; the
+16. *(Superseded on 26.3 — a sheet is tracked per cell there, and a
+    note in an empty cell costs one object; see finding 16 in
+    `spike-fine-grained-recompute-results.md`. True of 1.1.3's engine.)*
+    **A Spreadsheet is not a way out** (Adam asked, 2026-09-20; the
     documentation does not settle it, so it was measured). A
     `Spreadsheet::Sheet` is one object like a VarSet, with **no per-cell
     dependency tracking**: a probe with two boxes reading two aliased

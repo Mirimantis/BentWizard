@@ -187,9 +187,14 @@ is built on sand. At minimum:
   `<<Label>>` forms the seats depend on.
 - **Datums**: `Part::LocalCoordinateSystem` placement and the
   child-axis scope behaviour recorded in `CLAUDE.md`.
-- **VarSets and the Spreadsheet**: re-run the finding-16 probe — per-cell
+- ~~**VarSets and the Spreadsheet**: re-run the finding-16 probe — per-cell
   tracking may now exist, which would change the "spreadsheets are for
-  reading" guidance.
+  reading" guidance.~~ **Done 2026-09-22 (finding 16):** it does. A
+  `Bay` edit through aliased cells recomputes the identical set as
+  through a VarSet (0 extra, 0 missing), and a note typed into an empty
+  cell recomputes only the sheet — 1 object against 460 with the old
+  engine. The "spreadsheets are for reading" guidance is retired for
+  layout variables.
 - **Assembly**: only needed for the Phase 2 export now, but confirm
   whether the marker bug that started all of this still exists.
 
@@ -200,13 +205,22 @@ on 26.3 with the flag forced on, the *unsplit* document recomputes 145
 objects in 0.88 s against 215 / 1.51 s fully split, and the ladder
 between is flat. The engine beats every level B would have built.
 
-Still worth taking in this session:
+~~Still worth taking in this session~~ **Done 2026-09-22 (findings
+13–15, `spike-fine-grained-recompute-results.md`):**
 
-- **The overlap probe on 26.3** (`BayWidth` + `GirtHeight` sharing one
-  VarSet cost 75% on 1.1.3). Expected to go to zero, which is what makes
-  thematic grouping free — confirm rather than assume, because the whole
-  layout-variable design now rests on it.
-- **Ten bents**, to check the flat ladder holds with scale.
+- ~~**The overlap probe on 26.3**~~ — **zero, confirmed.** Shared or
+  isolated, a `Bay` edit recomputes the identical set of objects at 2, 5
+  and 10 bents, and none of the readers of its neighbours on the shared
+  VarSet; the OFF control on the same build reproduces the old penalty
+  (61 / 157 / 317 objects). Thematic grouping is free. A central
+  "master variables" VarSet no longer cascades either (flat-frame
+  finding 13, overturned).
+- ~~**Ten bents**~~ — **linear**: ~36 objects and ~0.23 s per bay
+  (7010), 325 objects / 2.15 s at ten bents against 985 / 11.5 s with
+  the old engine on the same build. B's ladder itself is moot — B is
+  retired and the accessors are already split — so the harness measures
+  the shipped configuration instead; the split added one object per
+  joint and a `Bay` edit touches none of them.
 ### What survives of workstream B (Adam, 2026-09-20)
 
 The splits are gone; the readability decisions carry forward, minus the
@@ -233,7 +247,8 @@ ones that only existed to serve the splits.
   (`<<SecondFloorBeam>>.Height`), spelled-out accessor names, and
   single-letter abbreviations only for the two central objects, T and J.
 - **Layout variables may be grouped thematically** — the reason the
-  splits were resisted, now free (confirm with the overlap probe).
+  splits were resisted, now free. **Confirmed 2026-09-22** by the overlap
+  probe (finding 13): zero penalty at every size measured.
 
 ## Decision rules
 
