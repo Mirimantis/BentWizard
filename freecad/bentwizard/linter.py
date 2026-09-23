@@ -106,12 +106,18 @@ class Model:
                        for d in self.datums
                        if d.prop(naming.PROP_JOINT) is not None
                        and d.prop(naming.PROP_JOINT).value}
+        # accessor VarSets, by the internal Name their joint records — a
+        # label test alone misses one whose joint (or itself) was renamed
+        accessor_names = {v.prop(naming.PROP_ACCESSORS).value
+                          for v in self.varsets
+                          if v.prop(naming.PROP_ACCESSORS) is not None
+                          and v.prop(naming.PROP_ACCESSORS).value}
         for vs in self.varsets:
             if vs.name in self.kind:
                 continue
             # an accessor VarSet carries the same Host*/Mate* properties as
-            # a template's joint VarSet, so its label is tested first
-            if naming.is_accessors_label(vs.label):
+            # a template's joint VarSet, so it is tested first
+            if vs.name in accessor_names or naming.is_accessors_label(vs.label):
                 self.kind[vs.name] = "accessors"
             elif (naming.is_joint_varset_label(vs.label)
                     or vs.name in joint_names
@@ -158,9 +164,15 @@ class Model:
         return [d for d in self.datums if self.datum_joint(d) is vs]
 
     def accessors_of(self, vs):
-        """Where a joint's accessors live: its `Accessors_<joint>` VarSet
-        when it has one, else the joint VarSet itself (a template, or a
-        document from before the split)."""
+        """Where a joint's accessors live: its accessor VarSet when it has
+        one, else the joint VarSet itself (a template, or a document from
+        before the split). By the recorded internal Name first, as
+        `datums.accessors_varset` does; the label is only a fallback."""
+        p = vs.prop(naming.PROP_ACCESSORS)
+        if p is not None and p.value:
+            obj = self.doc.objects.get(p.value)
+            if obj is not None and self.kind.get(obj.name) == "accessors":
+                return obj
         want = naming.accessors_label(vs.label)
         for obj in self.varsets:
             if obj.label == want and self.kind.get(obj.name) == "accessors":
@@ -168,13 +180,20 @@ class Model:
         return vs
 
     def joint_of_accessors(self, obj):
-        """The joint VarSet an accessor VarSet belongs to, or None."""
+        """The joint VarSet an accessor VarSet belongs to, or None — the
+        joint that records its Name, else the one its label names."""
         if self.kind.get(obj.name) != "accessors":
             return None
-        stem = obj.label[len(naming.ACCESSORS_PREFIX):]
         for vs in self.varsets:
-            if vs.label == stem and self.kind.get(vs.name) == "joint":
+            p = vs.prop(naming.PROP_ACCESSORS)
+            if p is not None and p.value == obj.name \
+                    and self.kind.get(vs.name) == "joint":
                 return vs
+        if naming.is_accessors_label(obj.label):
+            stem = obj.label[len(naming.ACCESSORS_PREFIX):]
+            for vs in self.varsets:
+                if vs.label == stem and self.kind.get(vs.name) == "joint":
+                    return vs
         return None
 
     def accessor_datum(self, vs, side):

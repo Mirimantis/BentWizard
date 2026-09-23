@@ -104,6 +104,14 @@ class ApplyTest(unittest.TestCase):
             self.doc.saveAs(path)
             return [str(f) for f in lint(path)]
 
+    def strict_findings(self):
+        from freecad.bentwizard.linter import STRICT, lint
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "a.FCStd")
+            self.doc.saveAs(path)
+            return [str(f) for f in lint(path) if f.severity == STRICT]
+
     # --- the basic application ------------------------------------------
 
     def test_datum_children_stay_with_their_timber(self):
@@ -398,6 +406,44 @@ class ApplyTest(unittest.TestCase):
             exprs = dict((p.lstrip("."), e) for p, e in comp.ExpressionEngine)
             self.assertIn(acc.Label, exprs.get("Placement", ""), comp.Label)
         self.assertEqual(self.lint(), [])
+
+    def test_renaming_the_joint_keeps_its_accessors(self):
+        """A framer may rename a joint VarSet in the tree. The accessor
+        VarSet is found by the internal Name the joint records, so the
+        link survives: no false lint findings, and Remove still takes the
+        accessors with it. Finding it by `Accessors_<label>` alone broke
+        on exactly this (2026-09-22)."""
+        from freecad.bentwizard import datums, naming
+        from freecad.bentwizard.apply import remove_joint
+        applied = self.apply()
+        vs = applied.varset
+        acc = datums.accessors_varset(vs)
+        self.assertEqual(vs.Accessors, acc.Name)
+
+        vs.Label = "J-HousedMT-NorthPost"
+        self.doc.recompute()
+        self.assertIs(datums.accessors_varset(vs), acc)
+        # No STRICT findings. Two ADVISORY naming-convention findings are
+        # expected and correct: the components are still labelled
+        # '…HousedMT.001' under a joint no longer called that. Before the
+        # Name-keyed link this rename gave eight strict findings instead
+        # (datum-pairing, component-declaration, component-reference-scope)
+        # and no naming finding at all — the linter could not trace the
+        # components back to their joint through the broken lookup.
+        self.assertEqual(self.strict_findings(), [])
+        # renaming the accessor VarSet itself is survived too
+        acc.Label = "Whatever"
+        self.doc.recompute()
+        self.assertIs(datums.accessors_varset(vs), acc)
+        self.assertEqual(self.strict_findings(), [])
+
+        acc_name = acc.Name
+        remove_joint(vs)
+        self.assertIsNone(self.doc.getObject(acc_name),
+                          "Remove left the accessor VarSet behind")
+        self.assertEqual([o.Label for o in self.doc.Objects
+                          if naming.is_accessors_label(o.Label)
+                          or o.Label == "Whatever"], [])
 
     def test_two_joints_on_one_post(self):
         from freecad.bentwizard.timber import new_timber

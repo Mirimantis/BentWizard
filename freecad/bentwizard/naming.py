@@ -112,6 +112,12 @@ SIDES = ("Host", "Mate")
 # inference read it back out of the HostWidthU expression, which stops
 # working the moment that expression lives on another object.
 PROP_HOST_DATUM = "HostDatum"    # internal Name of the host datum
+# The accessor VarSet, by internal Name — the same reason datums carry
+# `Joint` and `MateDatum` as Names: a label is the framer's to change,
+# a Name never changes. Finding it by `Accessors_<joint label>` alone
+# broke the moment a joint VarSet was renamed in the tree: false strict
+# lint findings on a sound joint, and Remove left the accessors behind.
+PROP_ACCESSORS = "Accessors"     # internal Name of the accessor VarSet
 
 
 def accessors_label(joint_label):
@@ -284,7 +290,7 @@ def is_accessor_property(name):
     """True for a cross-timber accessor (HostWidthU ...) or the pairing
     record beside it — tool-written, never user-edited, and never a
     joint parameter."""
-    return (name == PROP_HOST_DATUM
+    return (name in (PROP_HOST_DATUM, PROP_ACCESSORS)
             or any(name == side + acc
                    for side in SIDES for acc in ALL_ACCESSORS))
 

@@ -297,28 +297,50 @@ HOST_DATUM_TOOLTIP = (
     "put while the other timber is seated onto it. Written by Apply; "
     "changing it by hand does not re-point anything.")
 
+ACCESSORS_TOOLTIP = (
+    "The VarSet holding this joint's accessors — the values it reads "
+    "from its two datums, which the joinery is built from. Recorded by "
+    "internal name so renaming either VarSet keeps them linked. Written "
+    "by Apply; do not edit.")
 
-def is_accessors_varset(obj):
-    """An accessor VarSet: structural, on HostPlacement — the label is a
-    convenience, the property is the definition."""
-    return (obj.TypeId == "App::VarSet"
-            and hasattr(obj, naming.placement_accessor("Host"))
-            and naming.is_accessors_label(obj.Label))
+
+def _carries_accessors(obj):
+    return (obj is not None and obj.TypeId == "App::VarSet"
+            and hasattr(obj, naming.placement_accessor("Host")))
 
 
 def accessors_varset(varset):
-    """Where joint `varset`'s accessors live: its own `Accessors_…`
-    VarSet when it has one, otherwise the joint VarSet itself.
+    """Where joint `varset`'s accessors live: its own accessor VarSet
+    when it has one, otherwise the joint VarSet itself.
 
     Both shapes are live — a template holds its accessors directly, an
     applied joint holds them on a VarSet of its own, and a document from
     before the split holds them directly too. Resolving it here is what
-    lets every caller stay ignorant of which (see `naming`)."""
-    for obj in varset.Document.getObjectsByLabel(
-            naming.accessors_label(varset.Label)):
-        if is_accessors_varset(obj):
+    lets every caller stay ignorant of which (see `naming`).
+
+    Found by the internal Name the joint records in `Accessors`, which
+    survives the framer renaming either VarSet. The `Accessors_<label>`
+    lookup is only a fallback, for a joint split before that record
+    existed — and it records the Name once found, so it heals."""
+    doc = varset.Document
+    name = getattr(varset, naming.PROP_ACCESSORS, "")
+    if name:
+        obj = doc.getObject(name)
+        if obj is not varset and _carries_accessors(obj):
+            return obj
+    for obj in doc.getObjectsByLabel(naming.accessors_label(varset.Label)):
+        if obj is not varset and _carries_accessors(obj):
+            _record_accessors(varset, obj)
             return obj
     return varset
+
+
+def _record_accessors(varset, target):
+    if not hasattr(varset, naming.PROP_ACCESSORS):
+        varset.addProperty("App::PropertyString", naming.PROP_ACCESSORS,
+                           naming.ACCESSOR_GROUP, ACCESSORS_TOOLTIP)
+    if getattr(varset, naming.PROP_ACCESSORS) != target.Name:
+        setattr(varset, naming.PROP_ACCESSORS, target.Name)
 
 
 def _add_accessor_props(target):
@@ -359,6 +381,7 @@ def ensure_accessors(varset, separate=True):
     target = doc.addObject("App::VarSet", "Accessors")
     target.Label = naming.accessors_label(varset.Label)
     _add_accessor_props(target)
+    _record_accessors(varset, target)
     _file_accessors(varset, target)
     return target
 
