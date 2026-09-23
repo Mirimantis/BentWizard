@@ -265,6 +265,32 @@ def add_datum(body, face, station=None, label=None):
     return d
 
 
+def set_station(datum, station):
+    """Move a side-face datum along its timber. `station` is a Quantity or
+    quantity string, or '=<expression>' — the same forms `add_datum`
+    takes. Switching an expression-bound station to a plain value clears
+    the binding first; a literal written under an expression would be
+    overwritten on the next recompute. An end datum's station is its
+    end's (0, or the timber's LengthZ) and cannot be moved."""
+    if facetable.is_end(face_of(datum)):
+        raise DatumError(f"{datum.Label}: an end datum's station is fixed "
+                         f"at its end")
+    try:
+        q, expr = dim_input(station)
+    except TimberError as err:
+        raise DatumError(f"{datum.Label} station: {err}")
+    if expr is None:
+        datum.setExpression(naming.PROP_STATION, None)
+        setattr(datum, naming.PROP_STATION, q)
+        return
+    try:
+        datum.evalExpression(expr)
+    except Exception as err:
+        raise DatumError(f"{datum.Label} station: bad expression "
+                         f"{expr!r} ({err})")
+    datum.setExpression(naming.PROP_STATION, expr)
+
+
 def add_end_datums(body):
     """Both end datums, created with the timber. Returns (A, B)."""
     return (add_datum(body, "EndA"), add_datum(body, "EndB"))

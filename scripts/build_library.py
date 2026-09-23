@@ -63,16 +63,21 @@ def skeleton(doc, kind, handed=None):
     return post, girt, host, mate, vs
 
 
-def add_param(vs, name, type_id, value, tooltip, group="Joint"):
+def add_param(vs, name, type_id, value, tooltip, group="Joint", fixed=False):
+    """`fixed`: the template sets this value and a framer may not — marked
+    ReadOnly, which survives save and copyObject, greys the property
+    editor, and makes Apply show it greyed and refuse to set it."""
     vs.addProperty(type_id, name, group, tooltip)
     setattr(vs, name, value)
+    if fixed:
+        vs.setPropertyStatus(name, "ReadOnly")
 
 
 def build_butt(doc):
     _post, _girt, _host, _mate, vs = skeleton(doc, "Butt", handed=False)
     add_param(vs, "PegCount", "App::PropertyInteger", 0,
               "Number of pegs (or bolts) at this connection — schedule "
-              "data only, no geometry.")
+              "data only, no geometry.", fixed=True)
     return vs
 
 
@@ -99,7 +104,7 @@ def build_housed_mt(doc):
               "allowance: cheeks are tight.")
     add_param(vs, "PegCount", "App::PropertyInteger", 1,
               "Number of pegs through the tenon — schedule data only, "
-              "no geometry yet.")
+              "no geometry yet.", fixed=True)
     add_param(vs, "TenonLengthMin", "App::PropertyLength", 2 * IN,
               "Lower bound of the valid range for TenonLength (the "
               "registration sweep and the apply dialog use it).", "Ranges")

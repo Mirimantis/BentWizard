@@ -90,7 +90,19 @@ class Property:
     constraints: list = field(default_factory=list)  # ConstraintList only
     cells: dict = field(default_factory=dict)        # Spreadsheet cells only
     enum: list = field(default_factory=list)         # custom enumeration values
+    status: int = 0                # App::Property status bits, as saved
     element: object = None         # raw xml.etree Element
+
+    # App::Property::Status — ReadOnly is bit 2. Measured on 26.3: the
+    # same dynamic property saves status="2097153" plain and "2097157"
+    # read-only. It survives save, reload and copyObject.
+    READ_ONLY_BIT = 1 << 2
+
+    @property
+    def read_only(self):
+        """Marked read-only — greyed in FreeCAD's property editor. It does
+        NOT stop a Python write, so a tool must honour it deliberately."""
+        return bool(self.status & self.READ_ONLY_BIT)
 
 
 @dataclass
@@ -167,12 +179,20 @@ def _parse_constraint_list(el):
     return out
 
 
+def _int_or_zero(text):
+    try:
+        return int(text)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _parse_property(el):
     prop = Property(
         name=el.get("name"),
         type_id=el.get("type", ""),
         group=el.get("group"),
         doc=el.get("doc"),
+        status=_int_or_zero(el.get("status")),
         element=el,
     )
     for child in el:

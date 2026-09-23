@@ -277,9 +277,32 @@ class _MarkerObserver:
     def slotRecomputedDocument(self, _doc):
         self.refresh_all()
 
-    def slotFinishRestoreDocument(self, doc):
-        attach_missing(doc)
-        self.refresh_all()
+    def slotActivateDocument(self, doc):
+        """Re-attach markers to a document as it becomes active — which
+        is how a reopened file gets them back.
+
+        This used to be `slotFinishRestoreDocument`, which the App
+        document observer never calls (the name exists only in
+        FreeCADGui, and not even the Gui observer fires it on an open),
+        so a file opened with the workbench already active — as at
+        startup — never got its markers back; only activating the
+        workbench afterwards did. Measured on 26.3 and 1.1.3: an open
+        fires `slotActivateDocument` twice, the second time AFTER the
+        view providers are restored (Proxy already the restored 1).
+        FreeCAD's own BIM module hooks the same slot.
+
+        Also fires on every switch between documents; `attach_missing`
+        skips handles that already have their marker, so that is cheap.
+        The attach waits one event-loop tick, so the open has finished."""
+        from PySide import QtCore
+
+        def later():
+            try:
+                attach_missing(doc)
+                self.refresh_all()
+            except ReferenceError:
+                pass            # closed before the tick
+        QtCore.QTimer.singleShot(0, later)
 
 
 _OBSERVER = None
@@ -307,8 +330,30 @@ def attach_missing(doc):
         if not joint_handle.is_handle(obj):
             continue
         vobj = obj.ViewObject
-        if vobj is not None and getattr(vobj, "Proxy", None) is None:
+        if vobj is None:
+            continue
+        # Test for OUR view provider, never for an empty slot: a reopened
+        # file restores the (deliberately unsaved) Proxy as the int 1, on
+        # 26.3 and 1.1.3 alike — so an `is None` test skipped every handle
+        # and no marker ever came back after a reopen (Adam, 2026-09-22:
+        # "the handles' visibility is turned off and I can't get them to
+        # display again" — there was nothing to display).
+        if isinstance(getattr(vobj, "Proxy", None), ViewProviderTimberJointHandle):
+            continue
+        # each handle on its own: one that fails must not strand the rest
+        try:
             ViewProviderTimberJointHandle(vobj)
+            # The restored DisplayMode is '' with an enumeration built
+            # before this view provider existed, so it lacks 'Marker' and
+            # assigning it outright raises. Give it its options, then the
+            # value — without a display mode the marker draws nothing.
+            if vobj.DisplayMode != "Marker":
+                vobj.DisplayMode = vobj.listDisplayModes() or ["Marker"]
+                vobj.DisplayMode = "Marker"
+        except Exception as exc:
+            App.Console.PrintWarning(
+                f"BentWizard: could not restore the marker for "
+                f"{obj.Label}: {exc}\n")
 
 
 def install():

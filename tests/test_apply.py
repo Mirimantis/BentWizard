@@ -407,6 +407,54 @@ class ApplyTest(unittest.TestCase):
             self.assertIn(acc.Label, exprs.get("Placement", ""), comp.Label)
         self.assertEqual(self.lint(), [])
 
+    def test_a_fixed_parameter_is_fixed(self):
+        """A template parameter marked ReadOnly (PegCount, in both shipped
+        templates) arrives with the template's value, stays marked on the
+        applied joint, and Apply refuses to set it — ReadOnly greys the
+        property editor but does NOT stop a Python write, so Apply must."""
+        from freecad.bentwizard.apply import JointError
+        self.assertTrue(self.spec.parameter("PegCount")["read_only"])
+        self.assertFalse(self.spec.parameter("TenonLength")["read_only"])
+        with self.assertRaises(JointError) as ctx:
+            self.apply(values={"PegCount": 3})
+        self.assertIn("fixed by the template", str(ctx.exception))
+
+        vs = self.apply(serial="002").varset
+        self.assertEqual(vs.PegCount, 1)
+        self.assertIn("ReadOnly", vs.getPropertyStatus("PegCount"))
+        self.assertNotIn("ReadOnly", vs.getPropertyStatus("TenonLength"))
+
+    def test_reusing_a_free_datum_can_move_it(self):
+        """Apply can reuse a free datum left by a removed joint AND move
+        it: the dialog passes a station only when the framer changed it.
+        Without one, the datum stays exactly where it was."""
+        from freecad.bentwizard import datums
+        from freecad.bentwizard.apply import apply_joint, joint_datums, remove_joint
+        applied = self.apply(station="48 in")
+        freed, _mate = joint_datums(applied.varset)
+        remove_joint(applied.varset)
+        self.assertFalse(datums.is_paired(freed))
+        H, M = self.spec.host_role, self.spec.mate_role
+
+        # reuse with a new station: the same datum, moved
+        applied = apply_joint(self.doc, self.spec, "002", {
+            H: {"body": self.post, "datum": freed, "station": "30 in"},
+            M: {"body": self.girt, "face": "EndB"}})
+        self.doc.recompute()
+        self.assertIs(joint_datums(applied.varset)[0], freed)
+        self.assertAlmostEqual(freed.Station.Value / IN, 30)
+        self.assertEqual(datums.verify_datum(freed), [])
+        self.assertEqual(len(self.post.Shape.Solids), 1)
+        self.assertEqual(self.strict_findings(), [])
+
+        # reuse without one: it stays put
+        remove_joint(applied.varset)
+        applied = apply_joint(self.doc, self.spec, "003", {
+            H: {"body": self.post, "datum": freed},
+            M: {"body": self.girt, "face": "EndB"}})
+        self.doc.recompute()
+        self.assertAlmostEqual(freed.Station.Value / IN, 30)
+
     def test_renaming_the_joint_keeps_its_accessors(self):
         """A framer may rename a joint VarSet in the tree. The accessor
         VarSet is found by the internal Name the joint records, so the

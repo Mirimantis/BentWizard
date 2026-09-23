@@ -163,6 +163,8 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
             name = p["name"]
             if not hasattr(varset, name):
                 continue            # the template gained a parameter this joint predates
+            if p.get("read_only"):
+                continue            # fixed by the template: the copy carries it
             if name in exprs:
                 values[name] = "=" + _rewrite(exprs[name], renames)
             else:
