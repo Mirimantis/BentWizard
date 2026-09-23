@@ -175,6 +175,14 @@ def _resolve_target(doc, role, target):
                              f"paired under "
                              f"{getattr(datum, naming.PROP_JOINT, '')!r}; remove "
                              f"that timber joint first")
+        # A free datum can be moved as it is reused: the dialog passes a
+        # station only when the framer changed it. Safe because it is
+        # free — nothing else reads an unpaired datum.
+        if target.get("station") is not None:
+            try:
+                datums.set_station(datum, target["station"])
+            except DatumError as err:
+                raise JointError(f"role {role!r}: {err}")
         return body, datum, False
     face = target.get("face")
     if face is None:
@@ -338,6 +346,12 @@ def apply_joint(doc, spec, serial, targets, values=None, position_tag=""):
     for name, value in (values or {}).items():
         if not hasattr(varset, name):
             raise JointError(f"{label} has no parameter {name!r}")
+        param = spec.parameter(name)
+        if param is not None and param.get("read_only"):
+            # ReadOnly greys the property editor but does not stop a
+            # Python write, so it is honoured here or nowhere
+            raise JointError(f"{label}: {name} is fixed by the template "
+                             f"{spec.stem} and cannot be set")
         _set_value(varset, name, value)
     if not hasattr(varset, naming.PROP_TEMPLATE_SOURCE):
         varset.addProperty("App::PropertyString", naming.PROP_TEMPLATE_SOURCE,

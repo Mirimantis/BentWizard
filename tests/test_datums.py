@@ -265,6 +265,41 @@ class DatumTest(unittest.TestCase):
 
     # --- persistence --------------------------------------------------------
 
+    def test_set_station_moves_a_side_datum(self):
+        """What Apply uses to move a reused free datum: a plain value, a
+        binding, and back to a plain value — which must CLEAR the
+        binding, or the next recompute would put the old station back."""
+        from freecad.bentwizard import datums
+        d = datums.add_datum(self.post, "YPos", "48 in")
+        pv = self.doc.addObject("App::VarSet", "ProjectVars")
+        pv.Label = "ProjectVars"
+        pv.addProperty("App::PropertyLength", "GirtLine", "Layout", "tie station")
+        pv.GirtLine = "40 in"
+        self.doc.recompute()
+
+        datums.set_station(d, "30 in")
+        self.doc.recompute()
+        self.assertAlmostEqual(inches(d.Station), 30)
+        self.assertAlmostEqual(d.Placement.Base.z / 25.4, 30)
+        self.assertEqual(datums.verify_datum(d), [])
+
+        datums.set_station(d, "=<<ProjectVars>>.GirtLine")
+        self.doc.recompute()
+        self.assertAlmostEqual(inches(d.Station), 40)
+
+        datums.set_station(d, "20 in")          # back to a plain value
+        pv.GirtLine = "50 in"                   # ...so this must not move it
+        self.doc.recompute()
+        self.assertAlmostEqual(inches(d.Station), 20)
+        self.assertNotIn("Station", [p.lstrip(".") for p, _e in d.ExpressionEngine])
+        self.assertEqual(datums.verify_datum(d), [])
+
+        with self.assertRaises(datums.DatumError):     # an end is fixed
+            datums.set_station(datums.end_datum(self.post, "EndB"), "30 in")
+        with self.assertRaises(datums.DatumError):     # a bad binding
+            datums.set_station(d, "=<<NoSuchThing>>.Nope")
+        self.assertAlmostEqual(inches(d.Station), 20)  # and nothing changed
+
     def test_survives_reload(self):
         from freecad.bentwizard import datums
         host = datums.add_datum(self.post, "XNeg", "48 in")

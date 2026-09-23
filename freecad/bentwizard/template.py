@@ -113,7 +113,10 @@ class TemplateSpec:
                      "expression": next((e.expression for e in self.varset.expressions
                                          if e.path.lstrip(".") == name), None),
                      "min": None, "max": None,
-                     "numeric": p.type_id in _NUMERIC}
+                     "numeric": p.type_id in _NUMERIC,
+                     # fixed by the template's author: shown, never set
+                     # by Apply (a Python write goes through ReadOnly)
+                     "read_only": p.read_only}
             for suffix, key in ((naming.RANGE_MIN_SUFFIX, "min"),
                                 (naming.RANGE_MAX_SUFFIX, "max")):
                 bound = props.get(name + suffix)

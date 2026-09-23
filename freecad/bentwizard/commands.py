@@ -81,8 +81,15 @@ class _StepCommit(QtCore.QObject):
                        and event.key() in (QtCore.Qt.Key_Up,
                                            QtCore.Qt.Key_Down)))
         if stepped:
-            # after Qt has handled the step, not during
-            QtCore.QTimer.singleShot(0, lambda: _commit_shown(field))
+            # After Qt has handled the event, and only if it changed the
+            # text. A plain click in the field changes nothing, and
+            # committing it anyway would re-parse the ROUNDED display —
+            # a 30 1/16" value shown at 1/8" resolution would be
+            # silently truncated by clicking into it.
+            before = field.lineEdit().text()
+            QtCore.QTimer.singleShot(
+                0, lambda: (field.lineEdit().text() != before
+                            and _commit_shown(field)))
         return False            # never consume: the widget still steps
 
 
@@ -849,8 +856,7 @@ def _role_caption(spec, role):
     (the mate — seated onto it). What each one does is read from where
     the template put its datum: on a side face, the timber passes through
     the intersection; on an end, it butts and terminates there."""
-    face = spec.datum_face[spec.role_datum[role]]
-    passing = not facetable.is_end(face)
+    passing = not _role_is_butting(spec, role)
     if role == spec.host_role:
         name, what = "Primary", "host"
     else:
@@ -979,38 +985,70 @@ def _datum_station(datum):
     return ("literal", float(getattr(datum, naming.PROP_STATION).Value))
 
 
-class _DatumChoice(QtWidgets.QWidget):
-    """Where one role lands: an existing unpaired datum on the chosen
-    timber, or a new datum on a face at a station."""
+def _role_is_butting(spec, role):
+    """Whether a template role butts (its datum is on an end) or passes
+    (on a side face). The ONE place this is decided: the row caption,
+    the rows the dialog shows, and the faces it offers all follow it, so
+    they cannot disagree. It is read from the template's own datum —
+    whose Face is declared, never guessed — so a template needs no extra
+    flag: a half lap (both datums on side faces) gets two passing halves,
+    a scarf (both on ends) two butting ones."""
+    return facetable.is_end(spec.datum_face[spec.role_datum[role]])
 
-    def __init__(self, doc, parent=None):
+
+class _DatumChoice(QtCore.QObject):
+    """Where one role lands, as rows in the Apply dialog's Timbers form.
+
+    A **passing** half — its template datum on a side face — takes three
+    rows: the timber, *Face / Datum* (a free side-face datum, or a new
+    datum on one of the four faces), and *…at station* — where a new one
+    goes, or a free one's current station, editable to move it.
+
+    A **butting** half — its template datum on an end — takes two: the
+    timber and *End*, offering only that timber's free end datums. A
+    component modelled on an end grows along the timber's axis, so it
+    cannot land on a side face at all; the old picker offered side faces
+    to a butting half anyway, and a station row it could never use.
+
+    An object, not a widget: it owns the controls and adds them to the
+    form as labelled rows (`add_rows`), so each gets its own label rather
+    than sharing the role's."""
+
+    def __init__(self, doc, parent, butting=False):
         super().__init__(parent)
         self.doc = doc
-        lay = QtWidgets.QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        self.timber = QtWidgets.QComboBox(self)
+        self.butting = butting
+        self.timber = QtWidgets.QComboBox(parent)
         for body in timber_bodies(doc):
             self.timber.addItem(body.Label, body)
         self.timber.setToolTip("The timber this half of the joint is cut into.")
-        self.datum = QtWidgets.QComboBox(self)
-        self.datum.setToolTip(
-            "An existing datum on the timber (only unpaired ones are "
-            "offered), or a new datum on a face at the station below. "
-            "Show Face && End Marks labels the faces in the 3D view.")
-        self.station = _DimField(1219.2, doc, self, include_dims=False,
-                                 include_joints=False)
-        self.station.setToolTip(
-            "Where along the timber (from end A) a new face datum sits. "
-            "May be an expression on a project variable.")
+        self.datum = QtWidgets.QComboBox(parent)
+        if butting:
+            self.datum.setToolTip(
+                "The end of the timber this half of the joint is cut into. "
+                "Only ends not already joined are offered. Show Face && "
+                "End Marks labels the ends in the 3D view.")
+            self.station = None     # an end's station is fixed: 0, or LengthZ
+        else:
+            self.datum.setToolTip(
+                "A free datum already on one of the timber's side faces, or "
+                "a new datum on a face at the station below. Show Face && "
+                "End Marks labels the faces in the 3D view.")
+            self.station = _DimField(1219.2, doc, parent, include_dims=False,
+                                     include_joints=False)
+            self.station.setToolTip(
+                "Where along the timber (from end A) the datum sits. For a "
+                "new datum, where to place it; for a free one already on "
+                "the timber, its current station — change it to move that "
+                "datum. May be an expression on a project variable.")
         # What the user has entered for a NEW datum, kept aside while the
         # field shows an existing datum's station instead — so picking a
         # free datum and then going back to "New datum" gives back their
         # value, never the datum's. Captured before the first refill.
-        self._own_station = self._capture_station()
+        self._own_station = (self._capture_station()
+                             if self.station is not None else None)
         self._showing_datum = False
-        lay.addWidget(self.timber)
-        lay.addWidget(self.datum)
-        lay.addWidget(self.station)
+        self._datum_shown = None     # the reused datum's station, as shown
         self.timber.currentIndexChanged.connect(self._refill)
         self.datum.currentIndexChanged.connect(self._toggle_station)
         # activated fires on a user pick only, never on a programmatic
@@ -1024,6 +1062,19 @@ class _DatumChoice(QtWidgets.QWidget):
         self._default_face = face
         self._refill()
 
+    def add_rows(self, form, caption, tip):
+        """Lay this half out in `form`: the role caption labels the
+        timber row, and each control below gets a label of its own."""
+        parent = self.parent()
+        label = QtWidgets.QLabel(caption, parent)
+        label.setToolTip(tip)
+        form.addRow(label, self.timber)
+        if self.butting:
+            form.addRow(QtWidgets.QLabel("End:", parent), self.datum)
+        else:
+            form.addRow(QtWidgets.QLabel("Face / Datum:", parent), self.datum)
+            form.addRow(QtWidgets.QLabel("…at station:", parent), self.station)
+
     def _refill(self):
         body = self.timber.currentData()
         # A face the user already chose survives a change of timber — the
@@ -1036,18 +1087,31 @@ class _DatumChoice(QtWidgets.QWidget):
             self._default_face = value if kind == "face" else datums.face_of(value)
         self.datum.blockSignals(True)
         self.datum.clear()
-        if body is not None:
+        if body is not None and self.butting:
+            # an end datum is made with the timber, so there is never a
+            # "new" one — just the ends not already joined
+            for end in facetable.ENDS:
+                d = datums.end_datum(body, end)
+                if d is not None and not datums.is_paired(d):
+                    self.datum.addItem(facetable.display(end), ("datum", d))
+            if self.datum.count() == 0:
+                self.datum.addItem("No free end — both are already joined", None)
+        elif body is not None:
             for d in datums.datums_of(body):
-                if not datums.is_paired(d):
+                if (not datums.is_paired(d)
+                        and not facetable.is_end(datums.face_of(d))):
                     self.datum.addItem(f"{d.Label} ({datums.describe(d)})",
                                        ("datum", d))
             for face in facetable.FACES:
-                self.datum.addItem(f"New datum on {facetable.display(face)} at station…",
+                self.datum.addItem(f"New datum on {facetable.display(face)}",
                                    ("face", face))
         # default: the same face/end the template was authored on
         want = self._default_face
         for i in range(self.datum.count()):
-            kind, value = self.datum.itemData(i)
+            data = self.datum.itemData(i)
+            if data is None:
+                continue                # the "no free end" placeholder
+            kind, value = data
             if want is not None and (
                     (kind == "face" and value == want)
                     or (kind == "datum" and datums.face_of(value) == want)):
@@ -1060,25 +1124,53 @@ class _DatumChoice(QtWidgets.QWidget):
         self._user_chose = True
 
     def _toggle_station(self):
-        """Enable the field for a new datum; for an existing one, show
-        THAT datum's station, greyed.
+        """For a new datum, the station to place it at; for an existing
+        one, THAT datum's station — editable, and Apply moves the datum
+        if it is changed (`target`).
 
-        It used to only grey the field, leaving the dialog's 4' default in
-        it — so a freed datum at 2' 6" sat beside a field reading 4'
-        (Adam's GUI round, 2026-09-22). Display only: `target` never
-        reads the field for an existing datum."""
+        It first only greyed the field, leaving the dialog's 4' default in
+        it, so a freed datum at 2' 6" sat beside a field reading 4'; then
+        it showed the datum's station but greyed, so a reused datum bound
+        to a variable could not be re-bound or made a plain value (Adam's
+        GUI rounds, 2026-09-22). Moving a reused datum is safe: only free
+        datums are offered, and nothing reads a free one."""
+        if self.station is None:
+            return                  # a butting half has no station row
         data = self.datum.currentData()
         new = bool(data) and data[0] == "face"
         if new:
             if self._showing_datum:
                 self._show_station(self._own_station)
                 self._showing_datum = False
+            self._datum_shown = None
         elif data:
             if not self._showing_datum:
                 self._own_station = self._capture_station()
                 self._showing_datum = True
-            self._show_station(_datum_station(data[1]))
-        self.station.setEnabled(new)
+            d = data[1]
+            self._datum_shown = _datum_station(d)
+            # the plain value under a binding too, so turning ƒx off to
+            # make it a simple value starts from where the datum IS
+            self.station.spin.setProperty(
+                "rawValue", float(getattr(d, naming.PROP_STATION).Value))
+            self._show_station(self._datum_shown)
+        self.station.setEnabled(bool(data))
+
+    def _station_changed(self):
+        """Whether the framer changed a reused datum's station. Compared
+        as DISPLAYED: the field shows a rounded value, and a datum more
+        precise than the display must not move by the rounding just
+        because the field was clicked or re-read."""
+        was = getattr(self, "_datum_shown", None)
+        if was is None:
+            return False
+        now = self._capture_station()
+        if now[0] != was[0]:
+            return True
+        if now[0] == "expr":
+            return now[1].lstrip("=").strip() != was[1].lstrip("=").strip()
+        shown = lambda mm: App.Units.Quantity(float(mm), "mm").UserString
+        return shown(now[1]) != shown(was[1])
 
     def _capture_station(self):
         """The field's own content: ('expr', text) or ('literal', mm).
@@ -1105,11 +1197,18 @@ class _DatumChoice(QtWidgets.QWidget):
     def target(self):
         body = self.timber.currentData()
         data = self.datum.currentData()
+        if body is not None and data is None and self.butting:
+            raise JointError(f"{body.Label}: both ends are already joined, so "
+                             f"there is no free end for this timber joint")
         if body is None or data is None:
             raise JointError("pick a timber and a datum for every role")
         kind, value = data
         if kind == "datum":
-            return {"body": body, "datum": value}
+            out = {"body": body, "datum": value}
+            # only a CHANGED station moves the reused datum
+            if self.station is not None and self._station_changed():
+                out["station"] = self.station.value()
+            return out
         return {"body": body, "face": value, "station": self.station.value()}
 
 
@@ -1169,8 +1268,10 @@ class ApplyJointDialog(QtWidgets.QDialog):
 
     def _load(self):
         path = self.template_box.currentData()
-        self._clear(self.roles_form)
+        self._clear(self.roles_form)        # deletes the pickers' controls
         self._clear(self.params_form)
+        for w in self.role_widgets.values():
+            w.deleteLater()                 # and the pickers themselves
         self.role_widgets.clear()
         self.param_widgets.clear()
         self.param_ranges.clear()
@@ -1190,7 +1291,8 @@ class ApplyJointDialog(QtWidgets.QDialog):
         selected = _selected_timbers(self.doc)
         preset = dict(zip([self.spec.host_role, self.spec.mate_role], selected))
         for role in self.spec.roles:
-            w = _DatumChoice(self.doc, self)
+            w = _DatumChoice(self.doc, self,
+                             butting=_role_is_butting(self.spec, role))
             w.set_default_face(self.spec.datum_face[self.spec.role_datum[role]])
             if role in preset:
                 for i in range(w.timber.count()):
@@ -1199,10 +1301,7 @@ class ApplyJointDialog(QtWidgets.QDialog):
                         break
             self.role_widgets[role] = w
             caption, tip = _role_caption(self.spec, role)
-            label = QtWidgets.QLabel(caption, self)
-            label.setToolTip(tip)
-            w.setToolTip(tip)
-            self.roles_form.addRow(label, w)
+            w.add_rows(self.roles_form, caption, tip)
         for p in self.spec.parameters:
             self.param_widgets[p["name"]] = self._param_widget(p)
             self.params_form.addRow(f"{p['name']}:", self.param_widgets[p["name"]])
@@ -1240,6 +1339,11 @@ class ApplyJointDialog(QtWidgets.QDialog):
             lo = _mm(p["min"]) if p["min"] is not None else "…"
             hi = _mm(p["max"]) if p["max"] is not None else "…"
             tip += f"  Range: {lo} to {hi}."
+        if p.get("read_only"):
+            # Shown so the framer sees it (a peg count feeds the schedule),
+            # never editable, and never sent to Apply — see `request`.
+            w.setEnabled(False)
+            tip += "  Fixed by this template."
         w.setToolTip(tip)
         return w
 
@@ -1247,8 +1351,13 @@ class ApplyJointDialog(QtWidgets.QDialog):
         if self.spec is None:
             raise JointError("choose a template")
         targets = {role: w.target() for role, w in self.role_widgets.items()}
+        fixed = {p["name"] for p in self.spec.parameters if p.get("read_only")}
         values = {}
         for name, w in self.param_widgets.items():
+            if name in fixed:
+                # the template's value arrives with the copy; a value sent
+                # here would be written straight through the ReadOnly flag
+                continue
             if isinstance(w, QtWidgets.QSpinBox):
                 values[name] = w.value()
             elif isinstance(w, QtWidgets.QCheckBox):
@@ -1619,6 +1728,11 @@ How to author the joint in this file:
   - Add the joint's parameters to the VarSet (group 'Joint',
     UpperCamelCase, a tooltip on every one). Optional range bounds go in
     group 'Ranges' as <Name>Min / <Name>Max.
+  - A value this joint always has and a framer must not change (a peg
+    count the joint is built for) is still a parameter, but mark it
+    read-only — in the Python console,
+    <<VarSet>>.setPropertyStatus('PegCount', 'ReadOnly').
+    Apply Timber Joint then shows it greyed and never changes it.
   - A CUTTER is a Body at the document root, modelled in -Z from its own
     origin, with ComponentRole = Cutter and a ComponentOrder; an ADDER is
     the same modelled in +Z with ComponentRole = Adder. Bind the body's
