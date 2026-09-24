@@ -529,6 +529,90 @@ def is_misfit(varset):
 
 
 # --------------------------------------------------------------------------
+# The placement report — what Audit Timbers shows about seating
+# --------------------------------------------------------------------------
+
+# How a timber's position is held.
+ANCHORED = "anchored"         # Placement bound to FrameOrigin
+SEATED = "seated"             # Placement bound to a joint's seat
+PROVISIONAL = "provisional"   # a component's root, held by nothing yet
+LOOSE = "loose"               # held by nothing, and nothing seats from it
+EXPRESSION = "expression"     # Placement bound to some other expression
+
+# What a timber joint does for placement.
+PLACES = "places"             # its seat places one of its timbers
+CLOSES = "closes"             # both timbers placed otherwise: a loop closer
+UNSEATED = "unseated"         # a timber of it is not placed
+UNPAIRED = "unpaired"         # not two paired datums on two timbers
+
+TimberPlacement = namedtuple("TimberPlacement", "body state joint anchor")
+JointPlacement = namedtuple("JointPlacement",
+                            "varset state placed mm deg problem")
+
+
+def timber_placement(body, seated_from=None):
+    """How `body`'s position is held, as a TimberPlacement. `joint` and
+    `anchor` are set for a seated timber: the joint VarSet whose seat
+    places it, and the timber it is seated from. `seated_from` is the set
+    of body Names some seat anchors on (computed once by the report)."""
+    if is_anchored(body):
+        return TimberPlacement(body, ANCHORED, None, None)
+    seat_vs = seat_driving(body)
+    if seat_vs is not None:
+        return TimberPlacement(body, SEATED, joint_of_seat(seat_vs),
+                               anchor_timber(body))
+    if placement_expression(body):
+        return TimberPlacement(body, EXPRESSION, None, None)
+    if seated_from is None:
+        seated_from = _seated_from(body.Document)
+    return TimberPlacement(body, PROVISIONAL if body.Name in seated_from else LOOSE,
+                           None, None)
+
+
+def _seated_from(doc):
+    """Names of the timbers some seat anchors on."""
+    out = set()
+    for obj in doc.Objects:
+        if obj.TypeId == BODY_TYPE and seat_driving(obj) is not None:
+            anchor_b = anchor_timber(obj)
+            if anchor_b is not None:
+                out.add(anchor_b.Name)
+    return out
+
+
+def joint_placement(varset):
+    """What a timber joint does for placement, with its misfit, as a
+    JointPlacement. `problem` is True for a joint that is not paired, and
+    for a misfit on a joint that places a timber or closes a loop — there
+    the two sides are meant to meet. An unseated joint's misfit is only
+    where its timbers happen to stand, so it is reported, not counted."""
+    pair = joint_timbers(varset)
+    if pair is None:
+        return JointPlacement(varset, UNPAIRED, None, None, None, True)
+    mm, deg = joint_misfit(varset)
+    off = mm > MISFIT_MM or deg > MISFIT_DEG
+    placed = places(varset)
+    if placed is not None:
+        return JointPlacement(varset, PLACES, placed, mm, deg, off)
+    if all(is_placed(b) for b in pair):
+        return JointPlacement(varset, CLOSES, None, mm, deg, off)
+    return JointPlacement(varset, UNSEATED, None, mm, deg, False)
+
+
+def placement_report(doc, bodies, joints):
+    """(timbers, joints, anchored) for Audit Timbers: a TimberPlacement per
+    body, a JointPlacement per joint VarSet, and every anchored timber.
+    More than one anchored timber is a problem — a document has exactly
+    one frame origin. A provisional timber is listed, never counted: a
+    duplicated bent is one until a timber joint ties it in (Adam,
+    2026-09-23)."""
+    seated_from = _seated_from(doc)
+    timbers = [timber_placement(b, seated_from) for b in bodies]
+    anchored = [t.body for t in timbers if t.state == ANCHORED]
+    return timbers, [joint_placement(v) for v in joints], anchored
+
+
+# --------------------------------------------------------------------------
 # The repair / bulk path
 # --------------------------------------------------------------------------
 

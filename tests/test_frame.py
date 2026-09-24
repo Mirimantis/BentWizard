@@ -294,6 +294,76 @@ class FlatFrameTest(unittest.TestCase):
             self.doc.saveAs(path)
             self.assertEqual([str(f) for f in lint(path)], [])
 
+    # --- the placement report (Audit Timbers) ---------------------------
+
+    def report(self):
+        from freecad.bentwizard import frame
+        from freecad.bentwizard.apply import joint_varsets
+        from freecad.bentwizard.timber import timber_bodies
+        self.doc.recompute()
+        timbers, joints, anchored = frame.placement_report(
+            self.doc, timber_bodies(self.doc), joint_varsets(self.doc))
+        return ({t.body.Label: t for t in timbers},
+                {j.varset.Label: j for j in joints}, anchored)
+
+    def test_report_timber_states(self):
+        """Anchored, seated, provisional and loose. A bent built before it
+        is tied in roots provisionally: listed, never a problem (Adam,
+        2026-09-23)."""
+        from freecad.bentwizard import frame
+        post1, post2, beam1, j1, j2 = self.pi_bent("1")
+        post3, post4, beam2, j3, j4 = self.pi_bent("2")
+        brace = self.timber("T-Brace-001", "4 in", "6 in", "4 ft")
+        timbers, joints, anchored = self.report()
+        self.assertEqual(anchored, [post1])
+        self.assertEqual(timbers[post1.Label].state, frame.ANCHORED)
+        beam = timbers[beam1.Label]
+        self.assertEqual((beam.state, beam.anchor, beam.joint),
+                         (frame.SEATED, post1, j1))
+        self.assertEqual(timbers[post3.Label].state, frame.PROVISIONAL)
+        self.assertEqual(timbers[beam2.Label].state, frame.SEATED)
+        self.assertEqual(timbers[brace.Label].state, frame.LOOSE)
+        for vs in (j1, j2, j3, j4):
+            self.assertEqual(joints[vs.Label].state, frame.PLACES, vs.Label)
+            self.assertFalse(joints[vs.Label].problem, vs.Label)
+        self.assertIs(joints[j2.Label].placed, post2)
+
+    def test_report_loop_closer_and_its_misfit(self):
+        from freecad.bentwizard import datums, frame
+        _pv, _posts, _ties, all_joints = self.bay_frame()
+        _t, joints, _a = self.report()
+        (closer,) = [j for j in joints.values() if j.state == frame.CLOSES]
+        self.assertLess(closer.mm, 1e-6)
+        self.assertFalse(closer.problem)
+        self.assertFalse(any(j.problem for j in joints.values()))
+        # move the closer's datum along its post: the loop no longer closes
+        datums.set_station(datums.host_datum(closer.varset), "60 in")
+        _t, joints, _a = self.report()
+        broken = joints[closer.varset.Label]
+        self.assertEqual(broken.state, frame.CLOSES)
+        self.assertGreater(broken.mm, 11 * IN)
+        self.assertTrue(broken.problem)
+
+    def test_report_unseated_joint_is_listed_not_counted(self):
+        from freecad.bentwizard import frame
+        post = self.timber("T-Post-001")
+        beam = self.timber("T-Beam-001", "6 in", "8 in", "10 ft")
+        vs = self.joint("001", post, beam, place=False)
+        _t, joints, anchored = self.report()
+        j = joints[vs.Label]
+        self.assertEqual(j.state, frame.UNSEATED)
+        self.assertGreater(j.mm, 1)                 # the beam stands elsewhere
+        self.assertFalse(j.problem)
+        self.assertEqual(anchored, [])
+
+    def test_report_two_anchored_timbers(self):
+        from freecad.bentwizard import frame
+        post1, *_ = self.pi_bent("1")
+        post3, *_ = self.pi_bent("2")
+        frame.anchor(self.doc, post3)               # a second frame origin
+        _t, _j, anchored = self.report()
+        self.assertEqual({b.Name for b in anchored}, {post1.Name, post3.Name})
+
 
 if __name__ == "__main__":
     unittest.main()

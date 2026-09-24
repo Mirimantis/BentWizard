@@ -791,12 +791,61 @@ def _show_report(key, title, headline, report, parent=None):
 # Audit Timbers
 # --------------------------------------------------------------------------
 
+def _placement_lines(doc, bodies):
+    """(problems, lines): how each timber's position is held and what
+    each timber joint does for placement, with its misfit."""
+    from . import frame
+    timbers, joints, anchored = frame.placement_report(
+        doc, bodies, joint_varsets(doc))
+    lines, problems = ["", "Placement:"], 0
+    for t in timbers:
+        if t.state == frame.ANCHORED:
+            how = "anchored — the frame origin (ProjectVars.FrameOrigin)"
+        elif t.state == frame.SEATED:
+            how = (f"seated from {t.anchor.Label if t.anchor else '?'} "
+                   f"by {t.joint.Label if t.joint else '?'}")
+        elif t.state == frame.PROVISIONAL:
+            how = ("provisional — holds timbers seated from it, but is not "
+                   "tied to the frame yet; a timber joint to the frame ties "
+                   "it in")
+        elif t.state == frame.EXPRESSION:
+            how = f"placed by its own expression ({frame.placement_expression(t.body)})"
+        else:
+            how = "loose — no timber joint places it"
+        lines.append(f"    {t.body.Label}: {how}")
+    if len(anchored) > 1:
+        problems += len(anchored) - 1
+        lines.append(f"    MORE THAN ONE ANCHORED TIMBER: "
+                     f"{', '.join(b.Label for b in anchored)} — a frame has "
+                     f"one origin; Seat Timbers keeps one and seats the rest")
+    if joints:
+        lines += ["", "Timber joints:"]
+    for j in joints:
+        if j.state == frame.UNPAIRED:
+            lines.append(f"    {j.varset.Label}: NOT PAIRED — its two datums "
+                         f"are not on two timbers")
+            problems += 1
+            continue
+        what = {frame.PLACES: f"places {j.placed.Label if j.placed else '?'}",
+                frame.CLOSES: "closes a loop (places nothing, checked)",
+                frame.UNSEATED: "not seated — Seat Timbers can seat it"}[j.state]
+        misfit = f"misfit {_mm(j.mm)}, {_shown(j.deg, 'deg')}"
+        if j.problem:
+            problems += 1
+            misfit = "MISFIT " + misfit + " — its two sides do not meet"
+        lines.append(f"    {j.varset.Label}: {what} — {misfit}")
+    return problems, lines
+
+
 def audit_report(doc):
     """Per timber: design and order length, end projections, solid
-    count, and every datum with its pairing and verification."""
+    count, and every datum with its pairing and verification. Then how
+    each timber is placed and what each timber joint does for placement,
+    with its misfit (`frame.placement_report`)."""
     lines = []
     problems = 0
-    for body in timber_bodies(doc):
+    bodies = timber_bodies(doc)
+    for body in bodies:
         r = measure.report(body)
         status = "one solid" if r["whole"] else f"{r['solids']} SOLIDS"
         if not r["whole"]:
@@ -816,6 +865,10 @@ def audit_report(doc):
                 problems += 1
             lines.append(f"    {d.Label}: {datums.describe(d)} — {pairing}"
                          + (f" — {'; '.join(bad)}" if bad else ""))
+    if bodies:
+        more, placement = _placement_lines(doc, bodies)
+        problems += more
+        lines += placement
     return problems, "\n".join(lines) or "No timbers in this document."
 
 
@@ -825,8 +878,9 @@ class AuditTimbersCommand:
             "MenuText": "Audit Timbers",
             "ToolTip": "Report every timber's design and order length, how "
                        "far its joinery reaches past each end, whether it "
-                       "is still one solid, and each datum's placement and "
-                       "pairing",
+                       "is still one solid, each datum's placement and "
+                       "pairing, how each timber is placed (anchored, "
+                       "seated, provisional) and each timber joint's misfit",
         }
 
     def IsActive(self):
