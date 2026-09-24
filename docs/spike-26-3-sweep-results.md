@@ -26,7 +26,7 @@ Numbering continues from findings 13–16 in
 | 18 | A quote in a label is stored escaped (`\'`) | same on both: **an existing BentWizard bug** | New Timber refused `'` and `"`; **fixed** |
 | 19 | Cycle check | **still per object** | seat VarSet and "datums never read each other" stay |
 | 20 | Finding #15 (undo breaks expression dependencies) | **hidden by fine-grained, still there** | `undo_repair` stays |
-| 21 | `getGlobalPlacement` | **deprecated 26.3, removed 27.2** | 6 call sites to move before 27.2 |
+| 21 | `getGlobalPlacement` | **deprecated 26.3, removed 27.2** | 6 call sites; **migrated** |
 | 22 | LCS datums, and child axes filed under the wrong object | **unchanged** | the scope rule stays |
 | 23 | Assembly markers drawn offset in a moved assembly | **fixed upstream in the weekly** | Phase 2 export only |
 
@@ -213,6 +213,18 @@ the *local* placement, so a one-argument rename would be wrong.
 `getParentGeoFeatureGroup()`, used at all six sites. There is time
 before 27.2, but the change is small.
 
+**Migrated 2026-09-23.** `datums.global_placement(obj)` builds the root
+and subname from the GeoFeatureGroup chain and calls
+`getGlobalPlacementOf`. It replaces the method at all six sites, in the
+tests, and in `spike_expression_seat.py`. (`spike_flat_frame.py` is
+historical and does not run, so it is left alone.) New tests cover:
+- a datum in a moved timber inside the frame's Std Groups;
+- a two-level App::Part → Body → LCS chain;
+- `joint_handle.marker_position`, which the suite did not reach before.
+
+The suite passes with `-W error::DeprecationWarning`, so no call
+remains in anything it reaches.
+
 ## Finding 22 — datums are unchanged, including the child-axis scope hazard
 
 D1: `Part::LocalCoordinateSystem`, `MapMode` `Deactivated`, the same
@@ -262,5 +274,5 @@ matter here: timbers are never dragged.
 
 - **GUI rendering and GUI-only recompute ordering.** Headless is a
   filter, not an oracle (CLAUDE.md). Adam's GUI round covers these.
-- **Finding 21's migration is not built** (finding 18's is). It is
-  listed as a next step in the brief.
+- **The fixes for findings 18 and 21 are built.** The rest of the
+  brief's list (the unit-symbol lint) is not.

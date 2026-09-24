@@ -153,7 +153,7 @@ class FlatFrameTest(unittest.TestCase):
         return pv, (post1, post2, post3, post4), ties, joints
 
     def test_second_bent_ties_into_the_frame(self):
-        from freecad.bentwizard import frame
+        from freecad.bentwizard import datums, frame
         post1, _post2, _beam1, _j1, _j2 = self.pi_bent("1")
         post3, _post4, _beam2, _j3, _j4 = self.pi_bent("2")
         # bent 2 was built loose: only one timber in a document is ever
@@ -164,9 +164,9 @@ class FlatFrameTest(unittest.TestCase):
         t2 = self.joint("302", post3, tie, face="XNeg", end="EndB")
         self.doc.recompute()
         # bent 2 swung in behind the tie; bent 1 never moved
-        self.assertAlmostEqual(post3.getGlobalPlacement().Base.x / IN,
+        self.assertAlmostEqual(datums.global_placement(post3).Base.x / IN,
                                144 + 8, places=6)
-        self.assertEqual(post1.getGlobalPlacement().Base.Length, 0)
+        self.assertEqual(datums.global_placement(post1).Base.Length, 0)
         self.assertIs(frame.anchored_timber(self.doc), post1)
         self.assertSeated([t1, t2])
         self.assertIs(frame.root_of(post3), post1)
@@ -177,24 +177,24 @@ class FlatFrameTest(unittest.TestCase):
         and post3 reverse and the whole bent swings in rigidly behind
         the tie. The simple test above ties at the root and never
         reverses anything."""
-        from freecad.bentwizard import frame
+        from freecad.bentwizard import datums, frame
         post1, _post2, _beam1, _j1, _j2 = self.pi_bent("1")
         post3, post4, _beam2, _j3, _j4 = self.pi_bent("2")
         self.assertIs(frame.root_of(post4), post3)      # not its own root
-        before = (post4.getGlobalPlacement().Base
-                  - post3.getGlobalPlacement().Base).Length
+        before = (datums.global_placement(post4).Base
+                  - datums.global_placement(post3).Base).Length
         tie = self.timber("T-Tie-001", "6 in", "8 in", "12 ft")
         t1 = self.joint("301", post1, tie, face="XPos", end="EndA")
         t2 = self.joint("302", post4, tie, face="XNeg", end="EndB")
         self.doc.recompute()
         # bent 2 is rigid: post3 kept its offset from post4 through the
         # reversal, and bent 1 and the anchor never moved
-        after = (post4.getGlobalPlacement().Base
-                 - post3.getGlobalPlacement().Base).Length
+        after = (datums.global_placement(post4).Base
+                 - datums.global_placement(post3).Base).Length
         self.assertAlmostEqual(after, before, places=6)
-        self.assertEqual(post1.getGlobalPlacement().Base.Length, 0)
+        self.assertEqual(datums.global_placement(post1).Base.Length, 0)
         self.assertIs(frame.anchored_timber(self.doc), post1)
-        self.assertAlmostEqual(post4.getGlobalPlacement().Base.x / IN,
+        self.assertAlmostEqual(datums.global_placement(post4).Base.x / IN,
                                144 + 8, places=6)
         # every joint in both bents still seated, and the whole document
         # is now one placement component rooted at the anchor
@@ -217,16 +217,16 @@ class FlatFrameTest(unittest.TestCase):
     def test_bay_edit_respaces_exactly(self):
         """The headline: one variable, a plain recompute, every joint
         still seated — loop closers included — and nothing left Touched."""
-        from freecad.bentwizard import frame
+        from freecad.bentwizard import datums, frame
         pv, posts, _ties, joints = self.bay_frame()
         group = frame.containing_frame(posts[0])
         for value, want in (("12 ft", 144), ("8 ft", 96)):
             pv.Bay = value
             self.doc.recompute()             # no solve, anywhere
-            self.assertAlmostEqual(posts[2].getGlobalPlacement().Base.x / IN,
+            self.assertAlmostEqual(datums.global_placement(posts[2]).Base.x / IN,
                                    want + 8, places=6)
             self.assertSeated(joints, mm=1e-9, deg=1e-9)
-            self.assertEqual(posts[0].getGlobalPlacement().Base.Length, 0)
+            self.assertEqual(datums.global_placement(posts[0]).Base.Length, 0)
             self.assertTrue(group.Placement.isIdentity()
                             if hasattr(group, "Placement") else True)
             unhealthy = [o.Label for o in self.doc.Objects

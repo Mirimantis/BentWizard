@@ -213,9 +213,8 @@ is built on sand. At minimum:
 **What section 3 leaves to do** (not started; each is its own change):
 1. ~~**Finding 18: quotes in labels.**~~ **Done 2026-09-23** (route (b):
    `naming.label_ref` and friends, `tests/test_label_quoting.py`).
-2. **Finding 21: `getGlobalPlacement`.** Add one `global_placement(obj)`
-   helper and use it at the six call sites and in the tests, before
-   27.2.
+2. ~~**Finding 21: `getGlobalPlacement`.**~~ **Done 2026-09-23**
+   (`datums.global_placement`, at all six sites and in the tests).
 3. **Finding 17's aside: the template bar** should reject a parameter
    name that parses as a unit symbol (`W`, `A`, `J`, …).
 

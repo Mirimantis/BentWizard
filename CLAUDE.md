@@ -36,11 +36,12 @@ Timber framing workbench for FreeCAD 26.3. Timber-owned datums, cutter/adder joi
 - `.FCStd` files are zip archives; inspect by unzipping and reading `Document.xml` (see Verification below).
 - **Search FreeCAD's issue tracker before acting on a suspected FreeCAD bug** (Adam, 2026-09-21). Weekly dev builds carry more regressions than a release, and both spin-box defects this project "found" were already filed and fixed by one PR before the draft was written. So: search `github.com/FreeCAD/FreeCAD/issues` (include closed issues — a fix may already be merged and just not in your weekly) before drafting a report, and before building a workaround. If a workaround is still needed for the build in hand, key it to the *behaviour* rather than the version so it retires itself, and write the deletion trigger into the code and `CLAUDE.md` (`commands._StepCommit` is the worked example).
 - **26.3 gotchas** (see `docs/spike-26-3-gui-results.md` and `docs/spike-26-3-sweep-results.md`): `import FreeCAD` **deletes names imported before it** from `__main__`'s globals when they collide with a FreeCAD module — `from pathlib import Path` then `import FreeCAD` leaves `Path` unbound, with no error and a `NameError` much later (finding 11). In any script that runs on 26.3, **import FreeCAD first**. `Gui::QuantitySpinBox` in the 2026.09.16 weekly has two defects, in every dialog including stock ones: steppers move the displayed text but never commit it (upstream #32717), and a unitless typed number is read in mm rather than the displayed unit (#32700, a regression from #30139). **Both are fixed by upstream PR #32707**, so `commands._StepCommit` is a stopgap for this weekly only — **delete it once on a build carrying that fix** (it retires itself meanwhile, being keyed to the value not the version). Its `minimum`/`maximum` are read in the displayed unit when stepping but as raw values on focus-out — on 1.1.3 too, so not a regression and not covered by either issue — hence the workbench never sets them and enforces ranges itself.
-  - **`GeoFeature.getGlobalPlacement` is deprecated in 26.3 and removed in 27.2**. It is the only
-    deprecated API BentWizard uses (sweep finding 21), and six call sites still use it. Its
-    replacement takes a root and a subname: `getGlobalPlacementOf(datum, body, datum.Name + ".")`.
-    A one-argument call returns the *local* placement. Python hides the warning inside modules;
-    run the suite with `-W always::DeprecationWarning` to see it.
+  - **`GeoFeature.getGlobalPlacement` is deprecated in 26.3 and removed in 27.2** (sweep finding
+    21). **Use `datums.global_placement(obj)`**, never the method. Its replacement,
+    `getGlobalPlacementOf`, takes a root and a subname (`(datum, body, datum.Name + ".")`), and
+    called with the object as its own root it returns the *local* placement; the helper builds
+    the path. Python hides deprecation warnings raised inside modules, so the suite is run with
+    `-W error::DeprecationWarning` to catch any new use.
   - **Fine-grained recomputes did not relax the cycle check** (finding 19): a link that closes a
     cycle between two *objects* is still refused, even through disjoint properties. The seat
     VarSet and "datums never read each other" stay.

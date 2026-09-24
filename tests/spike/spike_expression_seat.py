@@ -24,14 +24,14 @@ Findings in ``docs/spike-flat-frame-results.md``. Uses production
 modules but changes none.
 """
 
-import os
-import sys
-import time
+import FreeCAD as App  # FIRST: on 26.3 it strips names imported before it (finding 11)
+import os  # noqa: E402
+import sys  # noqa: E402
+import time  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "tests"))
 import _repo_path  # noqa: E402
-import FreeCAD as App  # noqa: E402
 
 _repo_path.graft()
 
@@ -150,7 +150,7 @@ def build(doc, n_bents=2):
 def report(doc, bents, joints, closing):
     worst = max((datums.misfit(*_host_mate(v)) for v in joints), default=(0, 0))
     worst_closing = max((datums.misfit(*_host_mate(v)) for v in closing), default=(0, 0))
-    xs = [round(p1.getGlobalPlacement().Base.x / 25.4, 3) for p1, _, _ in bents]
+    xs = [round(datums.global_placement(p1).Base.x / 25.4, 3) for p1, _, _ in bents]
     bad = [o.Label for o in doc.Objects
            if "Invalid" in o.State or "Error" in o.State or "Touched" in o.State]
     asms = [a.Placement.isIdentity() for a in doc.Objects

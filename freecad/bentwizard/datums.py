@@ -507,21 +507,42 @@ def unpair(datum):
 # Seating
 # --------------------------------------------------------------------------
 
+def global_placement(obj):
+    """`obj`'s placement in document coordinates — a datum's through its
+    timber, a timber's its own.
+
+    Replaces `GeoFeature.getGlobalPlacement`, deprecated in 26.3 and
+    removed in 27.2 (sweep finding 21). Its successor needs the root
+    object and the subname path down to `obj`: a datum is
+    `(datum, body, 'Datum.')`. Called with `obj` as its own root it
+    returns the LOCAL placement, so the path is built here from the
+    GeoFeatureGroup chain. Std Groups (frame, bents) carry no placement
+    and are not GeoFeatureGroups, so they never enter the path. Not for
+    use during a recompute, like the method it replaces."""
+    names, root = [], obj
+    parent = obj.getParentGeoFeatureGroup()
+    while parent is not None:
+        names.insert(0, root.Name)
+        root, parent = parent, parent.getParentGeoFeatureGroup()
+    subname = "".join(n + "." for n in names)
+    return App.GeoFeature.getGlobalPlacementOf(obj, root, subname)
+
+
 def seat_target(host, mate):
     """The global placement the MATE datum must have when seated: the
     host datum's, flipped 180° about local Y."""
-    return host.getGlobalPlacement().multiply(FLIP_PLACEMENT)
+    return global_placement(host).multiply(FLIP_PLACEMENT)
 
 
 def seat_delta(host, mate):
     """The global transform that carries the mate's side onto its seat
     (apply to the mover's global placement)."""
-    return seat_target(host, mate).multiply(mate.getGlobalPlacement().inverse())
+    return seat_target(host, mate).multiply(global_placement(mate).inverse())
 
 
 def misfit(host, mate):
     """(mm, degrees) between the seated pose and the actual one."""
-    delta = seat_target(host, mate).inverse().multiply(mate.getGlobalPlacement())
+    delta = seat_target(host, mate).inverse().multiply(global_placement(mate))
     return (delta.Base.Length, math.degrees(delta.Rotation.Angle))
 
 

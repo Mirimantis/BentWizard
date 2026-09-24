@@ -189,7 +189,7 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
     # Timber placements are global now that no assembly holds them, so
     # the offset goes straight on each copy.
     for src, copy in new_bodies.items():
-        copy.Placement = shift.multiply(src.getGlobalPlacement())
+        copy.Placement = shift.multiply(datums.global_placement(src))
     doc.recompute()
 
     group_label = (group_label or "").strip()

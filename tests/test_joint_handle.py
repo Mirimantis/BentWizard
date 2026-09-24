@@ -50,6 +50,27 @@ class JointHandleTest(unittest.TestCase):
         self.assertIsNone(getattr(h, "Proxy", None))
         self.assertEqual(h.getParentGroup().Label, "TimberJoints")
 
+    def test_marker_sits_on_the_host_datum(self):
+        """The marker's position (view_joint_handle draws it there) is the
+        host datum's origin in the document — the post moved, filed in the
+        frame's Std Groups, which carry no placement."""
+        import warnings
+        from freecad.bentwizard import joint_handle
+        from freecad.bentwizard.frame import place_on_apply, project_varset
+        place_on_apply(self.doc, self.vs)
+        # the post is anchored: move it the way a framer does, by the origin
+        project_varset(self.doc).FrameOrigin = App.Placement(
+            App.Vector(300, -120, 40), App.Rotation(App.Vector(0, 0, 1), 35))
+        self.doc.recompute()
+        self.assertEqual(self.post.Placement.Base, App.Vector(300, -120, 40))
+        h = joint_handle.find_handle(self.vs)
+        host = joint_handle.anchor_datum(self.vs)
+        want = self.post.Placement.multiply(host.Placement).Base
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            got = joint_handle.marker_position(h, host)
+        self.assertLess((got - want).Length, 1e-9)
+
     def test_structural_not_label_matched(self):
         from freecad.bentwizard import joint_handle
         h = joint_handle.find_handle(self.vs)
