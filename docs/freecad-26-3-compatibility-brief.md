@@ -70,6 +70,9 @@ assume.
   two touch — say which parts you did.
 - **Workstream D is untouched.** One item bites today: `undo_repair`
   does not re-arm a seat, so undoing an Apply leaves one behind.
+  **No longer true (measured 2026-09-23, 26.3 weekly):** undoing an
+  Apply that seated a timber restores the document exactly — no seat
+  left, the timber's Placement binding gone, nothing Touched.
 - The 26.3 measurements are all in
   `spike-fine-grained-recompute-results.md`; the harnesses run on A's
   branch (`fd284cc`).

@@ -791,12 +791,61 @@ def _show_report(key, title, headline, report, parent=None):
 # Audit Timbers
 # --------------------------------------------------------------------------
 
+def _placement_lines(doc, bodies):
+    """(problems, lines): how each timber's position is held and what
+    each timber joint does for placement, with its misfit."""
+    from . import frame
+    timbers, joints, anchored = frame.placement_report(
+        doc, bodies, joint_varsets(doc))
+    lines, problems = ["", "Placement:"], 0
+    for t in timbers:
+        if t.state == frame.ANCHORED:
+            how = "anchored — the frame origin (ProjectVars.FrameOrigin)"
+        elif t.state == frame.SEATED:
+            how = (f"seated from {t.anchor.Label if t.anchor else '?'} "
+                   f"by {t.joint.Label if t.joint else '?'}")
+        elif t.state == frame.PROVISIONAL:
+            how = ("provisional — holds timbers seated from it, but is not "
+                   "tied to the frame yet; a timber joint to the frame ties "
+                   "it in")
+        elif t.state == frame.EXPRESSION:
+            how = f"placed by its own expression ({frame.placement_expression(t.body)})"
+        else:
+            how = "loose — no timber joint places it"
+        lines.append(f"    {t.body.Label}: {how}")
+    if len(anchored) > 1:
+        problems += len(anchored) - 1
+        lines.append(f"    MORE THAN ONE ANCHORED TIMBER: "
+                     f"{', '.join(b.Label for b in anchored)} — a frame has "
+                     f"one origin; Seat Timbers keeps one and seats the rest")
+    if joints:
+        lines += ["", "Timber joints:"]
+    for j in joints:
+        if j.state == frame.UNPAIRED:
+            lines.append(f"    {j.varset.Label}: NOT PAIRED — its two datums "
+                         f"are not on two timbers")
+            problems += 1
+            continue
+        what = {frame.PLACES: f"places {j.placed.Label if j.placed else '?'}",
+                frame.CLOSES: "closes a loop (places nothing, checked)",
+                frame.UNSEATED: "not seated — Seat Timbers can seat it"}[j.state]
+        misfit = f"misfit {_mm(j.mm)}, {_shown(j.deg, 'deg')}"
+        if j.problem:
+            problems += 1
+            misfit = "MISFIT " + misfit + " — its two sides do not meet"
+        lines.append(f"    {j.varset.Label}: {what} — {misfit}")
+    return problems, lines
+
+
 def audit_report(doc):
     """Per timber: design and order length, end projections, solid
-    count, and every datum with its pairing and verification."""
+    count, and every datum with its pairing and verification. Then how
+    each timber is placed and what each timber joint does for placement,
+    with its misfit (`frame.placement_report`)."""
     lines = []
     problems = 0
-    for body in timber_bodies(doc):
+    bodies = timber_bodies(doc)
+    for body in bodies:
         r = measure.report(body)
         status = "one solid" if r["whole"] else f"{r['solids']} SOLIDS"
         if not r["whole"]:
@@ -816,6 +865,10 @@ def audit_report(doc):
                 problems += 1
             lines.append(f"    {d.Label}: {datums.describe(d)} — {pairing}"
                          + (f" — {'; '.join(bad)}" if bad else ""))
+    if bodies:
+        more, placement = _placement_lines(doc, bodies)
+        problems += more
+        lines += placement
     return problems, "\n".join(lines) or "No timbers in this document."
 
 
@@ -825,8 +878,9 @@ class AuditTimbersCommand:
             "MenuText": "Audit Timbers",
             "ToolTip": "Report every timber's design and order length, how "
                        "far its joinery reaches past each end, whether it "
-                       "is still one solid, and each datum's placement and "
-                       "pairing",
+                       "is still one solid, each datum's placement and "
+                       "pairing, how each timber is placed (anchored, "
+                       "seated, provisional) and each timber joint's misfit",
         }
 
     def IsActive(self):
@@ -1131,6 +1185,56 @@ class _DatumChoice(QtCore.QObject):
     def _mark_user_choice(self, _index):
         self._user_chose = True
 
+    def choice(self):
+        """What the framer has set in this half, for the half that
+        replaces it when the template changes: (timber, the face/datum
+        item they picked or None, the station they entered for a new
+        datum, a reused datum's station they changed or None).
+
+        Changing the template rebuilt both halves at the new template's
+        own faces, silently dropping a face already picked: the dialog
+        opens on Joint_Butt, so picking -X and then switching to
+        Joint_HousedMT sent +Y (Adam's GUI round, 2026-09-24)."""
+        pick = self.datum.currentData() if self._user_chose else None
+        own = moved = None
+        if self.station is not None:
+            own = self._own_station if self._showing_datum else self._capture_station()
+            if self._showing_datum and self._station_changed():
+                moved = self._capture_station()
+        return self.timber.currentData(), pick, own, moved
+
+    def restore(self, timber, pick, own, moved):
+        """Carry a replaced half's choice into this one: the timber, then
+        the picked face or datum — only where this half can use it (a
+        side face on a passing half, an end on a butting one), and only a
+        datum still offered — and the stations."""
+        if timber is not None:
+            for i in range(self.timber.count()):
+                if self.timber.itemData(i) is timber:
+                    self.timber.setCurrentIndex(i)
+                    break
+        if own is not None and self.station is not None:
+            self._own_station = own
+            if not self._showing_datum:
+                self._show_station(own)
+        if pick is None:
+            return
+        kind, value = pick
+        face = value if kind == "face" else datums.face_of(value)
+        if facetable.is_end(face) != self.butting:
+            return                  # this template's half cannot land there
+        for i in range(self.datum.count()):
+            data = self.datum.itemData(i)
+            if data is None or data[0] != kind:
+                continue
+            if (data[1] == value if kind == "face"
+                    else data[1].Name == value.Name):
+                self.datum.setCurrentIndex(i)
+                self._user_chose = True
+                if moved is not None and self._showing_datum:
+                    self._show_station(moved)
+                return
+
     def _toggle_station(self):
         """For a new datum, the station to place it at; for an existing
         one, THAT datum's station — editable, and Apply moves the datum
@@ -1276,6 +1380,9 @@ class ApplyJointDialog(QtWidgets.QDialog):
 
     def _load(self):
         path = self.template_box.currentData()
+        # what the framer set, carried into the rebuilt halves by
+        # position (Primary, Secondary) — see `_DatumChoice.choice`
+        carried = [w.choice() for w in self.role_widgets.values()]
         self._clear(self.roles_form)        # deletes the pickers' controls
         self._clear(self.params_form)
         for w in self.role_widgets.values():
@@ -1298,11 +1405,13 @@ class ApplyJointDialog(QtWidgets.QDialog):
         # (host), second = Secondary (mate)
         selected = _selected_timbers(self.doc)
         preset = dict(zip([self.spec.host_role, self.spec.mate_role], selected))
-        for role in self.spec.roles:
+        for n, role in enumerate(self.spec.roles):
             w = _DatumChoice(self.doc, self,
                              butting=_role_is_butting(self.spec, role))
             w.set_default_face(self.spec.datum_face[self.spec.role_datum[role]])
-            if role in preset:
+            if n < len(carried):
+                w.restore(*carried[n])
+            elif role in preset:
                 for i in range(w.timber.count()):
                     if w.timber.itemData(i) is preset[role]:
                         w.timber.setCurrentIndex(i)

@@ -149,7 +149,8 @@ Ranked by my estimate, for whoever runs the suite:
    would hit `re_root` properly and is worth adding.
 5. **`undo_repair`.** A seat is one more expression binding to re-arm
    after undo. Listed under D in the build brief; undoing an Apply now
-   leaves a seat behind, so it may want doing sooner.
+   leaves a seat behind, so it may want doing sooner. **No longer true
+   (2026-09-23, 26.3):** undoing an Apply restores the document exactly.
 
 Headless is a filter, not an oracle: recompute ordering, tree rendering
 and marker behaviour are GUI-only, so A still owes a scripted GUI probe

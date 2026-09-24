@@ -109,6 +109,22 @@ test: a `Bay` edit on a 3-bent frame recomputes no post geometry
 
 ### C. Handles, tree filing, Duplicate (`joint_handle.py`, `duplicate.py`)
 
+> **Done 2026-09-23.** Who did which part:
+> - **Workstream A:** filing under the frame (`TimberJoints_<Frame>`),
+>   the seat nested under the handle, and Duplicate without the assembly
+>   step.
+> - **The 26.3 brief, section 2:** the accessor VarSet under the handle.
+> - **C's own branch:**
+>   - `release_contents`: deleting a handle (`onDelete`,
+>     `remove_handle`) moves the parameter VarSet, the accessor VarSet
+>     and the seat out beside it. Before, only the parameter VarSet was
+>     moved; the other two fell to the document root.
+>   - `ensure_handle` re-files the seat, and gives a re-created handle
+>     its parameter VarSet back.
+>   - Deleting a handle stays allowed (Adam).
+>   - Verified by `test_joint_handle.test_deleting_a_handle_is_harmless_and_seat_timbers_restores_it`
+>     and a scripted GUI Delete: the timbers stay seated.
+
 - Handles file under the **frame group**, not `TimberJoints_<Assembly>`.
 - A handle now holds: the parameter VarSet, the seat VarSet, and the
   accessor VarSets. Its `onDelete` must move **all** of them out of the
@@ -122,6 +138,28 @@ test: a `Bay` edit on a 3-bent frame recomputes no post geometry
 Delete a handle, recompute, confirm every timber still placed.
 
 ### D. Readers of the old shape (`linter.py`, `template*.py`, `commands.py`)
+
+> **Done 2026-09-23.** Who did which part:
+> - **The 26.3 brief, section 2:** the linter's component rules and
+>   `TemplateSpec` resolving through the accessor VarSet
+>   (`Model.accessors_of`, `accessor_datum`).
+> - **Workstream A:** Seat Timbers as the repair path, and Apply's
+>   checkbox as "Seat the entering timber".
+> - **Not needed:** the `Sec_` binding rule. It belonged to B, which is
+>   retired. Seats get no lint rule either: they never appear in a
+>   template, which is what the linter guards.
+> - **D's own branch:**
+>   - Audit Timbers reports placement, via `frame.placement_report`.
+>     Each timber is anchored, seated, provisional (listed, never
+>     counted — Adam) or loose.
+>   - Each timber joint places, closes a loop, or is unseated, with its
+>     misfit. A misfit counts as a problem only where the two sides are
+>     meant to meet. More than one anchored timber is a problem.
+>   - `undo_repair` already re-armed seats (it re-arms every restored
+>     object), but `test_undo_repair` could not show it on 26.3's
+>     default. It now forces fine-grained recomputes off and adds the
+>     seated case and a tripwire for finding #15.
+>   - The library rebuilds clean (the acceptance test).
 
 - Linter: `rule_component_reference_scope` and
   `rule_component_placement_direct` learn the new allowed set (own side's
