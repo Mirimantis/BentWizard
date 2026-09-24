@@ -595,7 +595,15 @@ def rebuild_seats(doc, bodies, label="", principal=None,
             anchor(doc, principal)
     placed.add(principal.Name)
 
-    seated, remaining, progress = [], list(seatable), True
+    # A joint that already places one of its timbers keeps its seat. Its
+    # other timber may still look unplaced — the root of a provisional
+    # component (a duplicated bent before it is tied in) is neither
+    # anchored nor seated — and seating that root from the timber it
+    # places would make the two Placements read each other: a cycle.
+    # That was the second Duplicate Timbers in a document failing.
+    kept = [v for v in seatable if places(v) is not None]
+    seated, progress = [], True
+    remaining = [v for v in seatable if v not in kept]
     while remaining and progress:
         progress, still = False, []
         for varset in remaining:
