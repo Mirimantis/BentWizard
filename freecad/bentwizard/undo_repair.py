@@ -27,6 +27,15 @@ compares and skips), so each binding is cleared and written back. The
 value the property already holds is the value the expression yields, so
 nothing moves in the gap.
 
+**On 26.3 the defect is hidden, not fixed** (sweep finding 20,
+docs/spike-26-3-sweep-results.md). With fine-grained recomputes on, the
+default, an undone Remove Timber Joint comes back live without this
+repair. Turn the preference off and the fossil returns on the same
+build. The preference is the user's, so the repair stays. Re-arming a
+binding that is already live costs one recompute. **Delete this module**
+when `tests/spike/spike_expression_engine.py off` reports E11c live, or
+when FreeCAD drops the preference.
+
 Workbench-gated *functionality* over native data, which Tier 2 allows:
 the documents stay ordinary FreeCAD files, and without BentWizard loaded
 they behave exactly as stock FreeCAD does today — which is to say, with

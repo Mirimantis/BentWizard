@@ -183,10 +183,18 @@ is built on sand. At minimum:
   main` must be run **by Adam from a shell outside the Claude desktop
   app** (MSIX redirects `%APPDATA%` writes; an in-app `Test-Path` is
   not proof).
-- **Expression engine**: `minvert`, placement multiplication and the
-  `<<Label>>` forms the seats depend on.
-- **Datums**: `Part::LocalCoordinateSystem` placement and the
-  child-axis scope behaviour recorded in `CLAUDE.md`.
+- ~~**Expression engine**: `minvert`, placement multiplication and the
+  `<<Label>>` forms the seats depend on.~~ **Done 2026-09-23 (findings
+  17–21, [spike-26-3-sweep-results.md](spike-26-3-sweep-results.md)):**
+  the seat's arithmetic and `<<Label>>` resolution are unchanged, and
+  the cycle check is still per object. Found along the way: a quote in a
+  label breaks every textual match, on 1.1.3 too (18). Finding #15 is
+  hidden by fine-grained recomputes but not fixed, so `undo_repair` stays
+  (20). `getGlobalPlacement` is deprecated and removed in 27.2 (21).
+- ~~**Datums**: `Part::LocalCoordinateSystem` placement and the
+  child-axis scope behaviour recorded in `CLAUDE.md`.~~ **Done 2026-09-23
+  (finding 22):** unchanged, including the child-axis misfiling, which
+  reproduces headless on both builds once a Boolean claims the component.
 - ~~**VarSets and the Spreadsheet**: re-run the finding-16 probe — per-cell
   tracking may now exist, which would change the "spreadsheets are for
   reading" guidance.~~ **Done 2026-09-22 (finding 16):** it does. A
@@ -195,8 +203,21 @@ is built on sand. At minimum:
   cell recomputes only the sheet — 1 object against 460 with the old
   engine. The "spreadsheets are for reading" guidance is retired for
   layout variables.
-- **Assembly**: only needed for the Phase 2 export now, but confirm
-  whether the marker bug that started all of this still exists.
+- ~~**Assembly**: only needed for the Phase 2 export now, but confirm
+  whether the marker bug that started all of this still exists.~~
+  **Done 2026-09-23 (finding 23), from the source rather than a
+  rendering:** fixed upstream by #28089 (closes #27345), which is in the
+  weekly and not in 1.1.3. The Phase 2 export should check it in the GUI
+  when it is built.
+
+**What section 3 leaves to do** (not started; each is its own change):
+1. ~~**Finding 18: quotes in labels.**~~ **Done 2026-09-23** (route (b):
+   `naming.label_ref` and friends, `tests/test_label_quoting.py`).
+2. **Finding 21: `getGlobalPlacement`.** Add one `global_placement(obj)`
+   helper and use it at the six call sites and in the tests, before
+   27.2.
+3. **Finding 17's aside: the template bar** should reject a parameter
+   name that parses as a unit symbol (`W`, `A`, `J`, …).
 
 ### 4. The parked measurements — the main one is taken
 
