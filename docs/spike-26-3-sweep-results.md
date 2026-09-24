@@ -1,5 +1,9 @@
 # 26.3 sweep — expression engine, datums, Assembly (brief section 3)
 
+**Status: done 2026-09-23.** Every follow-up it raised is built, passed
+Adam's GUI round, and is committed on `claude/26-3-section-3-sweep`
+(see *What came of it* at the end).
+
 Taken 2026-09-23 on `main` at `d4a3b8c`, on the 7010. **26.3** is the
 weekly `2026.09.16` (26.3.0, git `a4ce44d33b`; it reports itself as
 `20260916 (Git shallow)`), with fine-grained recomputes at their default
@@ -22,7 +26,7 @@ Numbering continues from findings 13–16 in
 
 | # | Item | 26.3 vs 1.1.3 | Consequence |
 |---|---|---|---|
-| 17 | Seat arithmetic, `<<Label>>` resolution, relabel, cross-document copy | **unchanged** | none |
+| 17 | Seat arithmetic, `<<Label>>` resolution, relabel, cross-document copy | **unchanged** | none; aside: unit-symbol property names now **flagged** |
 | 18 | A quote in a label is stored escaped (`\'`) | same on both: **an existing BentWizard bug** | New Timber refused `'` and `"`; **fixed** |
 | 19 | Cycle check | **still per object** | seat VarSet and "datums never read each other" stay |
 | 20 | Finding #15 (undo breaks expression dependencies) | **hidden by fine-grained, still there** | `undo_repair` stays |
@@ -287,5 +291,39 @@ matter here: timbers are never dragged.
 
 - **GUI rendering and GUI-only recompute ordering.** Headless is a
   filter, not an oracle (CLAUDE.md). Adam's GUI round covers these.
-- **The fixes for findings 18 and 21 are built.** The rest of the
-  brief's list (the unit-symbol lint) is not.
+- **Finding 23's marker fix is read from the source, not seen.** The
+  Phase 2 export checks it in the GUI.
+
+## What came of it
+
+Each item below was headless-tested, passed Adam's GUI round, and is
+committed on `claude/26-3-section-3-sweep`:
+
+| commit | what |
+|---|---|
+| `6a26c04` | this record and its two harnesses; `undo_repair`'s deletion trigger (20); the #15 correction in the friction log |
+| `58826e9` | finding 18 fixed: `naming.label_ref` and friends, `tests/test_label_quoting.py` |
+| `80b3b23` | finding 21 migrated: `datums.global_placement` |
+| `f63344c` | `frame.rebuild_seats` keeps existing seats: a second Duplicate Timbers in a document no longer fails with a cycle |
+| `5c8032b` | finding 17's aside: `naming.EXPRESSION_WORDS`, lint rule `property-expression-word`, refusal in Store in Variable Set |
+| `ce8c9d0` | unexpected command errors shown in a readable dialog instead of FreeCAD's bare "failed:" |
+
+Two of these were not sweep findings. Adam's GUI round for `80b3b23`
+found them:
+- **The second-Duplicate cycle.** It was older than 26.3: the code from
+  before the migration failed the same way.
+- **The bare "failed:".** That is how the cycle reached him.
+
+**Upstream: Rename Property accepts unit names.** FreeCAD's Add Property
+dialog refuses a unit or constant name, but Property View → Rename
+Property does not, and neither does Python's `addProperty`.
+- **Already known:** [#16846](https://github.com/FreeCAD/FreeCAD/issues/16846)
+  is the original report. [#16902](https://github.com/FreeCAD/FreeCAD/pull/16902)
+  fixed it in 2024, but only in the dialogs where a name is typed.
+  Rename Property came later, without the check.
+- **The root fix is open:** [#22914](https://github.com/FreeCAD/FreeCAD/pull/22914)
+  moves the check into `add`/`renameDynamicProperty`, but has been
+  stalled since late 2025. Adam commented there on 2026-09-23 with the
+  reproduction.
+- **Nothing new filed.** BentWizard's lint rule covers the gap
+  meanwhile, and stays harmless once #22914 lands.
