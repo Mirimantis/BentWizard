@@ -243,13 +243,13 @@ class DatumTest(unittest.TestCase):
             self.assertLess(mm, 1e-6, (face, end))
             self.assertLess(deg, 1e-9, (face, end))
             # antiparallel: the mate's Z is the host's -Z
-            hz = host.getGlobalPlacement().Rotation.multVec(App.Vector(0, 0, 1))
-            mz = mate.getGlobalPlacement().Rotation.multVec(App.Vector(0, 0, 1))
+            hz = datums.global_placement(host).Rotation.multVec(App.Vector(0, 0, 1))
+            mz = datums.global_placement(mate).Rotation.multVec(App.Vector(0, 0, 1))
             self.assertLess((hz + mz).Length, 1e-9, (face, end))
             # the girt sits outboard of the post, touching at the face, centred
             self.assertLess(self.post.Shape.common(girt.Shape).Volume, 1e-6, (face, end))
             n = hz
-            gc = girt.Shape.CenterOfMass - host.getGlobalPlacement().Base
+            gc = girt.Shape.CenterOfMass - datums.global_placement(host).Base
             along = gc.dot(n)
             self.assertAlmostEqual(along / IN, 36, places=6, msg=(face, end))
             self.assertLess((gc - n * along).Length, 1e-6, (face, end))
@@ -319,6 +319,53 @@ class DatumTest(unittest.TestCase):
             self.assertEqual(inches(datums.accessors_varset(vs).MateWidthU), 4)
             self.assertEqual(datums.datums_of_joint(vs)[0], host)
             self.assertIs(datums.host_datum(vs), host)
+
+
+@unittest.skipUnless(HAVE_FREECAD, "FreeCAD not importable — run with the bundled python")
+class GlobalPlacementTest(unittest.TestCase):
+    """`datums.global_placement` replaces `getGlobalPlacement`, deprecated
+    in 26.3 and removed in 27.2 (sweep finding 21)."""
+
+    def setUp(self):
+        self.doc = App.newDocument("GlobalPlc")
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+
+    def close(self, a, b):
+        d = a.inverse().multiply(b)
+        self.assertLess(d.Base.Length, 1e-9)
+        self.assertLess(min(d.Rotation.Angle, 6.283185307179586 - d.Rotation.Angle), 1e-9)
+
+    def test_datum_in_a_moved_timber_inside_std_groups(self):
+        import warnings
+        from freecad.bentwizard import datums
+        from freecad.bentwizard.timber import new_timber
+        body, _ = new_timber(self.doc, "T-Post-001", "6 in", "10 in", "8 ft")
+        frame = self.doc.addObject("App::DocumentObjectGroup", "Frame")
+        bent = self.doc.addObject("App::DocumentObjectGroup", "Bent")
+        frame.addObject(bent)
+        bent.addObject(body)
+        body.Placement = App.Placement(App.Vector(100, -50, 20),
+                                       App.Rotation(App.Vector(1, 2, 3), 40))
+        d = datums.add_datum(body, "XNeg", "30 in")
+        self.doc.recompute()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            self.close(datums.global_placement(d), body.Placement.multiply(d.Placement))
+            self.close(datums.global_placement(body), body.Placement)
+
+    def test_two_geofeaturegroups_deep(self):
+        from freecad.bentwizard import datums
+        part = self.doc.addObject("App::Part", "Part")
+        body = part.newObject("PartDesign::Body", "Body")
+        lcs = body.newObject("Part::LocalCoordinateSystem", "LCS")
+        part.Placement = App.Placement(App.Vector(7, 0, -3), App.Rotation(App.Vector(0, 0, 1), 90))
+        body.Placement = App.Placement(App.Vector(0, 11, 0), App.Rotation(App.Vector(1, 0, 0), 30))
+        lcs.Placement = App.Placement(App.Vector(1, 2, 3), App.Rotation(App.Vector(0, 1, 0), 45))
+        self.doc.recompute()
+        self.close(datums.global_placement(lcs),
+                   part.Placement.multiply(body.Placement).multiply(lcs.Placement))
 
 
 if __name__ == "__main__":

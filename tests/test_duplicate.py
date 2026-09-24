@@ -101,7 +101,7 @@ class DuplicateBentTest(unittest.TestCase):
                                144 + 5.5 + 4.5, places=3)
 
     def test_copies_seat_in_an_offset_bent_group(self):
-        from freecad.bentwizard import frame
+        from freecad.bentwizard import datums, frame
         new_bodies, new_joints, _ = self.duplicate(group_label="Bent-002",
                                                    offset=App.Vector(120 * IN, 0, 0))
         copy1 = new_bodies[self.post1]
@@ -116,12 +116,45 @@ class DuplicateBentTest(unittest.TestCase):
             self.assertLess(frame.joint_misfit(vs)[0], 1e-3, vs.Label)
         # the offset rides on the copies; the copy of the principal timber
         # roots them provisionally until a joint ties them to the frame
-        self.assertAlmostEqual(copy1.getGlobalPlacement().Base.x / IN, 120, places=6)
+        self.assertAlmostEqual(datums.global_placement(copy1).Base.x / IN, 120, places=6)
         self.assertIsNone(frame.seat_driving(copy1))
         self.assertFalse(frame.is_anchored(copy1))
         self.assertIs(frame.anchored_timber(self.doc), self.post1)
         for vs in new_joints:
             self.assertIsNotNone(frame.places(vs), vs.Label)
+
+    def test_duplicate_a_duplicate_and_the_original_again(self):
+        """Adam's GUI round (2026-09-23): the second Duplicate Timbers in a
+        document failed with 'cyclic reference to ...Placement'. The first
+        copy's provisional root is neither anchored nor seated, and the
+        bulk seating tried to seat it back from the timber it places."""
+        from freecad.bentwizard import datums, frame, measure
+        first, _j, _ = self.duplicate(group_label="Bent-002",
+                                      offset=App.Vector(120 * IN, 0, 0))
+        root = first[self.post1]
+        before = {b.Name: App.Placement(datums.global_placement(b))
+                  for b in first.values()}
+        seats = {b.Name: frame.seat_driving(b) for b in first.values()}
+        second, j2, _ = self.duplicate(list(first.values()), group_label="Bent-003",
+                                       offset=App.Vector(120 * IN, 0, 0))
+        third, j3, _ = self.duplicate(group_label="Bent-004",
+                                      offset=App.Vector(360 * IN, 0, 0))
+        # the first copy is untouched: same seats, same root, same place
+        self.assertIsNone(frame.seat_driving(root))
+        for b in first.values():
+            self.assertIs(frame.seat_driving(b), seats[b.Name], b.Label)
+            self.assertLess((datums.global_placement(b).Base
+                             - before[b.Name].Base).Length, 1e-9, b.Label)
+        self.assertAlmostEqual(
+            datums.global_placement(second[root]).Base.x / IN, 240, places=6)
+        self.assertAlmostEqual(
+            datums.global_placement(third[self.post1]).Base.x / IN, 360, places=6)
+        for vs in j2 + j3:
+            self.assertIsNotNone(frame.places(vs), vs.Label)
+            self.assertLess(frame.joint_misfit(vs)[0], 1e-3, vs.Label)
+        for b in list(second.values()) + list(third.values()):
+            self.assertTrue(measure.is_whole(b), b.Label)
+        self.assertEqual(measure.unhealthy(self.doc), [])
 
     def test_partial_set_skips_boundary_joints(self):
         new_bodies, new_joints, skipped = self.duplicate([self.post1, self.beam])

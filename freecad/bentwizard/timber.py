@@ -46,7 +46,7 @@ TOOLTIPS = {
         "Nothing binds to it; set, change, or clear it freely.",
 }
 
-_DIMS_BINDING = re.compile(r"<<([^>]+)>>\.LengthZ\b")
+_DIMS_BINDING = re.compile(naming.LABEL_REF.pattern + r"\.LengthZ\b")
 
 
 class TimberError(ValueError):
@@ -93,7 +93,7 @@ def dims_varset(body):
                 # pad reads a joint parameter and is not a timber
                 m = _DIMS_BINDING.search(expr)
                 if m:
-                    hits = doc.getObjectsByLabel(m.group(1))
+                    hits = doc.getObjectsByLabel(naming.unquote_label(m.group(1)))
                     if hits and hits[0].TypeId == "App::VarSet":
                         return hits[0]
         break   # the first Pad is the base feature

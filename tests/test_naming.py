@@ -39,6 +39,57 @@ class ReservedCharsTest(unittest.TestCase):
         self.assertEqual(naming.reserved_in_label("T-Post.001 (Ünicode) #<"), "")
 
 
+class LabelRefTest(unittest.TestCase):
+    """Sweep finding 18: FreeCAD stores a <<Label>> reference escaped the
+    way App::quote writes it, so stored text is matched in that form."""
+
+    STORED = {                       # label -> what FreeCAD writes
+        "T-Post-001": "<<T-Post-001>>",
+        "T-Post'1'": "<<T-Post\\'1\\'>>",
+        'T-Post 8"x8"-001': '<<T-Post 8\\"x8\\"-001>>',
+        "T\t1": "<<T\\t1>>",
+        "T<1": "<<T<1>>",
+        "T<<Post": "<<T<<Post>>",
+        "Poteau-Été-柱": "<<Poteau-Été-柱>>",
+    }
+
+    def test_label_ref_is_the_stored_form(self):
+        for label, stored in self.STORED.items():
+            self.assertEqual(naming.label_ref(label), stored, label)
+
+    def test_round_trip(self):
+        for label in list(self.STORED) + ["a\\b", "x>y", "8'-6\" plate"]:
+            m = naming.LABEL_REF.fullmatch(naming.label_ref(label))
+            self.assertIsNotNone(m, label)
+            self.assertEqual(naming.unquote_label(m.group(1)), label)
+
+    def test_referenced_labels(self):
+        expr = ("<<T-Post\\'1\\'>>.Placement * <<T<1>>.Placement"
+                " * minvert(<<D_T-Post 8\\\"x8\\\"-001_A>>.Placement)")
+        self.assertEqual(naming.referenced_labels(expr),
+                         {"T-Post'1'", "T<1", 'D_T-Post 8"x8"-001_A'})
+        self.assertEqual(naming.referenced_labels("GirtLine * 2"), set())
+        self.assertEqual(naming.referenced_labels(None), set())
+
+    def test_a_label_is_not_found_inside_a_longer_one(self):
+        self.assertNotIn("Post", naming.referenced_labels("<<T-Post>>.L"))
+        self.assertNotIn("T-Post", naming.referenced_labels("<<T-Post'>>.L"))
+
+
+class ExpressionWordTest(unittest.TestCase):
+    """Sweep finding 17: a property named with a unit or constant cannot
+    be referenced. test_linter pins the list against the engine."""
+
+    def test_units_and_constants(self):
+        for name in ("W", "A", "J", "N", "Pa", "Nm", "M", "AS", "True", "None"):
+            self.assertTrue(naming.is_expression_word(name), name)
+            self.assertTrue(naming.is_camel_case(name), name)   # why UpperCamelCase alone missed it
+
+    def test_ordinary_names_pass(self):
+        for name in ("Width", "Wd", "Nmm", "A1", "TenonLength", "Pad", "Mm", "In"):
+            self.assertFalse(naming.is_expression_word(name), name)
+
+
 class JointLabelTest(unittest.TestCase):
     def test_round_trip(self):
         self.assertEqual(naming.joint_label("HousedMT", "001"), "J-HousedMT-001")

@@ -104,10 +104,10 @@ def marker_position(handle, frame):
     applies that assembly's placement — so the datum's global position is
     taken back into the container's frame, or an offset bent would draw
     its markers at twice its offset."""
-    pos = frame.getGlobalPlacement().Base
+    pos = datums.global_placement(frame).Base
     container = handle.getParentGeoFeatureGroup()
     if container is not None:
-        pos = container.getGlobalPlacement().inverse().multVec(pos)
+        pos = datums.global_placement(container).inverse().multVec(pos)
     return pos
 
 

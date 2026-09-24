@@ -223,6 +223,10 @@ stay ordinary FreeCAD files (Tier 2: gated *functionality*, native data) — wit
 loaded they behave as stock FreeCAD does, which is to say with this bug.
 `tests/test_undo_repair.py` pins both the upstream defect and the repair; the test asserting the
 defect is the tripwire that tells us when FreeCAD fixes it and the observer can be dropped.
+**Corrected 2026-09-23 (sweep finding 20, `docs/spike-26-3-sweep-results.md`):** no test asserts
+the defect. The two-box repro no longer reproduces, on 1.1.3 or 26.3. The Remove-and-undo case
+still does on 1.1.3, and on 26.3 with fine-grained recomputes off; with them on, it comes back
+live. The tripwire is now E11 in `tests/spike/spike_expression_engine.py`.
 
 **Expect the console spew to remain.** FreeCAD prints those `AttachEngine3D` / `role "XY_Plane"`
 exceptions from inside its own restore, before the observer is called — there is nothing on our side

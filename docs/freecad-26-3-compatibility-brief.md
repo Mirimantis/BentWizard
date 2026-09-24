@@ -1,7 +1,15 @@
 # Brief: make BentWizard work on FreeCAD 26.3
 
-**For a fresh session — this is the next piece of work.** Adam's
-decision, 2026-09-20: BentWizard moves to 26.3 and takes the
+**Status: all four sections done, 2026-09-23.** 26.3 has been the
+minimum since 2026-09-21 (route (a), section 1). The accessors are split
+(section 2). The sweep is finished and its follow-ups are built
+(section 3, [spike-26-3-sweep-results.md](spike-26-3-sweep-results.md)).
+The parked measurements are taken (section 4). The sweep found nothing
+under the geometry that 26.3 moved. Whether workstream C now starts is
+Adam's call. The one open long-run item is section 1's route (b):
+binding components globally, the roadmap's goal before 26.3 releases.
+
+Adam's decision, 2026-09-20: BentWizard moves to 26.3 and takes the
 fine-grained recomputes, and the weekly dev build becomes the primary
 test environment once the workbench runs there. The rest of the rebuild
 waits: **workstream C is not to start** beyond what section 2 needs,
@@ -68,7 +76,13 @@ assume.
 
 ## The work
 
-### 1. Decide the operand contract (blocks everything else)
+### 1. Decide the operand contract (blocks everything else) — **route (a) taken 2026-09-21**
+
+`UseLegacyBodyPlacement` is set on every Boolean the workbench creates
+(`component.set_legacy_placement`); see findings 9–12 in
+[spike-26-3-gui-results.md](spike-26-3-gui-results.md). Route (b) stays
+the long-run goal: the roadmap aims for global binding before 26.3
+releases.
 
 Nothing to report upstream and nothing to wait for: the change is
 intentional and the flag is the escape hatch. Two routes, and this is
@@ -159,7 +173,7 @@ What resolves *through* the accessors today and must follow them:
 dimension drivers (rafter pitch, brace slope) go in beside
 `WidthX`/`WidthY`/`LengthZ`.
 
-### 3. Sweep for the rest of 26.3's changes
+### 3. Sweep for the rest of 26.3's changes — **DONE 2026-09-23**
 
 The point of this session is to find the *other* surprises before more
 is built on sand. At minimum:
@@ -183,10 +197,18 @@ is built on sand. At minimum:
   main` must be run **by Adam from a shell outside the Claude desktop
   app** (MSIX redirects `%APPDATA%` writes; an in-app `Test-Path` is
   not proof).
-- **Expression engine**: `minvert`, placement multiplication and the
-  `<<Label>>` forms the seats depend on.
-- **Datums**: `Part::LocalCoordinateSystem` placement and the
-  child-axis scope behaviour recorded in `CLAUDE.md`.
+- ~~**Expression engine**: `minvert`, placement multiplication and the
+  `<<Label>>` forms the seats depend on.~~ **Done 2026-09-23 (findings
+  17–21, [spike-26-3-sweep-results.md](spike-26-3-sweep-results.md)):**
+  the seat's arithmetic and `<<Label>>` resolution are unchanged, and
+  the cycle check is still per object. Found along the way: a quote in a
+  label breaks every textual match, on 1.1.3 too (18). Finding #15 is
+  hidden by fine-grained recomputes but not fixed, so `undo_repair` stays
+  (20). `getGlobalPlacement` is deprecated and removed in 27.2 (21).
+- ~~**Datums**: `Part::LocalCoordinateSystem` placement and the
+  child-axis scope behaviour recorded in `CLAUDE.md`.~~ **Done 2026-09-23
+  (finding 22):** unchanged, including the child-axis misfiling, which
+  reproduces headless on both builds once a Boolean claims the component.
 - ~~**VarSets and the Spreadsheet**: re-run the finding-16 probe — per-cell
   tracking may now exist, which would change the "spreadsheets are for
   reading" guidance.~~ **Done 2026-09-22 (finding 16):** it does. A
@@ -195,8 +217,21 @@ is built on sand. At minimum:
   cell recomputes only the sheet — 1 object against 460 with the old
   engine. The "spreadsheets are for reading" guidance is retired for
   layout variables.
-- **Assembly**: only needed for the Phase 2 export now, but confirm
-  whether the marker bug that started all of this still exists.
+- ~~**Assembly**: only needed for the Phase 2 export now, but confirm
+  whether the marker bug that started all of this still exists.~~
+  **Done 2026-09-23 (finding 23), from the source rather than a
+  rendering:** fixed upstream by #28089 (closes #27345), which is in the
+  weekly and not in 1.1.3. The Phase 2 export should check it in the GUI
+  when it is built.
+
+**What section 3 leaves to do** (not started; each is its own change):
+1. ~~**Finding 18: quotes in labels.**~~ **Done 2026-09-23** (route (b):
+   `naming.label_ref` and friends, `tests/test_label_quoting.py`).
+2. ~~**Finding 21: `getGlobalPlacement`.**~~ **Done 2026-09-23**
+   (`datums.global_placement`, at all six sites and in the tests).
+3. ~~**Finding 17's aside: the template bar**~~ **Done 2026-09-23:**
+   `naming.EXPRESSION_WORDS`, the strict lint rule
+   `property-expression-word`, and a refusal in Store in Variable Set.
 
 ### 4. The parked measurements — the main one is taken
 
@@ -285,9 +320,12 @@ ones that only existed to serve the splits.
 - Current build: `FreeCAD_weekly-2026.09.16-Windows-x86_64-experimental`,
   26.3.0, git `a4ce44d33b`, `bin\python.exe` as usual. Tag it `26.3`
   beside the `7010` / `i9` machine tags in any timing.
-- **1.1.3 stays the compatibility target** until the suite is green and
-  a GUI round passes on 26.3 — `main` must keep working there.
-- Branch from `claude/flat-frame-seats` (workstream A: the seats and the
-  frame container this all now rests on), not from `main`.
+- ~~**1.1.3 stays the compatibility target** until the suite is green and
+  a GUI round passes on 26.3 — `main` must keep working there.~~
+  Superseded 2026-09-21: 26.3 is the minimum; 1.1.3 is a comparison
+  build only (Decision rules above).
+- ~~Branch from `claude/flat-frame-seats` (workstream A: the seats and the
+  frame container this all now rests on), not from `main`.~~ Workstream A
+  is merged; branch from `main`.
 - The harnesses run on A's branch since `fd284cc`; the older
   `spike_flat_frame.py` is historical and exits with an explanation.

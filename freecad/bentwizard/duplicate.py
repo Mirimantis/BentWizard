@@ -71,6 +71,8 @@ def suggest_joint_serials(doc, joints):
 
 
 def _rewrite(expr, renames):
+    """Swap stored references: `renames` maps `naming.label_ref` forms,
+    because an expression holds its labels escaped."""
     for old, new in renames.items():
         expr = expr.replace(old, new)
     return expr
@@ -128,15 +130,16 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
             *(App.Units.Quantity(f"{float(getattr(dims, n))} mm") for n in naming.DIMS),
             position_tag=position_tag)
         new_bodies[src] = body
-        renames[f"<<{src.Label}>>"] = f"<<{body.Label}>>"
-        renames[f"<<{dims.Label}>>"] = f"<<{new_dims.Label}>>"
+        renames[naming.label_ref(src.Label)] = naming.label_ref(body.Label)
+        renames[naming.label_ref(dims.Label)] = naming.label_ref(new_dims.Label)
         for path, expr in dims.ExpressionEngine:
             new_dims.setExpression(path.lstrip("."), _rewrite(expr, renames))
     doc.recompute()
     for src, copy in new_bodies.items():
         for old_name, new_datum in _copy_datums(src, copy, renames).items():
             datum_map[old_name] = new_datum
-            renames[f"<<{doc.getObject(old_name).Label}>>"] = f"<<{new_datum.Label}>>"
+            renames[naming.label_ref(doc.getObject(old_name).Label)] = \
+                naming.label_ref(new_datum.Label)
     doc.recompute()
 
     # --- joints -----------------------------------------------------------
@@ -186,7 +189,7 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
     # Timber placements are global now that no assembly holds them, so
     # the offset goes straight on each copy.
     for src, copy in new_bodies.items():
-        copy.Placement = shift.multiply(src.getGlobalPlacement())
+        copy.Placement = shift.multiply(datums.global_placement(src))
     doc.recompute()
 
     group_label = (group_label or "").strip()

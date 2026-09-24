@@ -239,7 +239,7 @@ class ApplyTest(unittest.TestCase):
     # --- the matrix -----------------------------------------------------
 
     def test_matrix_every_face_and_end(self):
-        from freecad.bentwizard import facetable, frame, measure
+        from freecad.bentwizard import datums, facetable, frame, measure
         from freecad.bentwizard.timber import new_timber
         post_cut = round(8 * 8 * 96 - HOUSING - MORTISE, 6)
         girt_add = round(6 * 8 * 72 + SHOULDER + TENON, 6)
@@ -272,7 +272,7 @@ class ApplyTest(unittest.TestCase):
                 envelope = Part.makeBox(8 * IN, 8 * IN, 96 * IN)
                 envelope.Placement = App.Placement(App.Vector(-4 * IN, -4 * IN, 0),
                                                    App.Rotation())
-                envelope.Placement = post.getGlobalPlacement().multiply(envelope.Placement)
+                envelope.Placement = datums.global_placement(post).multiply(envelope.Placement)
                 inside = girt.Shape.common(envelope).Volume / IN3
                 self.assertAlmostEqual(inside, SHOULDER + TENON, places=6, msg=(face, end))
             finally:

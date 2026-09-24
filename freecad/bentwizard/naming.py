@@ -60,7 +60,7 @@ DEFAULT_SEP = "."
 _SERIAL = re.compile(r"^(?P<base>.+?)(?P<sep>" + _SEP_CLASS + r")(?P<serial>\d+)$")
 
 # Characters that break the tooling when they appear in a Label
-# (verified against FreeCAD 1.1.1, everything else survives the
+# (verified against FreeCAD 1.1.1 and 26.3, everything else survives the
 # <<Label>>.Prop expression round trip — including '.', ' ', quotes,
 # '<', '<<' and unicode):
 #   >        terminates <<Label>> quoting in expressions
@@ -68,6 +68,47 @@ _SERIAL = re.compile(r"^(?P<base>.+?)(?P<sep>" + _SEP_CLASS + r")(?P<serial>\d+)
 #   ;        a record separator in Tier-2 strings
 #   newline  breaks the expression parser
 RESERVED_LABEL_CHARS = ">\\;\n\r"
+
+# --------------------------------------------------------------------------
+# <<Label>> references as FreeCAD stores them
+# --------------------------------------------------------------------------
+# FreeCAD evaluates `<<T-Post'1'>>.Len` as typed, but STORES it the way
+# its own App::quote writes a label: a backslash before a quote, '\',
+# '>', and tab/newline/CR as \t \n \r. So `<<T-Post\'1\'>>.Len` is what
+# ExpressionEngine and Document.xml hold (sweep finding 18). Anything that
+# looks for a reference in stored text goes through these three — never
+# `f"<<{label}>>" in expr`. Building an expression may use the plain
+# label: the parser takes both forms and stores the escaped one.
+
+_QUOTE_ESCAPES = {"\\": "\\\\", "'": "\\'", '"': '\\"', ">": "\\>",
+                  "\t": "\\t", "\n": "\\n", "\r": "\\r"}
+_UNQUOTE = {"t": "\t", "n": "\n", "r": "\r"}
+
+# One stored reference: '<<', then escaped characters or anything but
+# '\' and '>', then '>>'. Group 1 is the label as stored (escaped).
+LABEL_REF = re.compile(r"<<((?:\\.|[^\\>])+)>>")
+
+
+def quote_label(label):
+    """A label escaped as FreeCAD stores it between '<<' and '>>' — for
+    templates that already carry the brackets (facetable's rows)."""
+    return "".join(_QUOTE_ESCAPES.get(c, c) for c in label)
+
+
+def label_ref(label):
+    """'<<Label>>' exactly as FreeCAD stores it in an expression."""
+    return "<<" + quote_label(label) + ">>"
+
+
+def unquote_label(stored):
+    """The label behind LABEL_REF's group 1 (the inverse of label_ref)."""
+    return re.sub(r"\\(.)", lambda m: _UNQUOTE.get(m.group(1), m.group(1)),
+                  stored, flags=re.DOTALL)
+
+
+def referenced_labels(expr):
+    """Every label an expression names in the <<Label>> form."""
+    return {unquote_label(m) for m in LABEL_REF.findall(expr or "")}
 
 # --------------------------------------------------------------------------
 # Tier-2 property names (UpperCamelCase, FreeCAD convention)
@@ -153,6 +194,26 @@ _CAMEL = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 def is_camel_case(name):
     """True for an UpperCamelCase property name with no separators."""
     return bool(_CAMEL.match(name))
+
+
+# UpperCamelCase names FreeCAD's expression lexer reads as a unit or a
+# constant, so a property with one of these names can never be
+# referenced: `<<J-Kind-001>>.W` is a parse error, because W is the watt.
+# They are the lexer's own tokens (src/App/Expression.l): 34 unit
+# symbols, M and AS (arcminute and arcsecond), and True/False/None.
+# Each one was confirmed to fail as a VarSet property reference on
+# 1.1.3 and 26.3 (sweep finding 17). 'Nmm' is in the lexer too, but it
+# resolves as a property, so it is not listed. test_naming pins this
+# list against the engine.
+EXPRESSION_WORDS = frozenset(
+    "A AS C CV F False G GHz GPa H Hz J K M MA MHz MN MOhm MPa MS MeV Mpsi "
+    "N Nm None Ohm Pa S T THz Torr True V VA VAs W Wb Ws".split())
+
+
+def is_expression_word(name):
+    """True when `name` is one FreeCAD reads as a unit or a constant, so
+    a property with that name cannot be referenced in an expression."""
+    return name in EXPRESSION_WORDS
 
 
 def reserved_in_label(label):
