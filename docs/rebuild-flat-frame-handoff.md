@@ -1,5 +1,17 @@
 # Rebuild handoff: the flat frame
 
+**Status: built, 2026-09-23.**
+- **A** (seats, the frame Std Group): built, with the Assembly object
+  dropped altogether.
+- **B** (value splits): retired, because FreeCAD 26.3's fine-grained
+  recomputes do its job (`spike-fine-grained-recompute-results.md`).
+- **C** (handles) and **D** (readers): built (PR #25); each section
+  below says which parts were done where.
+- **E** (export to Assembly): deferred to Phase 2.
+
+What follows is the brief as written; the numbers in it (118 tests, the
+round-4 timings) are from 1.1.3.
+
 **For the coordinator.** This is the build brief for the decisions taken
 on 2026-09-19 (PR #18). Everything here is *decided and measured*; none
 of it is built. Read this, then the two sources it rests on:
@@ -207,6 +219,16 @@ sub-assembly mis-draws its markers).
   commit. That rule is why the spikes exist.
 
 ## Open questions for Adam (answer before or during the build)
+
+> **All three answered:**
+> 1. **Project-variable granularity: free.** On 26.3, sharing a VarSet
+>    or a Spreadsheet costs nothing (findings 13–16,
+>    `spike-fine-grained-recompute-results.md`), so variables can be
+>    grouped however a framer finds natural.
+> 2. **Migration: no converter.** Pre-rebuild documents are unsupported
+>    (`workstream-a-handoff.md`).
+> 3. **Panel timing: the panel waits.** The gap is accepted, and the
+>    panel is the next priority.
 
 1. **Project-variable granularity.** One VarSet per variable is maximal
    isolation and maximal clutter. Grouping only variables that always

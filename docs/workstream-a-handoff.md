@@ -169,6 +169,10 @@ whole still owes Adam's GUI round before anything reaches `main`.
 > so the component mechanism itself may change shape, and there is no
 > point building C on ground that is about to move. The plan below
 > resumes once the 26.3 session reports.
+>
+> **Resumed and finished 2026-09-23.** The 26.3 sweep found nothing
+> moved under the geometry. C and D were built (PR #25), and E is
+> Phase 2 — see `rebuild-flat-frame-handoff.md`.
 
 - **Order A → B → C → D**, one branch and one PR each, each verified by
   a scripted GUI probe; Adam's interactive GUI round happens once, before

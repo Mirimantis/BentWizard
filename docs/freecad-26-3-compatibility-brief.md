@@ -5,8 +5,9 @@ minimum since 2026-09-21 (route (a), section 1). The accessors are split
 (section 2). The sweep is finished and its follow-ups are built
 (section 3, [spike-26-3-sweep-results.md](spike-26-3-sweep-results.md)).
 The parked measurements are taken (section 4). The sweep found nothing
-under the geometry that 26.3 moved. Whether workstream C now starts is
-Adam's call. The one open long-run item is section 1's route (b):
+under the geometry that 26.3 moved, so workstreams C and D went ahead,
+and the flat-frame rebuild is now built (PR #25). The one open long-run
+item is section 1's route (b):
 binding components globally, the roadmap's goal before 26.3 releases.
 
 Adam's decision, 2026-09-20: BentWizard moves to 26.3 and takes the
