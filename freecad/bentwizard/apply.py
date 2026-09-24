@@ -83,10 +83,10 @@ def joint_members(varset):
     timber's section, pad and datums along with the joint.
     """
     doc = varset.Document
-    token = f"<<{varset.Label}>>"
 
     def mentions(obj):
-        return any(token in e for _p, e in obj.ExpressionEngine)
+        return any(varset.Label in naming.referenced_labels(e)
+                   for _p, e in obj.ExpressionEngine)
 
     comps = [b for b in doc.Objects
              if b.TypeId == "PartDesign::Body"
@@ -228,12 +228,14 @@ def _substitute(objs, old_label, new_label):
     """Re-point every reference to `old_label` in the expressions of
     `objs` at `new_label`. A cross-document copy rewrites a
     ``<<Label>>`` it cannot resolve into the bare ``Label.Prop`` form,
-    so both spellings are matched."""
-    pattern = re.compile(r"(<<" + re.escape(old_label) + r">>|(?<![\w.])"
-                         + re.escape(old_label) + r"(?=\.))")
+    so both spellings are matched. The <<Label>> form is matched as
+    FreeCAD stores it (escaped — `naming.label_ref`)."""
+    pattern = re.compile(r"(" + re.escape(naming.label_ref(old_label))
+                         + r"|(?<![\w.])" + re.escape(old_label) + r"(?=\.))")
+    ref = naming.label_ref(new_label)
     for obj in objs:
         for path, expr in list(obj.ExpressionEngine):
-            new = pattern.sub(f"<<{new_label}>>", expr)
+            new = pattern.sub(lambda _m: ref, expr)   # no backslash processing
             if new != expr:
                 obj.setExpression(path, new)
 
@@ -248,7 +250,7 @@ def _redirect_accessors(objs, joint_label, holder_label):
     accessors onto `Accessors_J-Kind-001`; only the first kind moves.
     Both the ``<<Label>>`` and the bare ``Label.Prop`` spellings are
     matched, as in `_substitute`."""
-    head = (r"(?:<<" + re.escape(joint_label) + r">>|(?<![\w.])"
+    head = (r"(?:" + re.escape(naming.label_ref(joint_label)) + r"|(?<![\w.])"
             + re.escape(joint_label) + r")")
     accessors = [side + acc for side in naming.SIDES
                  for acc in naming.ALL_ACCESSORS]
@@ -259,7 +261,8 @@ def _redirect_accessors(objs, joint_label, holder_label):
         + r")(?![\w])")
     for obj in objs:
         for path, expr in list(obj.ExpressionEngine):
-            new = pattern.sub(rf"<<{holder_label}>>.\1", expr)
+            new = pattern.sub(
+                lambda m: f"{naming.label_ref(holder_label)}.{m.group(1)}", expr)
             if new != expr:
                 obj.setExpression(path, new)
 

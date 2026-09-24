@@ -60,7 +60,7 @@ DEFAULT_SEP = "."
 _SERIAL = re.compile(r"^(?P<base>.+?)(?P<sep>" + _SEP_CLASS + r")(?P<serial>\d+)$")
 
 # Characters that break the tooling when they appear in a Label
-# (verified against FreeCAD 1.1.1, everything else survives the
+# (verified against FreeCAD 1.1.1 and 26.3, everything else survives the
 # <<Label>>.Prop expression round trip — including '.', ' ', quotes,
 # '<', '<<' and unicode):
 #   >        terminates <<Label>> quoting in expressions
@@ -68,6 +68,47 @@ _SERIAL = re.compile(r"^(?P<base>.+?)(?P<sep>" + _SEP_CLASS + r")(?P<serial>\d+)
 #   ;        a record separator in Tier-2 strings
 #   newline  breaks the expression parser
 RESERVED_LABEL_CHARS = ">\\;\n\r"
+
+# --------------------------------------------------------------------------
+# <<Label>> references as FreeCAD stores them
+# --------------------------------------------------------------------------
+# FreeCAD evaluates `<<T-Post'1'>>.Len` as typed, but STORES it the way
+# its own App::quote writes a label: a backslash before a quote, '\',
+# '>', and tab/newline/CR as \t \n \r. So `<<T-Post\'1\'>>.Len` is what
+# ExpressionEngine and Document.xml hold (sweep finding 18). Anything that
+# looks for a reference in stored text goes through these three — never
+# `f"<<{label}>>" in expr`. Building an expression may use the plain
+# label: the parser takes both forms and stores the escaped one.
+
+_QUOTE_ESCAPES = {"\\": "\\\\", "'": "\\'", '"': '\\"', ">": "\\>",
+                  "\t": "\\t", "\n": "\\n", "\r": "\\r"}
+_UNQUOTE = {"t": "\t", "n": "\n", "r": "\r"}
+
+# One stored reference: '<<', then escaped characters or anything but
+# '\' and '>', then '>>'. Group 1 is the label as stored (escaped).
+LABEL_REF = re.compile(r"<<((?:\\.|[^\\>])+)>>")
+
+
+def quote_label(label):
+    """A label escaped as FreeCAD stores it between '<<' and '>>' — for
+    templates that already carry the brackets (facetable's rows)."""
+    return "".join(_QUOTE_ESCAPES.get(c, c) for c in label)
+
+
+def label_ref(label):
+    """'<<Label>>' exactly as FreeCAD stores it in an expression."""
+    return "<<" + quote_label(label) + ">>"
+
+
+def unquote_label(stored):
+    """The label behind LABEL_REF's group 1 (the inverse of label_ref)."""
+    return re.sub(r"\\(.)", lambda m: _UNQUOTE.get(m.group(1), m.group(1)),
+                  stored, flags=re.DOTALL)
+
+
+def referenced_labels(expr):
+    """Every label an expression names in the <<Label>> form."""
+    return {unquote_label(m) for m in LABEL_REF.findall(expr or "")}
 
 # --------------------------------------------------------------------------
 # Tier-2 property names (UpperCamelCase, FreeCAD convention)

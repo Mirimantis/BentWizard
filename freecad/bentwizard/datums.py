@@ -169,8 +169,9 @@ def host_datum(varset):
     holder = accessors_varset(varset)
     for path, expr in holder.ExpressionEngine:
         if path.lstrip(".") == "Host" + facetable.ACCESSORS[0]:
+            named = naming.referenced_labels(expr)
             for d in all_datums(varset.Document):
-                if f"<<{d.Label}>>" in expr:
+                if d.Label in named:
                     return d
     return None
 
@@ -206,7 +207,7 @@ def add_datum(body, face, station=None, label=None):
         if row.station is None:
             raise DatumError(f"a datum on face {facetable.display(face)} "
                              f"needs a station")
-        station = "=" + row.station.format(dims=dims.Label)
+        station = "=" + row.station.format(dims=naming.quote_label(dims.Label))
         if row.station == "0":
             station = "0 mm"
     q, expr = dim_input(station)

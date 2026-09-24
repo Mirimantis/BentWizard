@@ -234,8 +234,9 @@ def seat_driving(body):
     expr = placement_expression(body)
     if not expr or SEAT_PROP not in expr:
         return None
+    named = naming.referenced_labels(expr)
     for obj in body.Document.Objects:
-        if is_seat(obj) and f"<<{obj.Label}>>" in expr:
+        if is_seat(obj) and obj.Label in named:
             return obj
     return None
 

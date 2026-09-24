@@ -17,6 +17,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 
+from . import naming
+
 
 @dataclass
 class Expression:
@@ -298,7 +300,9 @@ class FcstdDocument:
 
 # --- Expression reference extraction -------------------------------------
 
-_LABEL_REF = re.compile(r"<<([^<>]+)>>\.([A-Za-z_][A-Za-z0-9_]*)")
+# Labels are stored escaped ('<<T\'1\'>>') and may hold '<'; group 1 is
+# the stored form, unquoted before lookup (naming, sweep finding 18).
+_LABEL_REF = re.compile(naming.LABEL_REF.pattern + r"\.([A-Za-z_][A-Za-z0-9_]*)")
 _BARE_REF = re.compile(r"(?<![\w.<>])([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)")
 
 
@@ -312,7 +316,7 @@ def expression_refs(expression, doc):
     refs = []
     stripped = expression
     for label, prop in _LABEL_REF.findall(expression):
-        obj = doc.resolve(label)
+        obj = doc.resolve(naming.unquote_label(label))
         if obj is not None:
             refs.append((obj, prop))
     stripped = _LABEL_REF.sub(" ", expression)

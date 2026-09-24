@@ -530,7 +530,8 @@ class NewTimberDialog(QtWidgets.QDialog):
     def _portable(expr, body, dims):
         """Finding #2: a copied expression must never keep pointing at
         the source timber."""
-        return not any(token and token in expr
+        named = naming.referenced_labels(expr)
+        return not any(token and (token in expr or token in named)
                        for token in (body.Name, body.Label, dims.Name, dims.Label))
 
     def values(self):

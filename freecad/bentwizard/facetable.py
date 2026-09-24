@@ -40,8 +40,11 @@ from __future__ import annotations
 
 from collections import namedtuple
 
+from . import naming
+
 Row = namedtuple("Row", (
-    "x",            # expression for Placement.Base.x, '{dims}' = Dims label; None = 0
+    "x",            # expression for Placement.Base.x, '{dims}' = Dims label,
+                    # escaped as stored (naming.quote_label); None = 0
     "y",            # expression for Placement.Base.y
     "station",      # default Station expression (ends only); None = user supplied
     "axis",         # rotation axis (unnormalised) and angle in degrees
@@ -102,20 +105,22 @@ def accessor_expressions(face, dims_label):
     """{accessor: expression} a datum on `face` carries for its own
     timber's Dims VarSet — the row's U/V/W bindings."""
     row = FACE_TABLE[face]
-    return {"WidthU": f"<<{dims_label}>>.{row.u}",
-            "WidthV": f"<<{dims_label}>>.{row.v}",
-            "DepthW": f"<<{dims_label}>>.{row.w}"}
+    ref = naming.label_ref(dims_label)
+    return {"WidthU": f"{ref}.{row.u}",
+            "WidthV": f"{ref}.{row.v}",
+            "DepthW": f"{ref}.{row.w}"}
 
 
 def position_expressions(face, dims_label):
     """{'.Placement.Base.x'|'.Placement.Base.y': expression} for the
     components the row drives from Dims (z is always 'Station')."""
     row = FACE_TABLE[face]
+    dims = naming.quote_label(dims_label)
     out = {}
     if row.x:
-        out[".Placement.Base.x"] = row.x.format(dims=dims_label)
+        out[".Placement.Base.x"] = row.x.format(dims=dims)
     if row.y:
-        out[".Placement.Base.y"] = row.y.format(dims=dims_label)
+        out[".Placement.Base.y"] = row.y.format(dims=dims)
     return out
 
 
