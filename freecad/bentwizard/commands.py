@@ -1185,6 +1185,56 @@ class _DatumChoice(QtCore.QObject):
     def _mark_user_choice(self, _index):
         self._user_chose = True
 
+    def choice(self):
+        """What the framer has set in this half, for the half that
+        replaces it when the template changes: (timber, the face/datum
+        item they picked or None, the station they entered for a new
+        datum, a reused datum's station they changed or None).
+
+        Changing the template rebuilt both halves at the new template's
+        own faces, silently dropping a face already picked: the dialog
+        opens on Joint_Butt, so picking -X and then switching to
+        Joint_HousedMT sent +Y (Adam's GUI round, 2026-09-24)."""
+        pick = self.datum.currentData() if self._user_chose else None
+        own = moved = None
+        if self.station is not None:
+            own = self._own_station if self._showing_datum else self._capture_station()
+            if self._showing_datum and self._station_changed():
+                moved = self._capture_station()
+        return self.timber.currentData(), pick, own, moved
+
+    def restore(self, timber, pick, own, moved):
+        """Carry a replaced half's choice into this one: the timber, then
+        the picked face or datum — only where this half can use it (a
+        side face on a passing half, an end on a butting one), and only a
+        datum still offered — and the stations."""
+        if timber is not None:
+            for i in range(self.timber.count()):
+                if self.timber.itemData(i) is timber:
+                    self.timber.setCurrentIndex(i)
+                    break
+        if own is not None and self.station is not None:
+            self._own_station = own
+            if not self._showing_datum:
+                self._show_station(own)
+        if pick is None:
+            return
+        kind, value = pick
+        face = value if kind == "face" else datums.face_of(value)
+        if facetable.is_end(face) != self.butting:
+            return                  # this template's half cannot land there
+        for i in range(self.datum.count()):
+            data = self.datum.itemData(i)
+            if data is None or data[0] != kind:
+                continue
+            if (data[1] == value if kind == "face"
+                    else data[1].Name == value.Name):
+                self.datum.setCurrentIndex(i)
+                self._user_chose = True
+                if moved is not None and self._showing_datum:
+                    self._show_station(moved)
+                return
+
     def _toggle_station(self):
         """For a new datum, the station to place it at; for an existing
         one, THAT datum's station — editable, and Apply moves the datum
@@ -1330,6 +1380,9 @@ class ApplyJointDialog(QtWidgets.QDialog):
 
     def _load(self):
         path = self.template_box.currentData()
+        # what the framer set, carried into the rebuilt halves by
+        # position (Primary, Secondary) — see `_DatumChoice.choice`
+        carried = [w.choice() for w in self.role_widgets.values()]
         self._clear(self.roles_form)        # deletes the pickers' controls
         self._clear(self.params_form)
         for w in self.role_widgets.values():
@@ -1352,11 +1405,13 @@ class ApplyJointDialog(QtWidgets.QDialog):
         # (host), second = Secondary (mate)
         selected = _selected_timbers(self.doc)
         preset = dict(zip([self.spec.host_role, self.spec.mate_role], selected))
-        for role in self.spec.roles:
+        for n, role in enumerate(self.spec.roles):
             w = _DatumChoice(self.doc, self,
                              butting=_role_is_butting(self.spec, role))
             w.set_default_face(self.spec.datum_face[self.spec.role_datum[role]])
-            if role in preset:
+            if n < len(carried):
+                w.restore(*carried[n])
+            elif role in preset:
                 for i in range(w.timber.count()):
                     if w.timber.itemData(i) is preset[role]:
                         w.timber.setCurrentIndex(i)
