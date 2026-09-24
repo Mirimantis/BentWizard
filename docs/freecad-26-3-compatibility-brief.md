@@ -215,8 +215,9 @@ is built on sand. At minimum:
    `naming.label_ref` and friends, `tests/test_label_quoting.py`).
 2. ~~**Finding 21: `getGlobalPlacement`.**~~ **Done 2026-09-23**
    (`datums.global_placement`, at all six sites and in the tests).
-3. **Finding 17's aside: the template bar** should reject a parameter
-   name that parses as a unit symbol (`W`, `A`, `J`, …).
+3. ~~**Finding 17's aside: the template bar**~~ **Done 2026-09-23:**
+   `naming.EXPRESSION_WORDS`, the strict lint rule
+   `property-expression-word`, and a refusal in Store in Variable Set.
 
 ### 4. The parked measurements — the main one is taken
 

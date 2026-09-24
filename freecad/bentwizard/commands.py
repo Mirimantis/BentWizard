@@ -345,6 +345,11 @@ class _StoreInVarSetDialog(QtWidgets.QDialog):
                 "the variable name must be UpperCamelCase — letters and "
                 "digits, starting with a capital letter (GirtLine, "
                 "PostHeight)")
+        if naming.is_expression_word(name):
+            return self._complain(
+                f"{name!r} is a unit or constant in FreeCAD expressions, so "
+                f"nothing could reference it — use a descriptive name "
+                f"(BayWidth, not W)")
         existing = self.doc.getObjectsByLabel(label)
         vs = existing[0] if existing else None
         if vs is not None and vs.TypeId != "App::VarSet":

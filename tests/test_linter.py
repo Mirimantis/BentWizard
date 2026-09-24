@@ -203,6 +203,11 @@ class LinterRules(unittest.TestCase):
         self.vs.Label = "J-Te;st-001"
         self.assertIn("label-reserved-characters", self.rules("strict"))
 
+    def test_property_expression_word(self):
+        self.assertNotIn("property-expression-word", self.rules("strict"))
+        self.vs.addProperty("App::PropertyLength", "W", "Joint", "tenon width")
+        self.assertIn("property-expression-word", self.rules("strict"))
+
     # --- advisory rules ---------------------------------------------------
 
     def test_property_naming(self):
@@ -230,6 +235,39 @@ class LinterRules(unittest.TestCase):
     def test_auto_generated_label(self):
         self.cutter.Label = "Body001"
         self.assertIn("auto-generated-label", self.rules("advisory"))
+
+
+@unittest.skipUnless(HAVE_FREECAD, "FreeCAD not importable — run with the bundled python")
+class ExpressionWordsAgainstTheEngine(unittest.TestCase):
+    """naming.EXPRESSION_WORDS against the build in hand: every listed
+    name really cannot be referenced, and ordinary names can. If a weekly
+    changes its lexer, this is where it shows."""
+
+    def referenceable(self, name):
+        doc = App.newDocument("ExprWords")
+        try:
+            src = doc.addObject("App::VarSet", "Src")
+            src.addProperty("App::PropertyFloat", name, "P")
+            setattr(src, name, 7.0)
+            out = doc.addObject("App::VarSet", "Out")
+            out.addProperty("App::PropertyFloat", "Probe", "P")
+            try:
+                out.setExpression("Probe", f"<<Src>>.{name}")
+                doc.recompute()
+            except Exception:
+                return False
+            return abs(out.Probe - 7.0) < 1e-9
+        finally:
+            App.closeDocument(doc.Name)
+
+    def test_listed_words_cannot_be_referenced(self):
+        from freecad.bentwizard import naming
+        live = [w for w in sorted(naming.EXPRESSION_WORDS) if self.referenceable(w)]
+        self.assertEqual(live, [], "these now resolve — drop them from the list")
+
+    def test_ordinary_names_can(self):
+        for name in ("Width", "Wd", "Nmm", "A1", "TenonLength", "Pad"):
+            self.assertTrue(self.referenceable(name), name)
 
 
 if __name__ == "__main__":

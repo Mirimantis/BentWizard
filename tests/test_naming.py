@@ -76,6 +76,20 @@ class LabelRefTest(unittest.TestCase):
         self.assertNotIn("T-Post", naming.referenced_labels("<<T-Post'>>.L"))
 
 
+class ExpressionWordTest(unittest.TestCase):
+    """Sweep finding 17: a property named with a unit or constant cannot
+    be referenced. test_linter pins the list against the engine."""
+
+    def test_units_and_constants(self):
+        for name in ("W", "A", "J", "N", "Pa", "Nm", "M", "AS", "True", "None"):
+            self.assertTrue(naming.is_expression_word(name), name)
+            self.assertTrue(naming.is_camel_case(name), name)   # why UpperCamelCase alone missed it
+
+    def test_ordinary_names_pass(self):
+        for name in ("Width", "Wd", "Nmm", "A1", "TenonLength", "Pad", "Mm", "In"):
+            self.assertFalse(naming.is_expression_word(name), name)
+
+
 class JointLabelTest(unittest.TestCase):
     def test_round_trip(self):
         self.assertEqual(naming.joint_label("HousedMT", "001"), "J-HousedMT-001")

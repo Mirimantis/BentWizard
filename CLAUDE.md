@@ -45,8 +45,9 @@ Timber framing workbench for FreeCAD 26.3. Timber-owned datums, cutter/adder joi
   - **Fine-grained recomputes did not relax the cycle check** (finding 19): a link that closes a
     cycle between two *objects* is still refused, even through disjoint properties. The seat
     VarSet and "datums never read each other" stay.
-  - **Expressions:** a property or object named with a unit symbol (`A`, `J`, `W`, `m`, `N`, …)
-    cannot be referenced, on any build. **A quote in a label is stored escaped** (`<<T'1'>>` is
+  - **Expressions:** a property or object named with a unit symbol or constant (`A`, `J`, `W`,
+    `Pa`, `True`, …) cannot be referenced, on any build. The UpperCamelCase ones are
+    `naming.EXPRESSION_WORDS`, flagged by the strict lint rule `property-expression-word`. **A quote in a label is stored escaped** (`<<T'1'>>` is
     stored as `<<T\'1\'>>`; `App::quote` also escapes `\`, `>` and tab). So **never** match a
     reference with `f"<<{label}>>" in expr`: use `naming.referenced_labels(expr)`, `naming.LABEL_REF`
     + `unquote_label`, or `naming.label_ref(label)` for the stored form (finding 18). Building an

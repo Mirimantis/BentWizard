@@ -718,6 +718,25 @@ def rule_property_naming(model):
     return findings
 
 
+def rule_property_expression_word(model):
+    """§3 strict: no user-defined property on a VarSet or datum is named
+    with a word FreeCAD's expression lexer reads as a unit or a constant
+    (`W` is the watt, `A` the ampere, `True`). Such a property can never
+    be referenced, so a joint parameter named that way cannot drive
+    anything (sweep finding 17)."""
+    findings = []
+    for obj in list(model.varsets) + list(model.datums):
+        bad = sorted(p.name for p in obj.properties.values()
+                     if p.group is not None and naming.is_expression_word(p.name))
+        if bad:
+            findings.append(Finding(
+                "property-expression-word", STRICT, obj.name, obj.label,
+                f"property name(s) {', '.join(bad)} read as a unit or constant "
+                f"in expressions, so nothing can reference them — use a "
+                f"descriptive name ('TenonWidth', not 'W')"))
+    return findings
+
+
 def rule_duplicate_labels(model):
     """§3 advisory: two expression-targetable objects share a Label —
     '<<Label>>' resolves to only one of them."""
@@ -903,6 +922,7 @@ STRICT_RULES = [
     rule_component_placement_direct,
     rule_component_reference_scope,
     rule_boolean_operand,
+    rule_property_expression_word,
 ]
 
 ADVISORY_RULES = [

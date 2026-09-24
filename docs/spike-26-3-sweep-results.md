@@ -65,6 +65,19 @@ Two things came up while building the harness. Neither is a 26.3 change:
   UpperCamelCase rule, so a template author could name a parameter `W`
   and get an unreadable parameter. **Suggested:** the template bar
   should reject parameter names that parse as a unit.
+  **Done 2026-09-23.** The exact set was taken from the lexer's tokens
+  (`src/App/Expression.l`) and confirmed on both builds: 37 names. They
+  are 34 unit symbols, `M` and `AS` (arcminute and arcsecond), and
+  `True`/`False`/`None`. `Nmm` is a lexer token but resolves as a
+  property, so it is not in the set. Cell-like names (`A1`) are fine.
+  - The set is `naming.EXPRESSION_WORDS`.
+  - The strict lint rule `property-expression-word` flags any VarSet or
+    datum property with one of these names. The template bar reports it
+    and, by design, does not block the save.
+  - Store in Variable Set refuses such a name.
+  - `test_linter.ExpressionWordsAgainstTheEngine` re-checks the whole
+    set against the build in hand, so a lexer change in a weekly shows
+    up there.
 - `,` is accepted as an argument separator as well as `;`.
   `FLIP_EXPR`'s `;` is the locale-proof spelling, so nothing changes.
 
