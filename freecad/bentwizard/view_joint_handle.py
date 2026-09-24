@@ -12,8 +12,7 @@ the timber it sits in — a joint is usually buried in wood, and the point
 of the marker is to see that the intersection IS joined without cutting
 a section.
 
-The handle owns no Placement (nothing it does may touch geometry or the
-solver), so the marker's position is read from the joint's host datum
+The handle owns no Placement (nothing it does may touch geometry), so the marker's position is read from the joint's host datum
 at draw time and refreshed after every document recompute by one shared
 observer. That covers what an object-local update cannot: a host datum
 moving with Joint_Station, and a whole bent seating in the frame — the
@@ -234,17 +233,13 @@ class ViewProviderTimberJointHandle:
         return True
 
     def onDelete(self, vobj, _subelements):
-        """Deleting the marker must never delete joinery: the VarSet, the
-        cuts, the frames and the assembly joint all stay exactly as they
-        are (Remove Timber Joint is the context-menu action that removes
-        a joint). Only an older handle that still holds its VarSet as a
-        child needs it moved out of the way first."""
-        handle = vobj.Object
-        varset = joint_handle.handle_varset(handle)
-        if varset is not None and varset in getattr(handle, "Group", []):
-            joint_handle.handle_group(
-                handle.Document,
-                joint_handle.joint_container(varset)).addObject(varset)
+        """Deleting the marker must never delete joinery: the parameter
+        and accessor VarSets, the seat, the cuts and the datums all stay
+        exactly as they are, and the timbers stay seated (Remove Timber
+        Joint is the context-menu action that removes a joint). What the
+        handle holds moves out beside it first; Seat Timbers gives the
+        joint a new handle and files it all back."""
+        joint_handle.release_contents(vobj.Object)
         observer().forget(self)
         return True
 

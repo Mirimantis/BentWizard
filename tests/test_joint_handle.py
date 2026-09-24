@@ -91,6 +91,42 @@ class JointHandleTest(unittest.TestCase):
                           if o.TypeId == "App::DocumentObjectGroup"
                           and o.Label == "TimberJoints"], [])
 
+    def test_deleting_a_handle_is_harmless_and_seat_timbers_restores_it(self):
+        """Workstream C (Adam, 2026-09-23: deletion stays allowed). A
+        handle is disposable, the joint is not: what it holds moves out
+        beside it — never loose at the document root, where the seat and
+        accessors used to fall — the timbers stay seated, and Seat
+        Timbers gives the joint a new handle holding all three again."""
+        from freecad.bentwizard import datums, frame, joint_handle, measure
+        frame.place_on_apply(self.doc, self.vs)
+        seat = frame.seat_driving(self.girt)
+        acc = datums.accessors_varset(self.vs)
+        self.assertIsNotNone(seat)
+        self.assertIsNot(acc, self.vs)
+        group = joint_handle.find_handle(self.vs).getParentGroup()
+        volume = self.post.Shape.Volume
+
+        self.assertTrue(joint_handle.remove_handle(self.vs))
+        self.doc.recompute()
+        self.assertIsNone(joint_handle.find_handle(self.vs))
+        for obj in (self.vs, acc, seat):
+            self.assertIs(obj.getParentGroup(), group, obj.Label)
+        self.assertIs(frame.seat_driving(self.girt), seat)
+        self.assertLess(frame.joint_misfit(self.vs)[0], 1e-9)
+        self.assertAlmostEqual(self.post.Shape.Volume, volume, places=6)
+        self.assertTrue(measure.is_whole(self.post))
+        self.assertTrue(measure.is_whole(self.girt))
+        self.assertEqual(measure.unhealthy(self.doc), [])
+
+        built = frame.rebuild_seats(self.doc, [self.post, self.girt])
+        self.assertEqual(built.adopted, 1)
+        self.assertEqual(built.seated, [])          # the existing seat is kept
+        h = joint_handle.find_handle(self.vs)
+        self.assertEqual({o.Name for o in h.Group}, {self.vs.Name, acc.Name, seat.Name})
+        self.assertIs(h.getParentGroup(), group)
+        self.assertIs(frame.seat_driving(self.girt), seat)
+        self.assertEqual(measure.unhealthy(self.doc), [])
+
     def test_varset_dragged_beside_the_handle_stays(self):
         from freecad.bentwizard import joint_handle
         h = joint_handle.find_handle(self.vs)

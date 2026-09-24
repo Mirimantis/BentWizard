@@ -109,6 +109,22 @@ test: a `Bay` edit on a 3-bent frame recomputes no post geometry
 
 ### C. Handles, tree filing, Duplicate (`joint_handle.py`, `duplicate.py`)
 
+> **Done 2026-09-23.** Who did which part:
+> - **Workstream A:** filing under the frame (`TimberJoints_<Frame>`),
+>   the seat nested under the handle, and Duplicate without the assembly
+>   step.
+> - **The 26.3 brief, section 2:** the accessor VarSet under the handle.
+> - **C's own branch:**
+>   - `release_contents`: deleting a handle (`onDelete`,
+>     `remove_handle`) moves the parameter VarSet, the accessor VarSet
+>     and the seat out beside it. Before, only the parameter VarSet was
+>     moved; the other two fell to the document root.
+>   - `ensure_handle` re-files the seat, and gives a re-created handle
+>     its parameter VarSet back.
+>   - Deleting a handle stays allowed (Adam).
+>   - Verified by `test_joint_handle.test_deleting_a_handle_is_harmless_and_seat_timbers_restores_it`
+>     and a scripted GUI Delete: the timbers stay seated.
+
 - Handles file under the **frame group**, not `TimberJoints_<Assembly>`.
 - A handle now holds: the parameter VarSet, the seat VarSet, and the
   accessor VarSets. Its `onDelete` must move **all** of them out of the
