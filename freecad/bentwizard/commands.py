@@ -5,7 +5,9 @@ in GUI-free modules (timber.py, datums.py, measure.py); commands here
 are thin wrappers: dialog -> transaction -> core call -> report.
 """
 
+import functools
 import re
+import traceback
 from pathlib import Path
 
 import FreeCAD as App
@@ -1895,25 +1897,83 @@ class DuplicateBentCommand:
 # Registration
 # --------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------
+# Unexpected errors
+# --------------------------------------------------------------------------
+# A command reports the errors it expects (JointError, DatumError, ...) in
+# its own dialog and carries on. Anything else used to escape to FreeCAD,
+# which prints "Running the Python command '...' failed:" with the
+# traceback only in the Report view. A second Duplicate Timbers in a
+# document hit a "cyclic reference" that way, and the framer saw a bare
+# "failed:" (Adam's GUI round, 2026-09-23). Every command and context
+# action is wrapped once, here, so none can be missed.
+
+def report_unexpected(title, err):
+    """Tell the framer an operation stopped, in a dialog, and keep the
+    traceback for whoever fixes it: under "Show Details..." and in the
+    Report view. Closes any transaction the operation left open. The
+    commands abort their own before re-raising, so this is a safety net,
+    and it means "any change it had not finished was undone" holds."""
+    if App.getActiveTransaction():
+        App.closeActiveTransaction(True)
+    detail = "".join(traceback.format_exception(err))
+    App.Console.PrintError(f"BentWizard: {title} stopped on an unexpected "
+                           f"error:\n{detail}")
+    message = str(err).strip() or "(no message)"
+    box = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, title,
+                                f"{title} stopped on an error BentWizard "
+                                f"did not expect.", parent=Gui.getMainWindow())
+    box.setInformativeText(
+        f"{type(err).__name__}: {message}\n\n"
+        f"Any change it had not finished was undone. The details are also "
+        f"in the Report view; include them if you report this.")
+    box.setDetailedText(detail)
+    box.exec()
+
+
+def _guarded(fn, title):
+    """`fn` with unexpected errors reported by `report_unexpected`."""
+    @functools.wraps(fn)
+    def run(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as err:
+            report_unexpected(title, err)
+    return run
+
+
+def _guard_command(command):
+    """Wrap a command's Activated; the dialog is titled with its menu
+    text, the name the framer clicked."""
+    menu = command.GetResources().get("MenuText", "BentWizard")
+    # Qt menu text: '&&' is a literal '&', a lone '&' marks the mnemonic
+    title = menu.replace("&&", "\0").replace("&", "").replace("\0", "&")
+    command.Activated = _guarded(command.Activated, title)
+    return command
+
+
 def register():
     # the handle marker's context menu: whole-joint operations, in one
     # place a future joint-wide tool can extend without touching the
     # ViewProvider
     joint_handle.CONTEXT_ACTIONS[:] = [
-        ("Joint parameters", show_joint_parameters),
-        ("Select joint members", select_joint_members),
-        ("Remove timber joint", remove_joint_interactive),
-    ]
-    Gui.addCommand("BentWizard_NewTimber", NewTimberCommand())
-    Gui.addCommand("BentWizard_AddDatum", AddDatumCommand())
-    Gui.addCommand("BentWizard_ApplyJoint", ApplyJointCommand())
-    Gui.addCommand("BentWizard_RemoveJoint", RemoveJointCommand())
-    Gui.addCommand("BentWizard_DuplicateBent", DuplicateBentCommand())
-    Gui.addCommand("BentWizard_AssembleTimbers", SeatTimbersCommand())
-    Gui.addCommand("BentWizard_ShowFaceMarks", ShowFaceMarksCommand())
-    Gui.addCommand("BentWizard_AuditTimbers", AuditTimbersCommand())
-    Gui.addCommand("BentWizard_NewJointTemplate", NewJointTemplateCommand())
-    Gui.addCommand("BentWizard_SaveJointTemplate", SaveJointTemplateCommand())
+        (text, _guarded(action, text)) for text, action in (
+            ("Joint parameters", show_joint_parameters),
+            ("Select joint members", select_joint_members),
+            ("Remove timber joint", remove_joint_interactive),
+        )]
+    for name, command in (
+            ("BentWizard_NewTimber", NewTimberCommand()),
+            ("BentWizard_AddDatum", AddDatumCommand()),
+            ("BentWizard_ApplyJoint", ApplyJointCommand()),
+            ("BentWizard_RemoveJoint", RemoveJointCommand()),
+            ("BentWizard_DuplicateBent", DuplicateBentCommand()),
+            ("BentWizard_AssembleTimbers", SeatTimbersCommand()),
+            ("BentWizard_ShowFaceMarks", ShowFaceMarksCommand()),
+            ("BentWizard_AuditTimbers", AuditTimbersCommand()),
+            ("BentWizard_NewJointTemplate", NewJointTemplateCommand()),
+            ("BentWizard_SaveJointTemplate", SaveJointTemplateCommand())):
+        Gui.addCommand(name, _guard_command(command))
 
 
 ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_AddDatum",

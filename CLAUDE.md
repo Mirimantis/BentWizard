@@ -74,7 +74,7 @@ Timber framing workbench for FreeCAD 26.3. Timber-owned datums, cutter/adder joi
   - `template_library.py` — template folders (user's ahead of shipped `library/`), starters, save / new-from-starter
   - `view_face_marks.py` — ±X/±Y/A/B labels in the 3D view (not objects)
   - `undo_repair.py` — re-arms expression bindings after undo (finding #15)
-  - `commands.py` / `init_gui.py` — the GUI side
+  - `commands.py` / `init_gui.py` — the GUI side. A command shows the errors it expects in its own dialog; `register()` wraps every command's `Activated` and every marker context action so anything unexpected becomes a readable dialog (`report_unexpected`: the error, "Show Details" traceback, Report view) instead of FreeCAD's bare "failed:". Register new commands through that loop.
 - `library/` — the shipped templates; see `library/README.md`. Rebuilt by `scripts/build_library.py` (bundled python), which also runs the bar on them.
 - `docs/` — roadmap, rev-2 workflow, session and spike records, findings log; `joinery-*.md` are notes for joints not yet rebuilt (brace M&T, housed dovetail, wedged half-dovetail); `bentwizard-phase0-workflow.md` is the superseded rev-1 spec, kept for its pegs / TechDraw / cut-list practice until Phases 2–3 have their own docs. **`docs/User Notes.txt` is Adam's private scratchpad: never read, search, quote, or edit it** unless Adam explicitly asks. It is tracked in git only for preservation, and its contents are not project context.
 - `devBuildMacros/` — the naming-prompt dev helper (`EnforceNaming`), slated to become its own plugin (roadmap). The Phase 0 session files and spike macros were deleted in September 2026; the spike records in `docs/` and `tests/spike/` are what remains of them
