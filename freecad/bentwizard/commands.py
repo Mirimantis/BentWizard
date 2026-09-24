@@ -1371,6 +1371,11 @@ class ApplyJointDialog(QtWidgets.QDialog):
         self.role_widgets = {}
         self.param_widgets = {}
         self.param_ranges = {}
+        # open on the template last applied; one since deleted falls back
+        # to the first in the list
+        last = self.template_box.findText(template_library.last_template())
+        if last >= 0:
+            self.template_box.setCurrentIndex(last)
         self.template_box.currentIndexChanged.connect(self._load)
         self._load()
 
@@ -1544,6 +1549,7 @@ class ApplyJointCommand:
             except (JointError, DatumError, TimberError) as err:
                 QtWidgets.QMessageBox.warning(dialog, "Apply Timber Joint", str(err))
                 continue
+            template_library.set_last_template(spec.stem)
             vs = applied.varset
             msg = f"Applied {vs.Label}."
             if applied.warnings:

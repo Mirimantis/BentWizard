@@ -29,6 +29,7 @@ from .fcstd import FcstdDocument
 SHIPPED_DIR = Path(__file__).resolve().parents[2] / "library"
 PARAM_PATH = "User parameter:BaseApp/Preferences/Mod/BentWizard"
 USER_DIR_KEY = "TemplateDir"
+LAST_TEMPLATE_KEY = "LastJointTemplate"   # stem of the template last applied
 TEMPLATE_SUFFIX = ".FCStd"
 
 
@@ -97,6 +98,20 @@ def user_dir():
 def set_user_dir(path):
     import FreeCAD as App
     App.ParamGet(PARAM_PATH).SetString(USER_DIR_KEY, str(Path(path)))
+
+
+def last_template():
+    """The stem of the joint template last applied, or '' — what the
+    Apply dialog opens on. Opening on the first template alphabetically
+    meant opening on the starter Joint_Butt, and switching away from it
+    is what once dropped a picked face (Adam, 2026-09-24)."""
+    import FreeCAD as App
+    return App.ParamGet(PARAM_PATH).GetString(LAST_TEMPLATE_KEY, "")
+
+
+def set_last_template(stem):
+    import FreeCAD as App
+    App.ParamGet(PARAM_PATH).SetString(LAST_TEMPLATE_KEY, stem)
 
 
 def search_dirs():

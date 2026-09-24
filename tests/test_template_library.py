@@ -129,5 +129,34 @@ class RoundTrip(unittest.TestCase):
             self.assertTrue(template_library.is_starter(path))
 
 
+@unittest.skipUnless(HAVE_FREECAD, "FreeCAD not importable — run with the bundled python")
+class LastTemplateTest(unittest.TestCase):
+    """The Apply dialog opens on the template last applied — stored as a
+    stem in the workbench's preferences, the user's own value restored
+    after the test."""
+
+    def setUp(self):
+        from freecad.bentwizard import template_library as tl
+        self.grp = App.ParamGet(tl.PARAM_PATH)
+        self.saved = (self.grp.GetString(tl.LAST_TEMPLATE_KEY, "")
+                      if tl.LAST_TEMPLATE_KEY in self.grp.GetStrings() else None)
+
+    def tearDown(self):
+        from freecad.bentwizard import template_library as tl
+        if self.saved is None:
+            self.grp.RemString(tl.LAST_TEMPLATE_KEY)
+        else:
+            self.grp.SetString(tl.LAST_TEMPLATE_KEY, self.saved)
+
+    def test_round_trip(self):
+        from freecad.bentwizard import template_library as tl
+        self.grp.RemString(tl.LAST_TEMPLATE_KEY)
+        self.assertEqual(tl.last_template(), "")
+        tl.set_last_template("Joint_HousedMT")
+        self.assertEqual(tl.last_template(), "Joint_HousedMT")
+        # the stem is one the library actually lists
+        self.assertIn("Joint_HousedMT", [s for s, _p in tl.templates()])
+
+
 if __name__ == "__main__":
     unittest.main()

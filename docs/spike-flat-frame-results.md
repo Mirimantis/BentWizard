@@ -12,7 +12,8 @@ Duplicate Timbers and the first tie between two bents.
 
 **Status: flat frame adopted (Adam, 2026-09-19)** — one assembly per
 frame, bents and bays as Std Groups; see the roadmap's *Flat frame*
-entry. Not built yet. Bent spacing is resolved by **seating timbers by
+entry. **Built since (2026-09-23), with no Assembly object at all** —
+`rebuild-flat-frame-handoff.md`. Bent spacing is resolved by **seating timbers by
 expression** instead of by the solver (round 2, below): exact and
 warning-free to 20 bents.
 
