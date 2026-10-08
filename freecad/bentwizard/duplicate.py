@@ -207,10 +207,12 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
     if seat:
         principal_src = next((src for src in member_map if grounded_by(src, inside)),
                              None) or next(iter(member_map))
+        # no group named: the copies go in the frame itself, as the
+        # dialog says — not into a new default bent
         rebuild_seats(doc, list(new_bodies.values()),
                       label=home.Label if home is not None else "",
                       principal=new_bodies[principal_src],
-                      anchor_principal=False)
+                      anchor_principal=False, group_label="")
         doc.recompute()
 
     return new_bodies, new_joints, [v.Label for v in outside]
