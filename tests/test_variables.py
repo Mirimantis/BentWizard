@@ -204,6 +204,19 @@ class VariablesTest(unittest.TestCase):
         r = self.row(v.timber_listing(beam), f"Timber joint {j1.Label}", "Tenon Length")
         self.assertEqual(r.source.kind, v.HERE)
 
+    def test_parameters_named_like_bounds_or_metadata_are_listed(self):
+        """The panel lists 'ShoulderMax' and 'TemplateDepth' as parameters;
+        a bound beside its parameter ('TenonLengthMin') stays out."""
+        from freecad.bentwizard import variables as v
+        _p1, _p2, _beam, j1, _j2 = self.pi_bent()
+        for name in ("ShoulderMax", "TemplateDepth", "TenonLengthMin"):
+            j1.addProperty("App::PropertyLength", name, "Joint", "test")
+        names = v.joint_parameters(j1)
+        self.assertIn("ShoulderMax", names)
+        self.assertIn("TemplateDepth", names)
+        self.assertNotIn("TenonLengthMin", names)
+        self.assertIn("TenonLength", names)
+
     def test_position_of_a_seated_timber(self):
         from freecad.bentwizard import variables as v
         self.project("BeamHeight", 84 * IN)

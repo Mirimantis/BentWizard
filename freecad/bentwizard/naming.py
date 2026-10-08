@@ -176,7 +176,6 @@ PROP_COMPONENT_ORDER = "ComponentOrder"
 BOOLEAN_OP = {COMPONENT_CUTTER: "Cut", COMPONENT_ADDER: "Fuse"}
 
 # Template metadata on a joint VarSet
-TEMPLATE_META_PREFIX = "Template"
 TEMPLATE_META_GROUP = "Template"
 PROP_TEMPLATE_SOURCE = "TemplateSource"
 RANGES_GROUP = "Ranges"
@@ -187,6 +186,11 @@ PROP_SWEEP_FINDINGS = "SweepFindings"
 # side, so Apply never mirrors it. True, or absent (a template predating
 # the flag): Apply mirrors a component on a datum of the other parity.
 PROP_TEMPLATE_HANDED = "Handed"
+# The metadata the workbench itself writes, recognised by name wherever it
+# sits; anything else is metadata only by being in the Template group. A
+# name prefix ('Template...') once hid a parameter such as TemplateDepth.
+TEMPLATE_META_NAMES = (PROP_TEMPLATE_SOURCE, PROP_TEMPLATE_HANDED,
+                       PROP_SWEEP_FINDINGS)
 
 _CAMEL = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 
@@ -342,10 +346,10 @@ def template_stem(kind):
 
 def is_template_metadata(name, group=None):
     """True for a joint VarSet property describing the TEMPLATE rather
-    than the joint instance (TemplateSource, ...). Name-keyed on the
-    'Template' prefix; the 'Template' group is honored too."""
-    return (name.startswith(TEMPLATE_META_PREFIX)
-            or (group or "") == TEMPLATE_META_GROUP)
+    than the joint instance: anything in the 'Template' group, and the
+    metadata the workbench writes (`TEMPLATE_META_NAMES`) wherever it
+    sits."""
+    return name in TEMPLATE_META_NAMES or (group or "") == TEMPLATE_META_GROUP
 
 
 def is_accessor_property(name):
@@ -357,15 +361,17 @@ def is_accessor_property(name):
                    for side in SIDES for acc in ALL_ACCESSORS))
 
 
-def is_joint_parameter(name, group=None):
+def is_joint_parameter(name, group=None, names=None):
     """True for a property on a joint VarSet that the framer edits — not
     an accessor or pairing record, template metadata, a range bound, the
     position tag or the sweep's findings. `name` must be a user-added
     (dynamic) property; FreeCAD's own (Label, ...) are the caller's to
-    leave out."""
+    leave out. `names` — the VarSet's property names — lets a parameter
+    that merely ends in Min or Max be told from a bound (see
+    `is_range_property`)."""
     return not (is_accessor_property(name)
                 or is_template_metadata(name, group)
-                or is_range_property(name, group)
+                or is_range_property(name, group, names)
                 or name in (PROP_POSITION_TAG, PROP_SWEEP_FINDINGS))
 
 
@@ -381,11 +387,19 @@ def placement_accessor(side):
     return side + PLACEMENT_ACCESSOR
 
 
-def is_range_property(name, group=None):
-    """True for a declared range bound ('TenonLengthMin') — the 'Ranges'
-    group, or the Min/Max suffix."""
-    return ((group or "") == RANGES_GROUP
-            or name.endswith((RANGE_MIN_SUFFIX, RANGE_MAX_SUFFIX)))
+def is_range_property(name, group=None, names=None):
+    """True for a declared range bound ('TenonLengthMin'): anything in the
+    'Ranges' group, and '<Name>Min' / '<Name>Max' where `<Name>` is
+    itself among `names`, the VarSet's property names — so a bound left
+    in another group still counts, while a parameter that merely ends in
+    the suffix ('ShoulderMax', with no 'Shoulder') is a parameter. With
+    `names` unknown (None) the suffix alone decides, as it used to."""
+    if (group or "") == RANGES_GROUP:
+        return True
+    base = range_base(name)
+    if base is None:
+        return False
+    return names is None or base[0] in names
 
 
 def range_base(name):
