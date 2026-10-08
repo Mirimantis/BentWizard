@@ -1322,6 +1322,60 @@ class _DatumChoice(QtCore.QObject):
         return {"body": body, "face": value, "station": self.station.value()}
 
 
+def _group_box(parent, on_choose):
+    """The editable 'Bent / group' field the Apply and Seat Timbers
+    dialogs share. `on_choose` fires when the framer types or picks a
+    name, so a refill can keep their choice."""
+    box = QtWidgets.QComboBox(parent)
+    box.setEditable(True)
+    box.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
+    box.lineEdit().textEdited.connect(on_choose)
+    box.activated.connect(on_choose)
+    return box
+
+
+def _fill_group_box(box, doc, bodies, keep_typed, all_filed_tip,
+                    frame_root=False):
+    """Offer where the timbers of `bodies` that need filing go (`frame.
+    needs_filing`: in no frame yet, and with `frame_root` loose in a
+    frame's root too): the bent of one already in a group, else a new
+    'Bent-NNN' (`frame.default_group_label`) — or any existing bent or
+    group, or a new name typed. A name the framer chose is kept
+    (`keep_typed`). Greyed, showing where they are, when none needs
+    filing: nothing moves a timber already in a group."""
+    from .frame import (containing_frame, default_group_label, group_of,
+                        is_frame_group, timber_groups)
+    default = default_group_label(doc, bodies, frame_root) if bodies else None
+    typed = box.currentText()
+    box.blockSignals(True)
+    box.clear()
+    for frame in (o for o in doc.Objects if is_frame_group(o)):
+        for group in timber_groups(frame):
+            if box.findText(group.Label) < 0:
+                box.addItem(group.Label)
+    if default is None:
+        box.setEnabled(False)
+        where = [group_of(b) or containing_frame(b) for b in bodies]
+        box.setEditText(", ".join(sorted({g.Label for g in where if g})))
+        box.setToolTip(all_filed_tip)
+    else:
+        box.setEnabled(True)
+        box.setEditText(typed if keep_typed else default)
+        box.setToolTip(
+            "The group in the frame a timber not yet in one is filed in: "
+            "a bent by default, or name it for what it is (a bay, a roof "
+            "plane, a floor). Pick an existing one or type a new name; "
+            "leave it empty to file it in the frame itself. Tree "
+            "organisation only — it moves nothing.")
+    box.blockSignals(False)
+
+
+def _group_value(box):
+    """The group name to file in: None when the field is greyed (nothing
+    to file), '' for the frame itself."""
+    return box.currentText().strip() if box.isEnabled() else None
+
+
 class ApplyJointDialog(QtWidgets.QDialog):
     """Template + per-role timber/datum + serial + the parameter form,
     generated from the template's VarSet — no per-joint code."""
@@ -1351,14 +1405,10 @@ class ApplyJointDialog(QtWidgets.QDialog):
         self.roles_form = QtWidgets.QFormLayout(self.roles_box)
         layout.addWidget(self.roles_box)
         group_form = QtWidgets.QFormLayout()
-        self.group_box = QtWidgets.QComboBox(self)
-        self.group_box.setEditable(True)
-        self.group_box.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
         # a name the framer typed or picked survives a change of timber;
         # until then the field follows the timbers chosen
         self._group_chosen = False
-        self.group_box.lineEdit().textEdited.connect(self._choose_group)
-        self.group_box.activated.connect(self._choose_group)
+        self.group_box = _group_box(self, self._choose_group)
         group_form.addRow("Bent / group:", self.group_box)
         layout.addLayout(group_form)
         self.params_box = QtWidgets.QGroupBox("Parameters", self)
@@ -1450,40 +1500,14 @@ class ApplyJointDialog(QtWidgets.QDialog):
         self._group_chosen = True
 
     def _update_group(self, *_):
-        """Offer where the joint files a timber that is in no frame yet:
-        the bent the other timber is in, else a new 'Bent-NNN' — any
-        existing bent or group can be picked, or a new name typed. Greyed,
-        showing where they are, when both timbers are already filed:
-        Apply never moves a filed timber."""
-        from .frame import (containing_frame, default_group_label, group_of,
-                            is_frame_group, timber_groups)
+        """Where the joint files a timber in no frame yet (`_fill_group_box`),
+        following the timbers chosen."""
         bodies = [w.timber.currentData() for w in self.role_widgets.values()
                   if w.timber.currentData() is not None]
-        default = default_group_label(self.doc, bodies) if bodies else None
-        typed = self.group_box.currentText()
-        self.group_box.blockSignals(True)
-        self.group_box.clear()
-        for frame in (o for o in self.doc.Objects if is_frame_group(o)):
-            for group in timber_groups(frame):
-                if self.group_box.findText(group.Label) < 0:
-                    self.group_box.addItem(group.Label)
-        if default is None:
-            self.group_box.setEnabled(False)
-            where = [group_of(b) or containing_frame(b) for b in bodies]
-            self.group_box.setEditText(", ".join(sorted({g.Label for g in where if g})))
-            self.group_box.setToolTip(
-                "Both timbers are already filed in a frame; Apply leaves "
-                "them where they are. Drag them in the tree to re-file them.")
-        else:
-            self.group_box.setEnabled(True)
-            self.group_box.setEditText(typed if self._group_chosen else default)
-            self.group_box.setToolTip(
-                "The group in the frame a timber not yet in one is filed in: "
-                "a bent by default, or name it for what it is (a bay, a roof "
-                "plane, a floor). Pick an existing one or type a new name; "
-                "leave it empty to file it in the frame itself. Tree "
-                "organisation only — it moves nothing.")
-        self.group_box.blockSignals(False)
+        _fill_group_box(
+            self.group_box, self.doc, bodies, self._group_chosen,
+            "Both timbers are already filed in a frame; Apply leaves them "
+            "where they are. Drag them in the tree to re-file them.")
 
     def _param_widget(self, p):
         t = p["type"]
@@ -1539,10 +1563,8 @@ class ApplyJointDialog(QtWidgets.QDialog):
             else:
                 values[name] = w.text()
         self._check_ranges(values)
-        group = (self.group_box.currentText().strip()
-                 if self.group_box.isEnabled() else None)
         return (self.spec, self.serial.text().strip(), targets, values,
-                self.assemble.isChecked(), group)
+                self.assemble.isChecked(), _group_value(self.group_box))
 
     def _check_ranges(self, values):
         """The template's declared ranges, enforced here rather than on
@@ -1633,40 +1655,71 @@ class ApplyJointCommand:
 # --------------------------------------------------------------------------
 
 class SeatTimbersDialog(QtWidgets.QDialog):
-    """Frame (new or existing) + Principal timber, with the timber joints
-    that will place a timber listed."""
+    """Frame + Principal timber + the bent or group to file timbers in,
+    with the timber joints that will place a timber listed.
+
+    A document normally holds one frame, and the framer's work happens
+    inside it, so the frame defaults to the one the timbers are in and
+    "New frame" is offered only when some selected timber is in no frame
+    yet — a frame never takes timbers from another, so a new one would
+    otherwise stay empty (Adam's GUI round, 2026-10-08). The Principal
+    defaults to the timber anchored now: choosing a selected timber
+    instead would quietly move the frame's anchor to it."""
 
     def __init__(self, doc, bodies, parent=None):
         super().__init__(parent)
-        from .frame import is_frame_group, joint_timbers, pick_principal
+        from .frame import (anchored_timber, containing_frame, is_frame_group,
+                            joint_timbers, pick_principal)
         self.doc = doc
         self.bodies = bodies
         self.setWindowTitle("Seat Timbers")
         layout = QtWidgets.QVBoxLayout(self)
         form = QtWidgets.QFormLayout()
         self.assembly_box = QtWidgets.QComboBox(self)
-        self.assembly_box.addItem("New frame:", None)
-        for obj in doc.Objects:
-            if is_frame_group(obj):
-                self.assembly_box.addItem(obj.Label, obj.Name)
+        frames = [o for o in doc.Objects if is_frame_group(o)]
+        for obj in frames:
+            self.assembly_box.addItem(obj.Label, obj.Name)
+        homes = [containing_frame(b) for b in bodies]
+        if None in homes or not frames:
+            self.assembly_box.addItem("New frame…", None)
+        home = next((h for h in homes if h is not None), None)
+        if home is not None:
+            self.assembly_box.setCurrentIndex(self.assembly_box.findData(home.Name))
+        self.assembly_box.setToolTip(
+            "The frame the timbers are collected into. Timbers already in a "
+            "frame stay in it.")
         form.addRow("Frame:", self.assembly_box)
         self.new_name = QtWidgets.QLineEdit(self)
         self.new_name.setText(naming.next_serial([o.Label for o in doc.Objects],
                                                  "Frame", sep="-"))
         form.addRow("New frame name:", self.new_name)
-        self.assembly_box.currentIndexChanged.connect(
-            lambda *_: self.new_name.setEnabled(self.assembly_box.currentData() is None))
+        self.assembly_box.currentIndexChanged.connect(self._toggle_new_name)
+        self._toggle_new_name()
         inside, _outside = bent_joints(doc, bodies)
         seatable = [j for j in inside if joint_timbers(j) is not None]
         self.grounded_box = QtWidgets.QComboBox(self)
-        default = pick_principal(bodies, seatable)
-        for body in bodies:
-            self.grounded_box.addItem(body.Label, body.Name)
-        self.grounded_box.setCurrentIndex(bodies.index(default))
+        anchored = anchored_timber(doc)
+        candidates = list(bodies)
+        if anchored is not None and anchored not in candidates:
+            candidates.insert(0, anchored)
+        for body in candidates:
+            text = body.Label + (" (anchored now)" if body is anchored else "")
+            self.grounded_box.addItem(text, body.Name)
+        default = anchored or pick_principal(bodies, seatable)
+        self.grounded_box.setCurrentIndex(candidates.index(default))
         self.grounded_box.setToolTip(
             "The Principal timber — the one the frame is anchored at; every "
-            "other timber is seated from it through the timber joints.")
+            "other timber is seated from it through the timber joints. It "
+            "defaults to the timber anchored now; choosing another moves the "
+            "anchor to it (nothing moves in the model).")
         form.addRow("Principal timber:", self.grounded_box)
+        self.group_box = _group_box(self, lambda *_: None)
+        _fill_group_box(
+            self.group_box, doc, bodies, False,
+            "The selected timbers are all in a bent or group already; Seat "
+            "Timbers leaves them where they are. Drag them in the tree to "
+            "re-file them.", frame_root=True)
+        form.addRow("Bent / group:", self.group_box)
         layout.addLayout(form)
         note = QtWidgets.QLabel(
             "Timber joints to seat: "
@@ -1681,11 +1734,15 @@ class SeatTimbersDialog(QtWidgets.QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+    def _toggle_new_name(self, *_):
+        new = self.assembly_box.currentData() is None
+        self.new_name.setEnabled(new)
+
     def request(self):
         name = self.assembly_box.currentData()
         frame = self.doc.getObject(name) if name else None
         principal = self.doc.getObject(self.grounded_box.currentData())
-        return frame, self.new_name.text(), principal
+        return frame, self.new_name.text(), principal, _group_value(self.group_box)
 
 
 class SeatTimbersCommand:
@@ -1693,7 +1750,8 @@ class SeatTimbersCommand:
         return {
             "MenuText": "Seat Timbers",
             "ToolTip": "Seat the selected timbers (bulk/repair): collect "
-                       "them into the frame and place each one through the "
+                       "them into the frame (any not filed yet into a bent) "
+                       "and place each one through the "
                        "timber joint that connects it, anchored at the "
                        "Principal timber. Apply Timber Joint already does "
                        "this per joint as you work; this rebuilds the seats "
@@ -1715,12 +1773,12 @@ class SeatTimbersCommand:
         dialog = SeatTimbersDialog(doc, bodies, Gui.getMainWindow())
         while dialog.exec() == QtWidgets.QDialog.Accepted:
             try:
-                frame, label, principal = dialog.request()
+                frame, label, principal, group = dialog.request()
                 doc.openTransaction("Seat timbers")
                 try:
                     built = rebuild_seats(
                         doc, bodies, label=frame.Label if frame else label,
-                        principal=principal)
+                        principal=principal, group_label=group)
                 except Exception:
                     doc.abortTransaction()
                     raise
@@ -1730,8 +1788,16 @@ class SeatTimbersCommand:
                 continue
             msg = (f"Seated {len(bodies)} timber(s) in {built.frame.Label} "
                    f"({len(built.seated)} timber joint(s) place a timber).")
+            if built.filed:
+                msg += (f" Filed {', '.join(b.Label for b in built.filed)} in "
+                        f"{built.filed_in.Label}.")
             if built.adopted:
                 msg += f" Gave {built.adopted} timber joint(s) a handle."
+            if built.roots:
+                msg += (f" No timber joint ties "
+                        f"{', '.join(b.Label for b in built.roots)} to the frame "
+                        f"yet: seated from where it stands, provisionally, until "
+                        f"one does.")
             if built.closures:
                 msg += (f" Closing a loop (checked, placing nothing): "
                         f"{', '.join(built.closures)}.")

@@ -214,12 +214,22 @@ def group_of(body):
     return parent
 
 
-def default_group_label(doc, bodies):
-    """Where a timber joint files the timbers it connects that are in no
-    frame yet: the bent of the one already filed, else a new
-    'Bent-NNN'. None when every timber is already filed — nothing
-    moves."""
-    if all(containing_frame(b) is not None for b in bodies):
+def needs_filing(body, frame_root=False):
+    """True for a timber in no frame yet — and, with `frame_root`, for one
+    sitting loose in a frame's root rather than in a bent or bay group.
+    Apply files only the first kind: a timber the framer put in the
+    frame itself on purpose must not be moved by the next joint on it.
+    Seat Timbers, the tidying-up path, files both."""
+    if containing_frame(body) is None:
+        return True
+    return frame_root and group_of(body) is None
+
+
+def default_group_label(doc, bodies, frame_root=False):
+    """Where the timbers of `bodies` that need filing (`needs_filing`)
+    go: the bent of one already in a group, else a new 'Bent-NNN'. None
+    when none needs filing — nothing moves."""
+    if not any(needs_filing(b, frame_root) for b in bodies):
         return None
     for body in bodies:
         group = group_of(body)
@@ -228,26 +238,33 @@ def default_group_label(doc, bodies):
     return naming.next_serial([o.Label for o in doc.Objects], BENT_BASE, sep="-")
 
 
-def file_timbers(doc, bodies, group_label=None):
-    """File the timbers of `bodies` that are in no frame yet: into the
-    frame the others are in (or the document's frame, created on
-    demand), inside the bent/bay group `group_label` — found or created
-    there; '' files them in the frame itself, None takes
-    `default_group_label`. A timber already in a frame is never moved.
-    Returns (the group or frame they went into, [the timbers filed]),
-    or (None, []) when nothing needed filing."""
-    loose = [b for b in bodies if containing_frame(b) is None]
-    if not loose:
+def file_timbers(doc, bodies, group_label=None, frame=None, frame_root=False):
+    """File the timbers of `bodies` that need it (`needs_filing`) in the
+    bent/bay group `group_label` — found or created in the timber's own
+    frame, or for one in no frame yet in `frame` (by default the frame
+    the others are in, or the document's frame, created on demand); ''
+    files them in the frame itself, None takes `default_group_label`. A
+    timber already in a group is never moved. Returns (the group or
+    frame they went into, [the timbers filed]), or (None, []) when
+    nothing moved."""
+    todo = [b for b in bodies if needs_filing(b, frame_root)]
+    if not todo:
         return None, []
     if group_label is None:
-        group_label = default_group_label(doc, bodies)
-    homes = [containing_frame(b) for b in bodies]
-    frame = next((h for h in homes if h is not None), None) or frame_group(doc)
+        group_label = default_group_label(doc, bodies, frame_root)
+    if frame is None:
+        homes = [containing_frame(b) for b in bodies]
+        frame = next((h for h in homes if h is not None), None) or frame_group(doc)
     group_label = (group_label or "").strip()
-    target = subgroup(frame, group_label) if group_label else frame
-    for body in loose:
+    target, filed = None, []
+    for body in todo:
+        home = containing_frame(body) or frame
+        target = subgroup(home, group_label) if group_label else home
+        if body.getParentGroup() is target:
+            continue                # '' for a timber already in the root
         target.addObject(body)
-    return target, loose
+        filed.append(body)
+    return (target if filed else None), filed
 
 
 def file_joint(doc, varset, group_label=None):
@@ -715,31 +732,46 @@ def pick_principal(bodies, joints):
 
 
 Rebuild = namedtuple("Rebuild",
-                     "frame seated closures misfits skipped adopted")
+                     "frame seated closures misfits skipped adopted "
+                     "filed_in filed roots")
 
 
 def rebuild_seats(doc, bodies, label="", principal=None,
-                  anchor_principal=True):
+                  anchor_principal=True, group_label=None):
     """Seat Timbers — the bulk and repair path.
 
-    Files loose timbers in the frame group, gives every timber joint a
-    handle, anchors the principal timber, and seats every timber
-    reachable from it through its joints. Existing seats are kept; only
-    the missing ones are built. With `anchor_principal` False the
-    principal keeps the placement it already has and roots the component
-    provisionally, without a FrameOrigin binding — what a freshly
-    duplicated set of timbers wants until a joint ties it to the frame.
-    Returns a Rebuild: the frame group, the joints that seated a timber,
-    the loop closers, the joints whose two sides disagree, the timbers no
-    joint reaches, and how many handles
-    were adopted. Caller owns the transaction."""
+    Files the timbers in no frame yet in the frame named `label` (found,
+    or created — never empty), and those in no frame or loose in their
+    frame's root into the bent/bay group `group_label` (`file_timbers`:
+    None takes `default_group_label`, '' the frame itself); gives every
+    timber joint a handle; anchors the principal
+    timber; and seats every timber reachable from it through its joints.
+    Existing seats are kept; only the missing ones are built. With
+    `anchor_principal` False the principal keeps the placement it
+    already has and roots the component provisionally, without a
+    FrameOrigin binding — what a freshly duplicated set of timbers wants
+    until a joint ties it to the frame. Returns a Rebuild: the frame
+    group, the joints that seated a timber, the loop closers, the joints
+    whose two sides disagree, the timbers no joint reaches, how many
+    handles were adopted, where the timbers it filed went, and the
+    provisional roots it seated a group of selected timbers from when no
+    joint ties that group to the frame. Caller owns the transaction."""
     if not bodies:
         raise JointError("select the timbers to seat first")
-    adopted = joint_handle.adopt_handles(doc)
+    named = [o for o in doc.Objects
+             if is_frame_group(o) and (not label or o.Label == label)]
+    if not named and all(containing_frame(b) is not None for b in bodies):
+        # a frame stays in its frame: a new one would only ever be empty
+        raise JointError("the selected timbers are all in a frame already, "
+                         "so a new frame would be empty — choose their frame")
     frame = frame_group(doc, label)
-    for body in bodies:
-        if containing_frame(body) is None:
-            frame.addObject(body)
+    # a timber loose in the frame's root is filed too: this is the path
+    # that tidies a frame built before bents were grouped
+    filed_in, filed = file_timbers(doc, bodies, group_label, frame=frame,
+                                   frame_root=True)
+    # after the filing: a handle files under its timbers' frame, so one
+    # given before they had a frame landed in a stray root group
+    adopted = joint_handle.adopt_handles(doc)
     doc.recompute()
 
     members = member_bodies(frame) or list(bodies)
@@ -769,9 +801,10 @@ def rebuild_seats(doc, bodies, label="", principal=None,
     # places would make the two Placements read each other: a cycle.
     # That was the second Duplicate Timbers in a document failing.
     kept = [v for v in seatable if places(v) is not None]
-    seated, progress = [], True
+    seated, roots = [], []
+    selected = {b.Name for b in bodies}
     remaining = [v for v in seatable if v not in kept]
-    while remaining and progress:
+    while remaining:
         progress, still = False, []
         for varset in remaining:
             host_b, mate_b = joint_timbers(varset)
@@ -791,6 +824,24 @@ def rebuild_seats(doc, bodies, label="", principal=None,
             else:
                 still.append(varset)
         remaining = still
+        if progress:
+            continue
+        # Nothing placed reaches what is left. Selected timbers that no
+        # timber joint ties to the frame — a pair applied without seating,
+        # say — are seated among themselves, from one of them where it
+        # stands: a provisional root, as a duplicated bent has, until a
+        # joint ties them in. Seating only from the anchor left them
+        # unseated (Adam's GUI round, 2026-10-08). A group with no selected
+        # timber in it is left alone.
+        unreached = [v for v in remaining
+                     if not any(b.Name in placed for b in joint_timbers(v))
+                     and any(b.Name in selected for b in joint_timbers(v))]
+        if not unreached:
+            break
+        touching = {b.Name for v in unreached for b in joint_timbers(v)}
+        root = pick_principal([b for b in bodies if b.Name in touching], unreached)
+        placed.add(root.Name)
+        roots.append(root)
 
     closures = []
     for varset in remaining:
@@ -802,4 +853,5 @@ def rebuild_seats(doc, bodies, label="", principal=None,
             skipped.append(varset.Label)
     doc.recompute()
     misfits = [v.Label for v in seatable if is_misfit(v)]
-    return Rebuild(frame, seated, closures, misfits, skipped, adopted)
+    return Rebuild(frame, seated, closures, misfits, skipped, adopted,
+                   filed_in, filed, roots)
