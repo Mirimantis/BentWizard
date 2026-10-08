@@ -102,6 +102,62 @@ class FlatFrameTest(unittest.TestCase):
         self.assertLess(post1.Shape.common(beam.Shape).Volume, 1e-6)
         self.assertLess(post2.Shape.common(beam.Shape).Volume, 1e-6)
 
+    def test_the_first_joint_files_its_timbers_in_a_bent(self):
+        """A timber in no frame yet is filed in a bent group by the first
+        timber joint on it — 'Bent-001', then 'Bent-002' for the next
+        bent built loose — never left in the frame's root (Adam,
+        2026-10-08). A loose timber joined to a filed one joins its bent,
+        and a timber already filed never moves."""
+        from freecad.bentwizard import frame
+        post1, post2, beam1, _j1, _j2 = self.pi_bent("1")
+        post3, post4, beam2, _j3, _j4 = self.pi_bent("2")
+        bent1, bent2 = frame.group_of(post1), frame.group_of(post3)
+        self.assertEqual((bent1.Label, bent2.Label), ("Bent-001", "Bent-002"))
+        self.assertEqual({b.Name for b in bent1.Group if b.TypeId == "PartDesign::Body"},
+                         {post1.Name, post2.Name, beam1.Name})
+        self.assertEqual({b.Name for b in bent2.Group if b.TypeId == "PartDesign::Body"},
+                         {post3.Name, post4.Name, beam2.Name})
+        group = frame.containing_frame(post1)
+        self.assertIs(frame.containing_frame(post3), group)
+        self.assertIs(bent1.getParentGroup(), group)
+        self.assertEqual([g.Label for g in frame.timber_groups(group)],
+                         ["Bent-001", "Bent-002"])
+        # a brace on post 1: joins post 1's bent
+        brace = self.timber("T-Brace-001", "4 in", "6 in", "4 ft")
+        self.joint("401", post1, brace, face="XPos", end="EndA")
+        self.assertIs(frame.group_of(brace), bent1)
+        # a tie between the bents, named for what it is
+        tie = self.timber("T-Tie-001", "6 in", "8 in", "12 ft")
+        from freecad.bentwizard.apply import apply_joint
+        vs = apply_joint(self.doc, self.spec, "301", {
+            self.spec.host_role: {"body": post1, "face": "XNeg", "station": "60 in"},
+            self.spec.mate_role: {"body": tie, "face": "EndA"}}).varset
+        frame.place_on_apply(self.doc, vs, group_label="Bay-001")
+        self.assertEqual(frame.group_of(tie).Label, "Bay-001")
+        self.assertIs(frame.group_of(post1), bent1)        # never moved
+        self.assertIs(frame.group_of(tie).getParentGroup(), group)
+        # '' files in the frame itself
+        loose = self.timber("T-Strut-001", "4 in", "4 in", "3 ft")
+        vs = apply_joint(self.doc, self.spec, "501", {
+            self.spec.host_role: {"body": post2, "face": "XPos", "station": "30 in"},
+            self.spec.mate_role: {"body": loose, "face": "EndA"}}).varset
+        frame.place_on_apply(self.doc, vs, group_label="")
+        self.assertIsNone(frame.group_of(loose))
+        self.assertIs(loose.getParentGroup(), group)
+        self.assertSeated([vs])
+
+    def test_filing_does_not_need_seating(self):
+        """Apply files a joint's timbers whether or not it seats them."""
+        from freecad.bentwizard import frame
+        post = self.timber("T-Post-001")
+        beam = self.timber("T-Beam-001", "6 in", "8 in", "10 ft")
+        vs = self.joint("001", post, beam, place=False)
+        group, filed = frame.file_joint(self.doc, vs)
+        self.assertEqual(group.Label, "Bent-001")
+        self.assertEqual({b.Name for b in filed}, {post.Name, beam.Name})
+        self.assertIsNone(frame.seat_driving(beam))
+        self.assertEqual(frame.file_joint(self.doc, vs), (None, []))
+
     def test_the_seat_nests_under_the_handle(self):
         from freecad.bentwizard import frame, joint_handle
         _p1, _p2, _beam, j1, _j2 = self.pi_bent()
@@ -293,6 +349,44 @@ class FlatFrameTest(unittest.TestCase):
             path = str(Path(td) / "frame.FCStd")
             self.doc.saveAs(path)
             self.assertEqual([str(f) for f in lint(path)], [])
+
+    def test_a_new_principal_stays_where_it_stands(self):
+        """FrameOrigin outlives the timber it was first seeded from. Seat
+        Timbers anchoring another principal bound it to the value left
+        behind, and the new principal jumped onto the old one's spot
+        (review, 2026-10-08)."""
+        from freecad.bentwizard import frame
+        post1, post2, beam, j1, j2 = self.pi_bent()
+        far = self.timber("T-Post-301")
+        far.Placement = App.Placement(App.Vector(400 * IN, 0, 0), App.Rotation())
+        self.doc.recompute()
+        frame.rebuild_seats(self.doc, [far, post1, post2, beam], principal=far)
+        self.doc.recompute()
+        self.assertIs(frame.anchored_timber(self.doc), far)
+        self.assertAlmostEqual(far.Placement.Base.x / IN, 400, places=6)
+        self.assertEqual(post1.Placement.Base.Length, 0)
+        self.assertSeated([j1, j2])
+
+    def test_anchoring_again_after_the_anchor_is_cut_loose(self):
+        """With no timber anchored, the next joint between two loose
+        timbers anchors its host where it stands — not at the FrameOrigin
+        an earlier anchor left behind."""
+        from freecad.bentwizard import frame
+        post1, *_ = self.pi_bent("1")
+        post1.setExpression("Placement", None)      # the binding cut by hand
+        self.doc.recompute()
+        self.assertIsNone(frame.anchored_timber(self.doc))
+        post = self.timber("T-Post-501")
+        beam = self.timber("T-Beam-501", "6 in", "8 in", "10 ft")
+        post.Placement = App.Placement(App.Vector(0, 600 * IN, 0), App.Rotation())
+        beam.Placement = App.Placement(App.Vector(0, 900 * IN, 0), App.Rotation())
+        self.doc.recompute()
+        j = self.joint("501", post, beam)
+        self.doc.recompute()
+        self.assertIs(frame.anchored_timber(self.doc), post)
+        self.assertAlmostEqual(post.Placement.Base.y / IN, 600, places=6)
+        self.assertEqual(post1.Placement.Base.Length, 0)
+        self.assertSeated([j])
 
     # --- the placement report (Audit Timbers) ---------------------------
 

@@ -140,9 +140,42 @@ def joint_of(datum):
     return datum.Document.getObject(name) if name else None
 
 
+def is_joint_varset(obj):
+    """A timber joint's parameter VarSet (or a template's own), told by
+    what it carries, never by its label alone: the framer may rename it,
+    and a label test then lost the joint from Audit, Seat Timbers,
+    Remove and Duplicate. Pairing writes `HostDatum` on it and Apply
+    writes `TemplateSource`; neither is ever on an accessor or seat
+    VarSet. The label is the fallback for a joint older than both."""
+    if obj.TypeId != "App::VarSet":
+        return False
+    return (hasattr(obj, naming.PROP_HOST_DATUM)
+            or hasattr(obj, naming.PROP_TEMPLATE_SOURCE)
+            or naming.is_joint_varset_label(obj.Label))
+
+
+def joint_varsets(doc):
+    """Every timber-joint VarSet in a document."""
+    return [o for o in doc.Objects if is_joint_varset(o)]
+
+
 def datums_of_joint(varset):
     """The datums paired under a joint VarSet, host first when the
-    VarSet's accessors say which is which."""
+    VarSet's accessors say which is which.
+
+    Read through the pairing records — `HostDatum` on the VarSet, then
+    the host's `MateDatum` — rather than by scanning every datum in the
+    document: this runs for every joint on every listing and report, and
+    the scan made those quadratic in the size of the frame. The scan
+    stays as the fallback for a joint whose records are incomplete."""
+    name = getattr(varset, naming.PROP_HOST_DATUM, "")
+    host = varset.Document.getObject(name) if name else None
+    if host is not None and is_datum(host) \
+            and getattr(host, naming.PROP_JOINT, "") == varset.Name:
+        mate = mate_of(host)
+        if mate is not None and is_datum(mate) \
+                and getattr(mate, naming.PROP_JOINT, "") == varset.Name:
+            return [host, mate]
     doc = varset.Document
     found = [d for d in all_datums(doc)
              if getattr(d, naming.PROP_JOINT, "") == varset.Name]
@@ -166,7 +199,7 @@ def host_datum(varset):
         found = varset.Document.getObject(name)
         if found is not None and is_datum(found):
             return found
-    holder = accessors_varset(varset)
+    holder = accessors_of(varset)
     for path, expr in holder.ExpressionEngine:
         if path.lstrip(".") == "Host" + facetable.ACCESSORS[0]:
             named = naming.referenced_labels(expr)
@@ -348,7 +381,18 @@ def accessors_varset(varset):
     Found by the internal Name the joint records in `Accessors`, which
     survives the framer renaming either VarSet. The `Accessors_<label>`
     lookup is only a fallback, for a joint split before that record
-    existed — and it records the Name once found, so it heals."""
+    existed — and it records the Name once found, so it heals. Code that
+    must not write to the document uses `accessors_of`."""
+    found = accessors_of(varset)
+    if found is not varset and getattr(varset, naming.PROP_ACCESSORS, "") != found.Name:
+        _record_accessors(varset, found)
+    return found
+
+
+def accessors_of(varset):
+    """`accessors_varset` without the self-healing write — for the
+    listings and lookups that run on every selection change and must
+    never touch the document."""
     doc = varset.Document
     name = getattr(varset, naming.PROP_ACCESSORS, "")
     if name:
@@ -357,7 +401,6 @@ def accessors_varset(varset):
             return obj
     for obj in doc.getObjectsByLabel(naming.accessors_label(varset.Label)):
         if obj is not varset and _carries_accessors(obj):
-            _record_accessors(varset, obj)
             return obj
     return varset
 

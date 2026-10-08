@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import FreeCAD as App
 
-from . import datums, naming
+from . import datums
 
 HANDLE_TYPE = "App::FeaturePython"
 HANDLE_NAME = "TimberJointHandle"          # internal name; never semantic
@@ -69,27 +69,29 @@ def handle_varset(handle):
     if joint is not None:
         return joint
     for obj in getattr(handle, "Group", []):
-        if obj.TypeId == "App::VarSet" and naming.is_joint_varset_label(obj.Label):
+        if datums.is_joint_varset(obj):
             return obj
     return None
 
 
 def find_handle(varset):
-    """The existing handle for a joint, or None (structural first)."""
-    doc = varset.Document
-    for obj in doc.Objects:
+    """The existing handle for a joint, or None (structural first).
+
+    A handle links its VarSet (`Joint`) or holds it (`Group`), either of
+    which puts it in the VarSet's InList — so that is where to look,
+    rather than through every object in the document."""
+    for obj in varset.InList:
         if is_handle(obj) and handle_varset(obj) is varset:
             return obj
-    for obj in doc.getObjectsByLabel(handle_label(varset)):
+    for obj in varset.Document.getObjectsByLabel(handle_label(varset)):
         if is_handle(obj):
             return obj
     return None
 
 
 def joint_varsets(doc):
-    """Every timber-joint VarSet in a document."""
-    return [o for o in doc.Objects
-            if o.TypeId == "App::VarSet" and naming.is_joint_varset_label(o.Label)]
+    """Every timber-joint VarSet in a document (`datums.is_joint_varset`)."""
+    return datums.joint_varsets(doc)
 
 
 def anchor_datum(varset):

@@ -481,7 +481,8 @@ def _plumbing(obj, scope_names):
         return True
     if obj.TypeId == "App::VarSet":
         return (naming.is_accessors_label(obj.Label) or frame.is_seat(obj)
-                or naming.is_joint_varset_label(obj.Label))
+                or datums.is_joint_varset(obj)
+                or hasattr(obj, naming.placement_accessor("Host")))
     return False
 
 
@@ -752,7 +753,8 @@ def _check_range(obj, prop, value):
             continue
         b = float(bound)
         if too(b):
-            word = "below the minimum" if suffix == naming.RANGE_MIN_SUFFIX                 else "above the maximum"
+            word = ("below the minimum" if suffix == naming.RANGE_MIN_SUFFIX
+                    else "above the maximum")
             raise EditError(f"{spaced(prop)} {shown(raw)} is {word} of "
                             f"{shown(b)} its template declares")
 
@@ -823,26 +825,28 @@ def _component_of(obj):
 
 
 def _accessors_of(varset):
-    """The joint's accessor VarSet, found the way `datums.accessors_varset`
-    finds it but without its self-healing write: this runs on every
-    selection change and must not touch the document."""
-    doc = varset.Document
-    name = getattr(varset, naming.PROP_ACCESSORS, "")
-    obj = doc.getObject(name) if name else None
-    if obj is not None:
-        return obj
-    hits = doc.getObjectsByLabel(naming.accessors_label(varset.Label))
-    return hits[0] if hits else varset
+    """The joint's accessor VarSet, without `datums.accessors_varset`'s
+    self-healing write: this runs on every selection change and must not
+    touch the document."""
+    return datums.accessors_of(varset)
 
 
 def _joint_of_component(body):
-    labels = set()
+    """The joint a component reads: its parameter VarSet directly, or
+    through the accessor VarSet that is all a datum-sized component
+    names."""
+    read = {}
     for o in [body] + list(body.Group):
-        for _path, expr in o.ExpressionEngine:
-            labels.update(naming.referenced_labels(expr))
-    for vs in joint_varsets(body.Document):
-        if vs.Label in labels or _accessors_of(vs).Label in labels:
-            return vs
+        for dep in o.OutList:
+            if dep.TypeId == "App::VarSet":
+                read[dep.Name] = dep
+    for dep in read.values():
+        if datums.is_joint_varset(dep):
+            return dep
+    if read:
+        for vs in joint_varsets(body.Document):
+            if _accessors_of(vs).Name in read:
+                return vs
     return None
 
 
@@ -856,7 +860,7 @@ def subject_of(obj):
     if joint_handle.is_handle(obj):
         return joint_handle.handle_varset(obj)
     if obj.TypeId == "App::VarSet":
-        if naming.is_joint_varset_label(obj.Label):
+        if datums.is_joint_varset(obj):
             return obj
         if frame.is_seat(obj):
             return frame.joint_of_seat(obj)

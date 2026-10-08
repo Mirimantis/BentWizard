@@ -18,7 +18,6 @@ import FreeCAD as App  # noqa: E402  FIRST — see below
 # level, then gone by the time a function used it, with no error. A
 # script's FreeCAD import therefore comes before everything else.
 # 1.1.3 does not do this.
-import os  # noqa: E402
 import sys  # noqa: E402
 from pathlib import Path  # noqa: E402
 
@@ -168,7 +167,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    code = main(sys.argv[1:])
-    if "freecadcmd" in os.path.basename(sys.executable).lower() or not sys.stdout.isatty():
-        pass
-    sys.exit(code)
+    sys.exit(main(sys.argv[1:]))

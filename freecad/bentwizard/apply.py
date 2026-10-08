@@ -71,30 +71,58 @@ def joint_bodies(varset):
     return [datums.owner(d) for d in joint_datums(varset)]
 
 
+def is_component(obj):
+    """A cutter or adder body: a Body declaring a ComponentRole."""
+    return (obj is not None and obj.TypeId == "PartDesign::Body"
+            and hasattr(obj, naming.PROP_COMPONENT_ROLE))
+
+
+def _readers(obj):
+    """The objects that read `obj` — by link or by expression. FreeCAD
+    keeps this as the object's InList; it is the record recompute itself
+    runs on."""
+    return obj.InList
+
+
+def joint_components_of(varset):
+    """The component bodies that read joint `varset` — its parameters,
+    or its accessors, which after Apply live on a VarSet of their own.
+
+    Both are asked: a component sized only from its datums (a housing
+    the mate's section wide and a fixed depth) never names the joint
+    VarSet at all, and looking for that alone left its Boolean in the
+    timber when the joint was removed."""
+    holders = [varset]
+    accessors = datums.accessors_of(varset)
+    if accessors is not varset:
+        holders.append(accessors)
+    comps = {}
+    for holder in holders:
+        for reader in _readers(holder):
+            body = reader if is_component(reader) \
+                else reader.getParentGeoFeatureGroup()
+            if is_component(body):
+                comps[body.Name] = body
+    return list(comps.values())
+
+
 def joint_members(varset):
     """Everything a joint is made of, apart from its VarSet and datums:
     its component bodies (with their features and Origins), their
     mirrorings, and the Booleans that apply them.
 
     Structural, and anchored on COMPONENT bodies — a body declaring a
-    ComponentRole whose own features carry the ``<<J-Kind-serial>>``
-    token. Never a timber: a timber holds the Boolean that references
-    the joint, and widening the closure through it once deleted a
-    timber's section, pad and datums along with the joint.
+    ComponentRole that reads the joint's VarSet or its accessor VarSet
+    (`joint_components_of`). Never a timber: a timber holds the Boolean
+    that applies a component, and widening the closure through it once
+    deleted a timber's section, pad and datums along with the joint.
     """
-    doc = varset.Document
-
-    def mentions(obj):
-        return any(varset.Label in naming.referenced_labels(e)
-                   for _p, e in obj.ExpressionEngine)
-
-    comps = [b for b in doc.Objects
-             if b.TypeId == "PartDesign::Body"
-             and hasattr(b, naming.PROP_COMPONENT_ROLE)
-             and (mentions(b) or any(mentions(f) for f in b.Group))]
+    comps = joint_components_of(varset)
     members = {}
+    operands = []
     for body in comps:
         members[body.Name] = body
+        operands.append(body)
         for f in body.Group:
             members[f.Name] = f
         origin = body.Origin
@@ -102,32 +130,28 @@ def joint_members(varset):
             members[origin.Name] = origin
             for f in origin.OriginFeatures:
                 members[f.Name] = f
-    comp_names = {b.Name for b in comps}
-    holders = set(comp_names)
-    for obj in doc.Objects:
-        if obj.TypeId == "Part::Mirroring":
-            src = getattr(obj, "Source", None)
-            if src is not None and src.Name in comp_names:
+        for obj in _readers(body):
+            if obj.TypeId == "Part::Mirroring" \
+                    and getattr(obj, "Source", None) is body:
                 members[obj.Name] = obj
-                holders.add(obj.Name)
-    for obj in doc.Objects:
-        if obj.TypeId == "PartDesign::Boolean"                 and any(o.Name in holders for o in obj.Group):
-            members[obj.Name] = obj
+                operands.append(obj)
+    for operand in operands:
+        for obj in _readers(operand):
+            if obj.TypeId == "PartDesign::Boolean" \
+                    and any(o.Name == operand.Name for o in obj.Group):
+                members[obj.Name] = obj
     return list(members.values())
 
 
 def joint_components(varset):
     """The joint's component bodies (cutters and adders), in ComponentOrder."""
-    comps = [o for o in joint_members(varset)
-             if o.TypeId == "PartDesign::Body"
-             and hasattr(o, naming.PROP_COMPONENT_ROLE)]
-    return sorted(comps, key=lambda c: (getattr(c, naming.PROP_COMPONENT_ORDER, 0),
-                                        c.Label))
+    return sorted(joint_components_of(varset),
+                  key=lambda c: (getattr(c, naming.PROP_COMPONENT_ORDER, 0), c.Label))
 
 
 def joint_varsets(doc):
-    return [o for o in doc.Objects
-            if o.TypeId == "App::VarSet" and naming.is_joint_varset_label(o.Label)]
+    """Every timber-joint VarSet in a document (`datums.is_joint_varset`)."""
+    return datums.joint_varsets(doc)
 
 
 def bent_joints(doc, bodies):
