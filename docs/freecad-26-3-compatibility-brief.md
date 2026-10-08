@@ -314,16 +314,35 @@ ones that only existed to serve the splits.
   each week until 26.3 releases. So: expect the install folder to change
   name every week, quote the build's git hash with any measurement, and
   **do not hard-code the path** — find it as
-  `..\FreeCAD_weekly-*-Windows-x86_64-experimental\` beside the
-  checkout, the same rule as the 1.1.x installs.
-- One junction serves every weekly: all 26.3 builds share the
+  `..\FreeCAD_weekly-*\` beside the checkout, the same rule as the
+  1.1.x installs. Up to 2026.09.16 the folder ended
+  `-Windows-x86_64-experimental`; from 2026.10.01 it ends
+  `-Windows-x86_64`.
+- **26.3 has branched; the weeklies are now 27.1.** On 2026-10-01 FreeCAD
+  split `releases/FreeCAD-26-3` off `main` at `99c5620c5` — exactly the
+  2026.10.01 weekly — and from 2026.10.07 the weekly is built from
+  `main` and reports itself as **27.1.0**. **We develop for 26.3, not
+  27.1** (Adam, 2026-10-07): the test environment stays the 2026.10.01
+  weekly — 26.3 as it branched — until a 26.3 release candidate or
+  release can be installed, and then moves to that. Later weeklies are
+  not tracked. What the 26.3 branch took after the split (63 commits to
+  2026-10-07: crash fixes, CAM, TechDraw, Graphviz, a moment unit in the
+  MKS schema) touches nothing the workbench uses; recheck that list when
+  the release candidate appears.
+- One junction serves every 26.3 build: they share the
   `%APPDATA%\FreeCAD\v26-3` config folder, so
   `scripts\dev-install.ps1 -FreeCadVersion v26-3 main` is a one-time
-  setup that survives each new install — Adam runs it from a shell
-  outside the Claude desktop app.
-- Current build: `FreeCAD_weekly-2026.09.16-Windows-x86_64-experimental`,
-  26.3.0, git `a4ce44d33b`, `bin\python.exe` as usual. Tag it `26.3`
-  beside the `7010` / `i9` machine tags in any timing.
+  setup — Adam runs it from a shell outside the Claude desktop app.
+  (27.1 builds use `v27-1`.)
+- Current build: `FreeCAD_weekly-2026.10.01-Windows-x86_64`, 26.3.0, git
+  `99c5620c5` (the 26.3 branch point), Python 3.13. `bin\python.exe` as
+  usual; the top-level `FreeCAD.exe` / `FreeCADCmd.exe` are launchers.
+  It carries the spin-box fix (#32707) and added `Nmm` to the unit
+  names. Before it: `FreeCAD_weekly-2026.09.16-Windows-x86_64-experimental`,
+  git `a4ce44d33b`. A one-off look at the 27.1 weekly of 2026.10.07 (git
+  `3424c4106`) found nothing changed for us: suite 154/154, both sweep
+  harnesses, the spin-box probe and the lexer's unit names as on
+  2026.10.01. Tag timings `26.3` beside the `7010` / `i9` machine tags.
 - ~~**1.1.3 stays the compatibility target** until the suite is green and
   a GUI round passes on 26.3 — `main` must keep working there.~~
   Superseded 2026-09-21: 26.3 is the minimum; 1.1.3 is a comparison

@@ -199,15 +199,16 @@ def is_camel_case(name):
 # UpperCamelCase names FreeCAD's expression lexer reads as a unit or a
 # constant, so a property with one of these names can never be
 # referenced: `<<J-Kind-001>>.W` is a parse error, because W is the watt.
-# They are the lexer's own tokens (src/App/Expression.l): 34 unit
+# They are the lexer's own tokens (src/App/Expression.l): 35 unit
 # symbols, M and AS (arcminute and arcsecond), and True/False/None.
-# Each one was confirmed to fail as a VarSet property reference on
-# 1.1.3 and 26.3 (sweep finding 17). 'Nmm' is in the lexer too, but it
-# resolves as a property, so it is not listed. test_naming pins this
-# list against the engine.
+# Each one was confirmed to fail as a VarSet property reference (sweep
+# finding 17). 'Nmm' (newton-millimetre) joined on the 2026.10.01 weekly
+# (git 99c5620c5): the 2026.09.16 weekly and 1.1.3 still resolved it as
+# a property. test_linter.ExpressionWordsAgainstTheEngine pins this list
+# against the build in hand.
 EXPRESSION_WORDS = frozenset(
     "A AS C CV F False G GHz GPa H Hz J K M MA MHz MN MOhm MPa MS MeV Mpsi "
-    "N Nm None Ohm Pa S T THz Torr True V VA VAs W Wb Ws".split())
+    "N Nm Nmm None Ohm Pa S T THz Torr True V VA VAs W Wb Ws".split())
 
 
 def is_expression_word(name):

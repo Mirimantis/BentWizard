@@ -82,6 +82,10 @@ Two things came up while building the harness. Neither is a 26.3 change:
   - `test_linter.ExpressionWordsAgainstTheEngine` re-checks the whole
     set against the build in hand, so a lexer change in a weekly shows
     up there.
+  - **It did, on 2026-10-04.** On the 2026.10.01 weekly (git
+    `99c5620c5`) `Nmm` (newton-millimetre) no longer resolves as a
+    property either, so the set is now 38 names. Every other name, and
+    every ordinary control name, behaves as on 2026.09.16.
 - `,` is accepted as an argument separator as well as `;`.
   `FLIP_EXPR`'s `;` is the locale-proof spelling, so nothing changes.
 

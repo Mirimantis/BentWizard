@@ -81,12 +81,12 @@ class ExpressionWordTest(unittest.TestCase):
     be referenced. test_linter pins the list against the engine."""
 
     def test_units_and_constants(self):
-        for name in ("W", "A", "J", "N", "Pa", "Nm", "M", "AS", "True", "None"):
+        for name in ("W", "A", "J", "N", "Pa", "Nm", "Nmm", "M", "AS", "True", "None"):
             self.assertTrue(naming.is_expression_word(name), name)
             self.assertTrue(naming.is_camel_case(name), name)   # why UpperCamelCase alone missed it
 
     def test_ordinary_names_pass(self):
-        for name in ("Width", "Wd", "Nmm", "A1", "TenonLength", "Pad", "Mm", "In"):
+        for name in ("Width", "Wd", "A1", "TenonLength", "Pad", "Mm", "In"):
             self.assertFalse(naming.is_expression_word(name), name)
 
 
