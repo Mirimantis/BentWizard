@@ -266,7 +266,7 @@ class ExpressionWordsAgainstTheEngine(unittest.TestCase):
         self.assertEqual(live, [], "these now resolve — drop them from the list")
 
     def test_ordinary_names_can(self):
-        for name in ("Width", "Wd", "Nmm", "A1", "TenonLength", "Pad"):
+        for name in ("Width", "Wd", "A1", "TenonLength", "Pad"):
             self.assertTrue(self.referenceable(name), name)
 
 

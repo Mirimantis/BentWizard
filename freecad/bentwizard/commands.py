@@ -35,94 +35,15 @@ def _quantity_field(default, unit="mm"):
     2026-09-21). Reproduced identically on 1.1.3 and 26.3 — not a 26.3
     regression, it was always wrong.
 
-    Note a bare typed number means mm on 26.3 and the displayed unit on
-    1.1.3; that one is upstream's, with no property-level workaround
-    (docs/spike-26-3-gui-results.md, finding 9)."""
-    global _STEP_COMMIT
+    A bare typed number is read in the displayed unit, and the steppers
+    commit — both broken in the 2026.09.16 weekly (upstream #32700,
+    #32717), fixed by #32707 from the 2026.10.01 weekly on, which retired
+    the `_StepCommit` workaround."""
     field = Gui.UiLoader().createWidget("Gui::QuantitySpinBox")
     field.setProperty("unit", unit)
-    field.setProperty("_bw_unit", unit)     # `unit` reads back as the
-                                            # DISPLAY unit, so keep ours
     _set_range(field, -1e9, 1e9, unit)
     field.setProperty("rawValue", default)
-    if _STEP_COMMIT is None:
-        _STEP_COMMIT = _StepCommit()
-    field.installEventFilter(_STEP_COMMIT)
     return field
-
-
-class _StepCommit(QtCore.QObject):
-    """Commit a stepper change that FreeCAD 26.3 leaves uncommitted.
-
-    On 26.3 `Gui::QuantitySpinBox`'s up/down buttons (and Up/Down, and
-    the wheel) move the *displayed text* but never write it to the
-    widget's value, so the next focus-out redraws from the stale value
-    and the edit vanishes — Adam's GUI round, 2026-09-21: "the spinner
-    buttons are what reset immediately when I click away". Reproduced in
-    all seven ways of configuring the widget; 1.1.3 holds in all seven.
-
-    **This is upstream's bug, not ours** — Adam confirmed Part → Box's
-    Length stepper reverts identically on the same build, so every
-    FreeCAD dialog using this widget is affected in 26.3.0 `a4ce44d33b`.
-    1.1.3 holds in all seven configurations.
-
-    So after a step we push the shown text back into the value, which
-    the same probe confirmed sticks. The check is on the VALUE, not the
-    version: when upstream fixes the widget the text and the value agree
-    and this does nothing, so it retires itself. **Delete this class and
-    its install once a fixed weekly lands** — it is a stopgap so the
-    dialogs work while 26.3 is the test environment, not a design.
-    """
-
-    def eventFilter(self, field, event):
-        kind = event.type()
-        stepped = (kind in (QtCore.QEvent.Wheel,
-                            QtCore.QEvent.MouseButtonPress,
-                            QtCore.QEvent.MouseButtonRelease)
-                   or (kind == QtCore.QEvent.KeyPress
-                       and event.key() in (QtCore.Qt.Key_Up,
-                                           QtCore.Qt.Key_Down)))
-        if stepped:
-            # After Qt has handled the event, and only if it changed the
-            # text. A plain click in the field changes nothing, and
-            # committing it anyway would re-parse the ROUNDED display —
-            # a 30 1/16" value shown at 1/8" resolution would be
-            # silently truncated by clicking into it.
-            before = field.lineEdit().text()
-            QtCore.QTimer.singleShot(
-                0, lambda: (field.lineEdit().text() != before
-                            and _commit_shown(field)))
-        return False            # never consume: the widget still steps
-
-
-_STEP_COMMIT = None
-
-
-def _commit_shown(field):
-    """Make the widget's value agree with the text it is showing."""
-    try:
-        shown = field.lineEdit().text().strip()
-        if not shown:
-            return
-        unit = field.property("_bw_unit") or "mm"
-        quantity = App.Units.Quantity(shown)
-        if not quantity.Unit:           # bare number: the field's own unit
-            quantity = App.Units.Quantity(float(shown), unit)
-        raw = float(field.property("rawValue"))
-        if abs(float(quantity.getValueAs(unit)) - raw) > 1e-9:
-            field.setProperty("value", quantity)
-    except Exception:
-        pass        # a half-typed value is not an error
-
-
-def _display_factor(unit="mm"):
-    """How many raw `unit`s one displayed unit is worth, under the
-    user's schema (25.4 for mm under Building US, 1.0 under Standard)."""
-    try:
-        factor = App.Units.Quantity(1.0, unit).getUserPreferred()[1]
-        return float(factor) or 1.0
-    except Exception:
-        return 1.0
 
 
 def _set_range(field, low, high, unit="mm"):

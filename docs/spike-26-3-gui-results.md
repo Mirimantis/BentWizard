@@ -284,11 +284,12 @@ This didn't use to be the case, it would stay the document units."
 were already on file before we got there. Nothing to report; the lesson
 is to search upstream before drafting, which cost a round here.
 
-**So `_StepCommit` has an expiry date.** It stays only while the
-2026.09.16 weekly is the test environment; it is keyed to the value
-rather than the FreeCAD version, so it goes quiet by itself on a fixed
-build. **Delete the class, its install in `_quantity_field`, and this
-paragraph once Adam is on a weekly carrying #32707** — which also
+**`_StepCommit` is deleted (2026-10-04).** The 2026.10.01 weekly (git
+`99c5620c5`) carries #32707: on a bare `Gui::QuantitySpinBox` under
+Building US, a stepper change now survives focus-out (4" → 5"), and a
+typed `6` reads as 6 in. The same probe on the 2026.09.16 weekly still
+shows both defects, so it can see them. The class, its install in
+`_quantity_field` and its helper `_commit_shown` are gone, which also
 resolves (c) with no work from us.
 
 The `minimum`/`maximum` inconsistency in (a) is **not** covered by
