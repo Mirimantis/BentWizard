@@ -134,14 +134,12 @@ Adam: FreeCAD driving, joinery domain decisions, testing against real workflow. 
 
 ## Subagents
 
-Four project subagents live in `.claude/agents/`. Delegate to them explicitly by name when their trigger condition fits; otherwise do the work in the main session.
+Two project subagents live in `.claude/agents/`. Delegate to them by name when their trigger fits; otherwise do the work in the main session.
 
-- **freecad-api-scout** — when the exact FreeCAD API surface (a class, method, enum, workbench behavior) is uncertain and needs to be confirmed before writing code against it.
-- **timber-craft-researcher** — when a feature needs grounding in real traditional joinery/layout practice, before a joint template is designed.
-- **fcstd-verifier** — after implementing or modifying a tool, to verify the resulting `.FCStd` (placement chain, linter, tests) before reporting the change ready for Adam's GUI test.
-- **git-workflow** — after Adam has GUI-tested and approved a change, to stage it and draft the commit message.
+- **freecad-scout** — when a FreeCAD API is uncertain before writing code against it, and **whenever something misbehaves that may be FreeCAD's rather than ours**: it introspects the 26.3 weekly, reads FreeCAD's source at the build's commit, searches the tracker (open and closed), reproduces with stock objects on the weekly and on 1.1.3, and drafts the upstream report. This is the "search the tracker before acting" rule above, done in a fresh context so the investigation does not fill the main one. Adam files the reports.
+- **timber-craft-researcher** — before designing a joint template or a layout behaviour: how framers do it, what each timber gives up, and which dimensions a framer chooses versus what practice fixes (a template's parameters, defaults, ranges and locked values).
 
-**What stays in the main session, not delegated:** joint geometry/placement logic, GUI (dialog) code, and anything reconciling the two — this is the core spatial-reasoning work the project depends on getting right, and a fresh-context subagent doesn't have the surrounding design reasoning to do it safely.
+**What stays in the main session, not delegated:** joint geometry/placement logic, GUI (dialog) code, and anything reconciling the two — the core spatial-reasoning work the project depends on getting right, which a fresh-context subagent doesn't have the surrounding design reasoning to do safely. Verification before Adam's GUI round stays here too (the suite, the linter, any file inspection: the suite asserts analytic values, so a separate checker added little), and so does git — commits and PRs, after Adam's approval.
 
 Subagents start with a fresh context window — they only see what's in the invocation prompt, not this conversation. When delegating, state the specific file(s), what changed, and what's being asked for; don't assume the subagent can infer it.
 
