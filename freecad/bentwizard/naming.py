@@ -357,6 +357,18 @@ def is_accessor_property(name):
                    for side in SIDES for acc in ALL_ACCESSORS))
 
 
+def is_joint_parameter(name, group=None):
+    """True for a property on a joint VarSet that the framer edits — not
+    an accessor or pairing record, template metadata, a range bound, the
+    position tag or the sweep's findings. `name` must be a user-added
+    (dynamic) property; FreeCAD's own (Label, ...) are the caller's to
+    leave out."""
+    return not (is_accessor_property(name)
+                or is_template_metadata(name, group)
+                or is_range_property(name, group)
+                or name in (PROP_POSITION_TAG, PROP_SWEEP_FINDINGS))
+
+
 def is_accessors_label(label):
     """True for an accessor VarSet's label."""
     return str(label).startswith(ACCESSORS_PREFIX)

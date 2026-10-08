@@ -38,14 +38,39 @@ class HousedMTSpec(unittest.TestCase):
         self.assertFalse(self.spec.is_starter)
         self.assertEqual(len(self.spec.components_for("T-Post-000")), 1)
 
+    def test_declared_range_is_read(self):
+        """A template may still declare a range (`<Name>Min`/`Max`, group
+        Ranges); the shipped ones no longer do, so inject one into a copy."""
+        import re
+        import tempfile
+        import zipfile
+        with zipfile.ZipFile(LIBRARY / "Joint_HousedMT.FCStd") as z:
+            entries = {n: z.read(n) for n in z.namelist()}
+        xml = entries["Document.xml"].decode("utf-8")
+        block = re.search(r'<Property name="TenonWidth" .*?</Property>', xml, re.S).group(0)
+        bound = (block.replace('name="TenonWidth"', 'name="TenonWidthMax"')
+                 .replace('group="Joint"', 'group="Ranges"'))
+        bound = re.sub(r'value="[^"]*"', 'value="203.2"', bound, count=1)
+        entries["Document.xml"] = xml.replace(block, block + bound).encode("utf-8")
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "Joint_HousedMT.FCStd"
+            with zipfile.ZipFile(path, "w") as z:
+                for name, data in entries.items():
+                    z.writestr(name, data)
+            tw = TemplateSpec(path).parameter("TenonWidth")
+        self.assertIsNone(tw["min"])
+        self.assertAlmostEqual(tw["max"], 203.2)
+
     def test_parameters(self):
         names = [p["name"] for p in self.spec.parameters]
         self.assertEqual(sorted(names), ["HousingDepth", "MortiseFit", "PegCount",
                                          "TenonLength", "TenonThickness", "TenonWidth"])
         tl = self.spec.parameter("TenonLength")
         self.assertAlmostEqual(tl["default"], 4 * 25.4)
-        self.assertAlmostEqual(tl["min"], 2 * 25.4)
-        self.assertAlmostEqual(tl["max"], 6 * 25.4)
+        # no declared range: a through tenon must not be capped (Adam,
+        # 2026-10-07)
+        self.assertIsNone(tl["min"])
+        self.assertIsNone(tl["max"])
         self.assertTrue(tl["doc"])
         self.assertFalse(self.spec.parameter("PegCount")["numeric"] is False)
         for p in self.spec.parameters:

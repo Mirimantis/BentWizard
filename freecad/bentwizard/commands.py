@@ -301,7 +301,10 @@ class _DimField(QtWidgets.QWidget):
     """One dimension row: a QuantitySpinBox with an 'fx' toggle that
     swaps in an autocompleting expression edit, plus a '+' button to
     store a new variable — literal OR binding ("membership IS the
-    binding")."""
+    binding"). Typing '=' in the value box swaps to the expression edit
+    too, the spreadsheet convention: the bare spin box would drop the
+    text and keep its old value, silently (Adam's GUI round, 2026-10-07,
+    in the Timber Variables panel)."""
 
     def __init__(self, default, doc, parent=None, include_dims=False,
                  include_joints=True, unit="mm"):
@@ -310,7 +313,7 @@ class _DimField(QtWidgets.QWidget):
         self.unit = unit
         lay = QtWidgets.QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        self.spin = _quantity_field(default, unit)
+        spin = _quantity_field(default, unit)
         self.expr = _ExpressionEdit(doc, self, include_dims=include_dims,
                                     include_joints=include_joints)
         self.expr.setPlaceholderText("<<ProjectVars>>.GirtLine")
@@ -332,17 +335,51 @@ class _DimField(QtWidgets.QWidget):
             "to it.")
         self.store.hide()
         self.store.clicked.connect(self._store)
-        lay.addWidget(self.spin)
+        lay.addWidget(spin)
         lay.addWidget(self.expr)
         lay.addWidget(self.fx)
         lay.addWidget(self.store)
+        self.setFocusProxy(spin)
+        # the key reaches FreeCAD's spin box before its line edit, and the
+        # spin box swallows '=' (it opens the expression dialog only on a
+        # bound property): watch both
+        spin.installEventFilter(self)
+        spin.lineEdit().installEventFilter(self)
+
+    @property
+    def spin(self):
+        """The quantity spin box — looked up each time, never kept. The
+        wrapper FreeCAD's UiLoader hands back is dropped by PySide when an
+        item view takes the field over as its editor (the Timber
+        Variables panel): the widget lives on, but a stored reference
+        raises "Internal C++ object already deleted" (26.3 weekly,
+        2026-10-08)."""
+        return self.findChild(QtWidgets.QAbstractSpinBox)
+
+    def eventFilter(self, watched, event):
+        # installed on the spin box and its line edit only
+        if event.type() == QtCore.QEvent.KeyPress and event.text() == "=":
+            self.expr.clear()
+            self.fx.setChecked(True)
+            return True
+        return super().eventFilter(watched, event)
 
     def _swap(self, on):
-        self.spin.setVisible(not on)
-        self.expr.setVisible(on)
+        # show and focus the incoming half BEFORE hiding the outgoing one:
+        # hiding the focused widget sends focus to the next one in the
+        # chain, outside this field — in the Timber Variables panel that
+        # reads as clicking away, and closed the editor on '='
+        shown, hidden = (self.expr, self.spin) if on else (self.spin, self.expr)
+        focus = QtWidgets.QApplication.focusWidget()
+        had_focus = focus is not None and self.isAncestorOf(focus)
+        empty = on and not self.expr.text().strip()
+        shown.setVisible(True)
+        self.setFocusProxy(shown)
+        if had_focus or empty:
+            shown.setFocus()
+        hidden.setVisible(False)
         self.store.setVisible(on and self.unit == "mm")
-        if on and not self.expr.text().strip():
-            self.expr.setFocus()
+        if empty:
             self.expr.show_all()
 
     def _store(self):
@@ -814,6 +851,28 @@ class AuditTimbersCommand:
                     f"{problems} problem(s) found — see below.")
         _show_report(("audit", doc.Name), "Audit Timbers", headline, report,
                      Gui.getMainWindow())
+
+
+class TimberVariablesCommand:
+    def GetResources(self):
+        return {
+            "MenuText": "Timber Variables",
+            "ToolTip": "Open a panel listing what sets the selected timber or "
+                       "timber joint: its section and length, its position, "
+                       "and each timber joint's parameters, with where each "
+                       "value comes from (set on the timber, shared from a "
+                       "variable set, or fixed by the template) and which "
+                       "other timbers a shared value also drives. It follows "
+                       "the selection; click a value to select where it is "
+                       "edited",
+        }
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        from . import view_variables
+        view_variables.show()
 
 
 # --------------------------------------------------------------------------
@@ -2007,6 +2066,7 @@ def register():
             ("BentWizard_AssembleTimbers", SeatTimbersCommand()),
             ("BentWizard_ShowFaceMarks", ShowFaceMarksCommand()),
             ("BentWizard_AuditTimbers", AuditTimbersCommand()),
+            ("BentWizard_TimberVariables", TimberVariablesCommand()),
             ("BentWizard_NewJointTemplate", NewJointTemplateCommand()),
             ("BentWizard_SaveJointTemplate", SaveJointTemplateCommand())):
         Gui.addCommand(name, _guard_command(command))
@@ -2016,5 +2076,6 @@ ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_AddDatum",
                 "BentWizard_ApplyJoint", "BentWizard_RemoveJoint",
                 "BentWizard_DuplicateBent", "BentWizard_AssembleTimbers",
                 "BentWizard_ShowFaceMarks",
-                "BentWizard_AuditTimbers", "BentWizard_NewJointTemplate",
+                "BentWizard_AuditTimbers", "BentWizard_TimberVariables",
+                "BentWizard_NewJointTemplate",
                 "BentWizard_SaveJointTemplate"]
