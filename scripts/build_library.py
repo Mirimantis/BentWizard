@@ -105,11 +105,11 @@ def build_housed_mt(doc):
     add_param(vs, "PegCount", "App::PropertyInteger", 1,
               "Number of pegs through the tenon — schedule data only, "
               "no geometry yet.", fixed=True)
-    add_param(vs, "TenonLengthMin", "App::PropertyLength", 2 * IN,
-              "Lower bound of the valid range for TenonLength (the "
-              "registration sweep and the apply dialog use it).", "Ranges")
-    add_param(vs, "TenonLengthMax", "App::PropertyLength", 6 * IN,
-              "Upper bound of the valid range for TenonLength.", "Ranges")
+    # No declared range on TenonLength (Adam, 2026-10-07). A range is a
+    # hard limit — Apply and the Timber Variables panel refuse a value
+    # outside it — and 2"-6" was really the sweep's extent: it capped a
+    # through tenon, which runs past the far face of the post. The sweep
+    # falls back to its default span around the 4" default.
 
     # Cutter on the post: the housing (the girt's whole section, HousingDepth
     # deep) and the mortise (TenonLength + HousingDepth + MortiseFit deep),

@@ -305,6 +305,150 @@ class VariablesTest(unittest.TestCase):
                 self.assertIsNotNone(obj)
                 self.assertIs(v.subject_of(obj), expected)
 
+    # --- editing in place ---------------------------------------------------
+
+    def edit(self, row, value):
+        from freecad.bentwizard import variables as v
+        v.edit(row.source, value)
+        self.doc.recompute()
+
+    def test_edit_a_typed_value(self):
+        from freecad.bentwizard import variables as v
+        post = self.timber("T-Post-001")
+        r = self.row(v.timber_listing(post), "Section and Length", "Length Z")
+        self.edit(r, App.Units.Quantity("10 ft"))
+        self.assertAlmostEqual(float(self.dims(post).LengthZ), 120 * IN)
+        self.assertAlmostEqual(post.Shape.BoundBox.ZLength, 120 * IN, places=6)
+        # a raw number from a field is in the field's unit (mm for a length)
+        self.edit(r, 2000.0)
+        self.assertAlmostEqual(float(self.dims(post).LengthZ), 2000.0)
+
+    def test_edit_a_shared_value_sets_it_at_its_location(self):
+        from freecad.bentwizard import variables as v
+        self.project("Span", 12 * 12 * IN)
+        b1 = self.timber("T-Beam-001", "6 in", "8 in", "10 ft")
+        b2 = self.timber("T-Beam-002", "6 in", "8 in", "10 ft")
+        for b in (b1, b2):
+            self.dims(b).setExpression("LengthZ", "<<ProjectVars>>.Span")
+        self.doc.recompute()
+        r = self.row(v.timber_listing(b1), "Section and Length", "Length Z")
+        self.edit(r, App.Units.Quantity("14 ft"))
+        self.assertAlmostEqual(float(self.pv.Span), 168 * IN)
+        # the binding is untouched, and the other beam follows
+        self.assertEqual(v.expression_of(self.dims(b1), "LengthZ"), "<<ProjectVars>>.Span")
+        self.assertAlmostEqual(float(self.dims(b2).LengthZ), 168 * IN)
+
+    def test_edit_binds_with_equals(self):
+        from freecad.bentwizard import variables as v
+        self.project("Post", 10 * IN)
+        post = self.timber("T-Post-001")
+        r = self.row(v.timber_listing(post), "Section and Length", "Width X")
+        self.edit(r, "=<<ProjectVars>>.Post")
+        self.assertAlmostEqual(float(self.dims(post).WidthX), 10 * IN)
+        r = self.row(v.timber_listing(post), "Section and Length", "Width X")
+        self.assertEqual(r.set_by, "Post · ProjectVars")
+
+    def test_edit_a_formula(self):
+        from freecad.bentwizard import variables as v
+        self.project("Span", 12 * 12 * IN)
+        beam = self.timber("T-Beam-001", "6 in", "8 in", "10 ft")
+        dims = self.dims(beam)
+        dims.setExpression("LengthZ", "<<ProjectVars>>.Span / 2")
+        self.doc.recompute()
+        r = self.row(v.timber_listing(beam), "Section and Length", "Length Z")
+        self.edit(r, "=<<ProjectVars>>.Span / 3")
+        self.assertAlmostEqual(float(dims.LengthZ), 48 * IN)
+        # a value replaces the formula
+        r = self.row(v.timber_listing(beam), "Section and Length", "Length Z")
+        self.edit(r, "9 ft")
+        self.assertIsNone(v.expression_of(dims, "LengthZ"))
+        self.assertAlmostEqual(float(dims.LengthZ), 108 * IN)
+
+    def test_edit_refusals(self):
+        from freecad.bentwizard import variables as v
+        _p1, _p2, beam, j1, _j2 = self.pi_bent()
+        listing = v.timber_listing(beam)
+        fixed = self.row(listing, f"Timber joint {j1.Label}", "Peg Count")
+        self.assertIsNone(v.editable(fixed.source))
+        with self.assertRaises(v.EditError):
+            v.edit(fixed.source, 3)
+        length = self.row(listing, "Section and Length", "Length Z")
+        with self.assertRaisesRegex(v.EditError, "cannot be negative"):
+            v.edit(length.source, -5.0)
+        with self.assertRaisesRegex(v.EditError, "give '6' a unit"):
+            v.edit(length.source, "6")
+        with self.assertRaisesRegex(v.EditError, "bad expression"):
+            v.edit(length.source, "=<<NoSuchThing>>.X")
+        # a range a template declares is a hard limit
+        j1.addProperty("App::PropertyLength", "HousingDepthMax", "Ranges")
+        j1.HousingDepthMax = IN
+        housing = self.row(listing, f"Timber joint {j1.Label}", "Housing Depth")
+        with self.assertRaisesRegex(v.EditError, "above the maximum"):
+            v.edit(housing.source, 2 * IN)
+        self.assertNotAlmostEqual(float(j1.HousingDepth), 2 * IN)
+
+    def test_tenon_length_has_no_cap(self):
+        """A through tenon runs past the post's far face: the shipped
+        template declares no range on TenonLength (Adam, 2026-10-07)."""
+        from freecad.bentwizard import variables as v
+        self.assertIsNone(self.spec.parameter("TenonLength")["max"])
+        _p1, _p2, beam, j1, _j2 = self.pi_bent()
+        tenon = self.row(v.timber_listing(beam), f"Timber joint {j1.Label}",
+                         "Tenon Length")
+        self.edit(tenon, App.Units.Quantity("14 in"))
+        self.assertAlmostEqual(float(j1.TenonLength), 14 * IN)
+
+    def test_chain_steps(self):
+        from freecad.bentwizard import variables as v
+        self.project("Span", 12 * 12 * IN)
+        b1 = self.timber("T-Beam-001", "6 in", "8 in", "10 ft")
+        b2 = self.timber("T-Beam-002", "6 in", "8 in", "10 ft")
+        self.dims(b1).setExpression("LengthZ", "<<ProjectVars>>.Span")
+        self.dims(b2).setExpression("LengthZ", "<<TDim_T-Beam-001>>.LengthZ")
+        self.doc.recompute()
+        r = self.row(v.timber_listing(b2), "Section and Length", "Length Z")
+        self.assertEqual([(o.Name, p) for o, p in v.chain_steps(r.source)],
+                         [(self.dims(b2).Name, "LengthZ"),
+                          (self.dims(b1).Name, "LengthZ"),
+                          (self.pv.Name, "Span")])
+        typed = self.row(v.timber_listing(b2), "Section and Length", "Width X")
+        self.assertEqual(v.chain_steps(typed.source), [])
+
+    def test_edit_a_joint_parameter(self):
+        from freecad.bentwizard import variables as v
+        from freecad.bentwizard.measure import is_whole
+        p1, _p2, beam, j1, _j2 = self.pi_bent()
+        r = self.row(v.timber_listing(beam), f"Timber joint {j1.Label}", "Housing Depth")
+        self.edit(r, App.Units.Quantity("1 in"))
+        self.assertAlmostEqual(float(j1.HousingDepth), IN)
+        self.assertTrue(is_whole(p1))
+        self.assertTrue(is_whole(beam))
+
+    def test_edit_a_station_reseats(self):
+        from freecad.bentwizard import datums
+        from freecad.bentwizard import variables as v
+        from freecad.bentwizard.frame import joint_misfit
+        p1, _p2, beam, j1, _j2 = self.pi_bent()
+        r = self.row(v.timber_listing(beam), "Position", "Station on T-Post-101, +Y face")
+        self.edit(r, App.Units.Quantity("60 in"))
+        datum = r.source.holder
+        self.assertTrue(datums.is_datum(datum))
+        self.assertAlmostEqual(float(datum.Station), 60 * IN)
+        mm, deg = joint_misfit(j1)
+        self.assertLess(mm, 1e-6)
+        self.assertLess(deg, 1e-9)
+
+    def test_end_datum_station_is_not_editable(self):
+        from freecad.bentwizard import datums
+        from freecad.bentwizard import variables as v
+        post = self.timber("T-Post-001")
+        end_a = datums.end_datum(post, "EndA")
+        self.assertIsNone(v.editable(v.resolve(end_a, "Station")))
+        # end B's station follows LengthZ, so it edits the length
+        end_b = datums.end_datum(post, "EndB")
+        self.assertEqual(v.editable(v.resolve(end_b, "Station")),
+                         (self.dims(post), "LengthZ"))
+
 
 class VariablesWordsTest(unittest.TestCase):
     """The pure helpers, under any interpreter that can import them."""

@@ -1,6 +1,8 @@
 """What sets a timber, or a timber joint: the values a framer edits, and
 where each one comes from. The model behind the Timber Variables panel
-(`view_variables`). FreeCAD, no GUI, and read-only.
+(`view_variables`). FreeCAD, no GUI. The listings are read-only — they
+run on every selection change and must never touch the document; the
+one writer is `edit`, called when the framer edits a value.
 
 Almost every expression in a frame is plumbing. A datum's WidthU copies
 its own timber's WidthX, an accessor VarSet reads two datums, a seat is
@@ -21,6 +23,15 @@ where each one comes from:
 An expression the workbench did not write, inside a timber or its timber
 joints' components, that reads a value outside that plumbing is listed
 under "Other", so a hand-added binding is never silently missing.
+
+**Editing** changes the variable at a row's Var. Location — where the
+value lives, not the property that reads it. Editing a beam's Length Z
+that follows ProjectVars.Span sets Span, and with it every timber Also
+drives names; that is the point of a shared value, and the panel says so.
+A value sets it; `=expression` binds it (the spreadsheet convention the
+dimension fields use) and replaces a formula. A template-fixed parameter
+and a declared range (`<Name>Min`/`<Name>Max`) are honoured here,
+since a Python write goes straight through ReadOnly and a range.
 """
 
 from __future__ import annotations
@@ -180,6 +191,19 @@ def resolve_expression(obj, path, expr):
     """A Source for an expression bound at any `path` on `obj` — a
     sketch constraint's, say, which is not a property of its own."""
     return _follow(obj.Document, (obj, path.lstrip(".")), expr)
+
+
+def chain_steps(source):
+    """[(object, property)] a value passes through, from the property the
+    row reads to the variable where it is edited — every binding along
+    the way, so a framer can find the one to cut loose. Empty for a
+    value typed in place or fixed by its template."""
+    if source is None or source.kind in (HERE, FIXED):
+        return []
+    steps = [source.start] + list(source.via)
+    if source.elsewhere:
+        steps.append((source.holder, source.prop))
+    return steps
 
 
 def leaf_keys(source, _depth=0):
@@ -647,6 +671,128 @@ def drives_text(labels, limit=3):
     if len(labels) <= limit:
         return ", ".join(labels)
     return f"{', '.join(labels[:limit])} +{len(labels) - limit} more"
+
+
+# --------------------------------------------------------------------------
+# Editing
+# --------------------------------------------------------------------------
+
+class EditError(ValueError):
+    """An edit the framer can correct; the message says how."""
+
+
+# property type -> the raw-value unit of its field ("" for a plain number)
+QUANTITY_UNITS = {"App::PropertyLength": "mm", "App::PropertyDistance": "mm",
+                  "App::PropertyAngle": "deg"}
+EDITABLE_TYPES = set(QUANTITY_UNITS) | {"App::PropertyFloat", "App::PropertyInteger",
+                                        "App::PropertyBool", "App::PropertyString"}
+
+
+def editable(source):
+    """(object, property) a row edits — its Var. Location — or None: a
+    template-fixed parameter, a broken reference, a placement, or a
+    binding inside a sketch, which is not a property of its own."""
+    if source is None or source.kind in (FIXED, BROKEN):
+        return None
+    obj, prop = source.holder, source.prop
+    try:
+        type_id = obj.getTypeIdOfProperty(prop)
+    except Exception:
+        return None
+    if type_id not in EDITABLE_TYPES or _read_only(obj, prop):
+        return None
+    if datums.is_datum(obj) and prop == naming.PROP_STATION             and facetable.is_end(datums.face_of(obj)):
+        return None
+    return obj, prop
+
+
+def _parse(obj, prop, text):
+    """A typed value for `obj.prop` from text: a quantity string for a
+    quantity property ('5' 6"', '1676 mm'), else per the type."""
+    type_id = obj.getTypeIdOfProperty(prop)
+    text = text.strip()
+    try:
+        if type_id in QUANTITY_UNITS:
+            q = App.Units.Quantity(text)
+        elif type_id == "App::PropertyFloat":
+            return float(App.Units.Quantity(text).Value)
+        elif type_id == "App::PropertyInteger":
+            return int(text)
+        elif type_id == "App::PropertyBool":
+            return text.lower() in ("1", "yes", "true", "on")
+        else:
+            return text
+    except Exception:
+        raise EditError(f"{spaced(prop)}: cannot read {text!r} as a value "
+                        f"(start with '=' for an expression)")
+    if q.Unit == App.Units.Unit():
+        # a bare number in a text field has no displayed unit to be read in
+        raise EditError(f"{spaced(prop)}: give {text!r} a unit, as in "
+                        f"{App.Units.Quantity(1, QUANTITY_UNITS[type_id]).UserString}")
+    return q
+
+
+def _check_range(obj, prop, value):
+    type_id = obj.getTypeIdOfProperty(prop)
+    if type_id not in QUANTITY_UNITS and type_id not in ("App::PropertyFloat",
+                                                         "App::PropertyInteger"):
+        return
+    raw = float(value)
+    if type_id == "App::PropertyLength" and raw < 0:
+        raise EditError(f"{spaced(prop)} is a length and cannot be negative")
+    unit = QUANTITY_UNITS.get(type_id)
+
+    def shown(v):
+        return App.Units.Quantity(v, unit).UserString if unit else f"{v:g}"
+
+    for suffix, too in ((naming.RANGE_MIN_SUFFIX, lambda b: raw < b - 1e-9),
+                        (naming.RANGE_MAX_SUFFIX, lambda b: raw > b + 1e-9)):
+        bound = getattr(obj, prop + suffix, None)
+        if bound is None:
+            continue
+        b = float(bound)
+        if too(b):
+            word = "below the minimum" if suffix == naming.RANGE_MIN_SUFFIX                 else "above the maximum"
+            raise EditError(f"{spaced(prop)} {shown(raw)} is {word} of "
+                            f"{shown(b)} its template declares")
+
+
+def edit(source, value):
+    """Set the variable at `source`'s Var. Location. `value` is a typed
+    value (a Quantity, a number in the field's raw unit, a bool, a
+    string), or a string: '=expression' binds the variable, anything
+    else is read as a value and replaces whatever was bound. Raises
+    EditError when the edit is refused. Opens no transaction and does
+    not recompute: the caller owns both."""
+    target = editable(source)
+    if target is None:
+        raise EditError("this value is not edited here")
+    obj, prop = target
+    is_station = datums.is_datum(obj) and prop == naming.PROP_STATION
+    if isinstance(value, str) and value.lstrip().startswith("="):
+        expr = value.lstrip()[1:].strip()
+        if not expr:
+            raise EditError("nothing after '='")
+        try:
+            obj.evalExpression(expr)
+        except Exception as err:
+            raise EditError(f"{spaced(prop)}: bad expression {expr!r} ({err})")
+        try:
+            obj.setExpression(prop, expr)
+        except Exception as err:          # a cycle, say
+            raise EditError(f"{spaced(prop)}: {err}")
+        return
+    if isinstance(value, str):
+        value = _parse(obj, prop, value)
+    elif obj.getTypeIdOfProperty(prop) in QUANTITY_UNITS and not hasattr(value, "Unit"):
+        value = App.Units.Quantity(float(value),
+                                   QUANTITY_UNITS[obj.getTypeIdOfProperty(prop)])
+    _check_range(obj, prop, value)
+    if is_station:
+        datums.set_station(obj, value)
+        return
+    obj.setExpression(prop, None)
+    setattr(obj, prop, value)
 
 
 # --------------------------------------------------------------------------
