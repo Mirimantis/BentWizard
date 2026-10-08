@@ -816,6 +816,28 @@ class AuditTimbersCommand:
                      Gui.getMainWindow())
 
 
+class TimberVariablesCommand:
+    def GetResources(self):
+        return {
+            "MenuText": "Timber Variables",
+            "ToolTip": "Open a panel listing what sets the selected timber or "
+                       "timber joint: its section and length, its position, "
+                       "and each timber joint's parameters, with where each "
+                       "value comes from (set on the timber, shared from a "
+                       "variable set, or fixed by the template) and which "
+                       "other timbers a shared value also drives. It follows "
+                       "the selection; click a value to select where it is "
+                       "edited",
+        }
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        from . import view_variables
+        view_variables.show()
+
+
 # --------------------------------------------------------------------------
 # Timber joints: pick, whole-joint operations
 # --------------------------------------------------------------------------
@@ -2007,6 +2029,7 @@ def register():
             ("BentWizard_AssembleTimbers", SeatTimbersCommand()),
             ("BentWizard_ShowFaceMarks", ShowFaceMarksCommand()),
             ("BentWizard_AuditTimbers", AuditTimbersCommand()),
+            ("BentWizard_TimberVariables", TimberVariablesCommand()),
             ("BentWizard_NewJointTemplate", NewJointTemplateCommand()),
             ("BentWizard_SaveJointTemplate", SaveJointTemplateCommand())):
         Gui.addCommand(name, _guard_command(command))
@@ -2016,5 +2039,6 @@ ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_AddDatum",
                 "BentWizard_ApplyJoint", "BentWizard_RemoveJoint",
                 "BentWizard_DuplicateBent", "BentWizard_AssembleTimbers",
                 "BentWizard_ShowFaceMarks",
-                "BentWizard_AuditTimbers", "BentWizard_NewJointTemplate",
+                "BentWizard_AuditTimbers", "BentWizard_TimberVariables",
+                "BentWizard_NewJointTemplate",
                 "BentWizard_SaveJointTemplate"]

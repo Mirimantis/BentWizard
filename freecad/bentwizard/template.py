@@ -102,11 +102,7 @@ class TemplateSpec:
             if p.group is None:
                 continue
             name = p.name
-            if (naming.is_accessor_property(name)
-                    or naming.is_template_metadata(name, p.group)
-                    or naming.is_range_property(name, p.group)
-                    or name == naming.PROP_POSITION_TAG
-                    or name == naming.PROP_SWEEP_FINDINGS):
+            if not naming.is_joint_parameter(name, p.group):
                 continue
             entry = {"name": name, "type": p.type_id, "default": p.value,
                      "doc": p.doc or "", "group": p.group,
