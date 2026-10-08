@@ -171,17 +171,94 @@ def frame_group(doc, label=""):
 def subgroup(frame, label="", base=BENT_BASE):
     """Find or create a bent/bay Std Group inside a frame. Tree
     organisation only — a Std Group is not a GeoFeatureGroup, so
-    membership has no geometric effect whatsoever."""
+    membership has no geometric effect whatsoever. An existing group is
+    looked for inside THIS frame only: one of the same name in another
+    frame is not this frame's bent."""
     doc = frame.Document
     label = (label or "").strip() or naming.next_serial(
         [o.Label for o in doc.Objects], base, sep="-")
-    for obj in doc.getObjectsByLabel(label):
-        if obj.TypeId == GROUP_TYPE:
+    for obj in timber_groups(frame):
+        if obj.Label == label:
             return obj
     group = doc.addObject(GROUP_TYPE, base)
     group.Label = label
     frame.addObject(group)
     return group
+
+
+def timber_groups(frame):
+    """The bent/bay Std Groups inside a frame, at any depth — every group
+    but the timber joints' own."""
+    out = []
+
+    def walk(g):
+        for child in getattr(g, "Group", []):
+            if child.TypeId != GROUP_TYPE:
+                continue
+            if any(joint_handle.is_handle(o) for o in child.Group) \
+                    or child.Label == joint_handle.group_label(frame):
+                continue
+            out.append(child)
+            walk(child)
+
+    walk(frame)
+    return out
+
+
+def group_of(body):
+    """The bent/bay group a timber is filed in, or None when it sits in a
+    frame's root or in no frame at all."""
+    parent = body.getParentGroup()
+    if parent is None or parent.getParentGroup() is None:
+        return None
+    return parent
+
+
+def default_group_label(doc, bodies):
+    """Where a timber joint files the timbers it connects that are in no
+    frame yet: the bent of the one already filed, else a new
+    'Bent-NNN'. None when every timber is already filed — nothing
+    moves."""
+    if all(containing_frame(b) is not None for b in bodies):
+        return None
+    for body in bodies:
+        group = group_of(body)
+        if group is not None:
+            return group.Label
+    return naming.next_serial([o.Label for o in doc.Objects], BENT_BASE, sep="-")
+
+
+def file_timbers(doc, bodies, group_label=None):
+    """File the timbers of `bodies` that are in no frame yet: into the
+    frame the others are in (or the document's frame, created on
+    demand), inside the bent/bay group `group_label` — found or created
+    there; '' files them in the frame itself, None takes
+    `default_group_label`. A timber already in a frame is never moved.
+    Returns (the group or frame they went into, [the timbers filed]),
+    or (None, []) when nothing needed filing."""
+    loose = [b for b in bodies if containing_frame(b) is None]
+    if not loose:
+        return None, []
+    if group_label is None:
+        group_label = default_group_label(doc, bodies)
+    homes = [containing_frame(b) for b in bodies]
+    frame = next((h for h in homes if h is not None), None) or frame_group(doc)
+    group_label = (group_label or "").strip()
+    target = subgroup(frame, group_label) if group_label else frame
+    for body in loose:
+        target.addObject(body)
+    return target, loose
+
+
+def file_joint(doc, varset, group_label=None):
+    """File a timber joint's timbers (`file_timbers`) and re-file its
+    handle under their frame. Returns what `file_timbers` does."""
+    pair = joint_timbers(varset)
+    if pair is None:
+        return None, []
+    filed = file_timbers(doc, list(pair), group_label)
+    joint_handle.ensure_handle(varset)
+    return filed
 
 
 def containing_frame(obj):
@@ -234,10 +311,10 @@ def seat_driving(body):
     expr = placement_expression(body)
     if not expr or SEAT_PROP not in expr:
         return None
-    named = naming.referenced_labels(expr)
-    for obj in body.Document.Objects:
-        if is_seat(obj) and obj.Label in named:
-            return obj
+    for label in naming.referenced_labels(expr):
+        for obj in body.Document.getObjectsByLabel(label):
+            if is_seat(obj):
+                return obj
     return None
 
 
@@ -341,11 +418,21 @@ def anchored_timber(doc):
 
 def anchor(doc, body):
     """Anchor a timber: bind its Placement to the project FrameOrigin,
-    seeded with where it already stands, so nothing moves."""
+    seeded with where it already stands, so nothing moves.
+
+    FrameOrigin outlives the timber it was first seeded from — Seat
+    Timbers choosing another principal freezes the old one, and the old
+    one may simply have been deleted. Binding the new principal to the
+    value left behind moved it onto the old one's spot. So FrameOrigin
+    is re-seeded from the timber being anchored, unless another timber
+    still reads it: re-seeding then would move that one instead."""
     pv = project_varset(doc)
     if not hasattr(pv, FRAME_ORIGIN_PROP):
         pv.addProperty("App::PropertyPlacement", FRAME_ORIGIN_PROP,
                        FRAME_ORIGIN_GROUP, FRAME_ORIGIN_TOOLTIP)
+    others = [o for o in pv.InList
+              if o.Name != body.Name and o.TypeId == BODY_TYPE and is_anchored(o)]
+    if not others and not is_anchored(body):
         setattr(pv, FRAME_ORIGIN_PROP, App.Placement(body.Placement))
     body.setExpression(PLACEMENT, f"<<{pv.Label}>>.{FRAME_ORIGIN_PROP}")
     return pv
@@ -411,7 +498,7 @@ def unseat(varset):
     if seat_vs is None:
         return False
     doc = varset.Document
-    for body in doc.Objects:
+    for body in seat_vs.InList:
         if body.TypeId == BODY_TYPE and seat_driving(body) is seat_vs:
             _freeze(body)
     doc.removeObject(seat_vs.Name)
@@ -452,11 +539,13 @@ def re_root(body):
 Seating = namedtuple("Seating", "seat mover anchored closing merged")
 
 
-def place_on_apply(doc, varset):
+def place_on_apply(doc, varset, group_label=None):
     """Place what this timber joint places, when it is applied.
 
-    Anchors the host when neither timber is placed yet and the frame
-    has no anchor; seats whichever side is loose; merges two placement
+    Files a timber in no frame yet first (`file_timbers`: into
+    `group_label`, by default the other timber's bent or a new
+    'Bent-NNN'). Anchors the host when neither timber is placed yet and
+    the frame has no anchor; seats whichever side is loose; merges two placement
     components by re-rooting the one without the frame's anchor; or
     reports a loop closure when both sides already belong to the same
     component. Returns a Seating, or None when the joint is not
@@ -466,26 +555,19 @@ def place_on_apply(doc, varset):
     at its seat when the call comes back: a seat is an expression, and
     an expression is worth nothing until the document evaluates it. The
     Fixed-joint path this replaced recomputed for the same reason."""
-    seating = _place_on_apply(doc, varset)
+    seating = _place_on_apply(doc, varset, group_label)
     if seating is not None:
         doc.recompute()
     return seating
 
 
-def _place_on_apply(doc, varset):
+def _place_on_apply(doc, varset, group_label=None):
     """The placement decision itself; `place_on_apply` recomputes."""
     pair = joint_timbers(varset)
     if pair is None:
         return None
     host_b, mate_b = pair
-    homes = [containing_frame(b) for b in (host_b, mate_b)]
-    if None in homes:                       # never create a stray frame
-        group = next((h for h in homes if h is not None), None) \
-            or frame_group(doc)
-        for body, home in zip((host_b, mate_b), homes):
-            if home is None:
-                group.addObject(body)
-    joint_handle.ensure_handle(varset)      # re-files it under the frame
+    file_joint(doc, varset, group_label)    # and re-files its handle
     anchored = None
     if not is_placed(host_b) and not is_placed(mate_b) \
             and anchored_timber(doc) is None:
@@ -646,9 +728,10 @@ def rebuild_seats(doc, bodies, label="", principal=None,
     the missing ones are built. With `anchor_principal` False the
     principal keeps the placement it already has and roots the component
     provisionally, without a FrameOrigin binding — what a freshly
-    duplicated set of timbers wants until a joint ties it to the frame. Returns a Rebuild: the frame group, the
-    joints that seated a timber, the loop closers, the joints whose two
-    sides disagree, the timbers no joint reaches, and how many handles
+    duplicated set of timbers wants until a joint ties it to the frame.
+    Returns a Rebuild: the frame group, the joints that seated a timber,
+    the loop closers, the joints whose two sides disagree, the timbers no
+    joint reaches, and how many handles
     were adopted. Caller owns the transaction."""
     if not bodies:
         raise JointError("select the timbers to seat first")

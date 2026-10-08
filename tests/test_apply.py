@@ -10,7 +10,6 @@ solid. The parity test uses a deliberately lopsided template to pin
 faces.
 """
 
-import importlib.util
 import itertools
 import sys
 import tempfile
@@ -25,6 +24,7 @@ try:
     import FreeCAD as App
     import Part
     _repo_path.graft()
+    import _templates
     HAVE_FREECAD = True
 except ImportError:
     HAVE_FREECAD = False
@@ -55,16 +55,6 @@ def _centroid(shape):
         total += solid.CenterOfMass * solid.Volume
         volume += solid.Volume
     return total * (1.0 / volume)
-
-
-def _build_library_module():
-    """scripts/build_library.py as a module (its helpers author the
-    lopsided template the parity test needs)."""
-    path = REPO_ROOT / "scripts" / "build_library.py"
-    spec = importlib.util.spec_from_file_location("build_library", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 @unittest.skipUnless(HAVE_FREECAD, "FreeCAD not importable — run with the bundled python")
@@ -288,7 +278,7 @@ class ApplyTest(unittest.TestCase):
         from freecad.bentwizard.apply import apply_joint
         from freecad.bentwizard.template import TemplateSpec
         from freecad.bentwizard.timber import new_timber
-        bl = _build_library_module()
+        bl = _templates.build_library_module()
         with tempfile.TemporaryDirectory() as td:
             tdoc = App.newDocument("Lopsided")
             post, girt, host, mate, vs = bl.skeleton(tdoc, "Lop")
@@ -492,6 +482,57 @@ class ApplyTest(unittest.TestCase):
         self.assertEqual([o.Label for o in self.doc.Objects
                           if naming.is_accessors_label(o.Label)
                           or o.Label == "Whatever"], [])
+
+    def test_remove_a_datum_sized_joint(self):
+        """A component sized only from its datums reads the accessor
+        VarSet and never names the joint VarSet. Remove looked for the
+        joint VarSet alone, found no members, and left the Boolean and the
+        cutter in the post with their accessors deleted under them — and
+        reported success (review, 2026-10-08)."""
+        from freecad.bentwizard import measure
+        from freecad.bentwizard.apply import (joint_components, joint_members,
+                                              remove_joint)
+        from freecad.bentwizard.template import TemplateSpec
+        with tempfile.TemporaryDirectory() as td:
+            spec = TemplateSpec(_templates.datum_sized_housing(td))
+            vs = self.apply(spec=spec).varset
+        self.assertEqual([c.Label for c in joint_components(vs)],
+                         ["Housing.Housing.001"])
+        self.assertEqual([o.Label for o in joint_members(vs)
+                          if o.TypeId == "PartDesign::Boolean"],
+                         ["Cut.Housing.Housing.001"])
+        self.assertEqual(self.volume(self.post), round(8 * 8 * 96 - HOUSING, 6))
+        remove_joint(vs)
+        self.doc.recompute()
+        self.assertEqual(self.volume(self.post), 8 * 8 * 96)
+        self.assertEqual([o.Label for o in self.doc.Objects if "Housing" in o.Label], [])
+        self.assertEqual(measure.unhealthy(self.doc), [])
+
+    def test_a_renamed_joint_is_still_a_joint(self):
+        """A framer may name a joint VarSet anything. Joints were found by
+        the J-<Kind>-<serial> label, so a renamed one dropped out of Audit,
+        Seat Timbers, Remove, Duplicate and the Timber Variables panel. It
+        is found by what it carries instead — and its accessor and seat
+        VarSets are not joints."""
+        from freecad.bentwizard import frame, joint_handle, variables
+        from freecad.bentwizard.apply import (bent_joints, joint_components,
+                                              joint_varsets, remove_joint)
+        vs = self.apply().varset
+        frame.place_on_apply(self.doc, vs)
+        vs.Label = "Bent1 north tenon"
+        self.doc.recompute()
+        self.assertEqual(joint_varsets(self.doc), [vs])
+        self.assertEqual(bent_joints(self.doc, [self.post, self.girt])[0], [vs])
+        handle = joint_handle.find_handle(vs)
+        self.assertIsNotNone(handle)
+        self.assertIs(variables.subject_of(handle), vs)
+        for comp in joint_components(vs):
+            self.assertIs(variables.subject_of(comp), vs, comp.Label)
+        self.assertIsNotNone(frame.seat_of_joint(vs))
+        remove_joint(vs)
+        self.assertEqual(self.volume(self.post), 8 * 8 * 96)
+        self.assertEqual(self.volume(self.girt), 6 * 8 * 72)
+        self.assertEqual(joint_varsets(self.doc), [])
 
     def test_two_joints_on_one_post(self):
         from freecad.bentwizard.timber import new_timber

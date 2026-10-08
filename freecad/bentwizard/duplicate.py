@@ -171,20 +171,22 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
             if name in exprs:
                 values[name] = "=" + _rewrite(exprs[name], renames)
             else:
-                current = getattr(varset, name)
-                if isinstance(current, (int, bool, str)):
-                    values[name] = current
-                else:
-                    values[name] = App.Units.Quantity(f"{float(current)} mm") \
-                        if p["type"] != "App::PropertyAngle" \
-                        else App.Units.Quantity(f"{float(current)} deg")
+                # carried as it is: a Quantity keeps its own unit (a length,
+                # an angle, or anything a PropertyQuantity holds), a Float
+                # stays a float. Rebuilding every non-int as '<x> mm' broke
+                # a Float parameter outright and misread a non-length one.
+                values[name] = getattr(varset, name)
         applied = apply_joint(doc, spec, joint_serial_map[varset.Label], targets,
                               values=values,
                               position_tag=getattr(varset, naming.PROP_POSITION_TAG, ""))
         new_joints.append(applied.varset)
 
     # --- placement: copies reproduce the sources' relative layout -------
-    from .frame import frame_group, rebuild_seats, subgroup
+    from .frame import containing_frame, frame_group, rebuild_seats, subgroup
+    # the copies join the frame their sources are in — not whichever
+    # frame the document happens to list first
+    home = next((f for f in (containing_frame(s) for s in member_map)
+                 if f is not None), None)
     shift = App.Placement(offset or App.Vector(), App.Rotation())
     # Timber placements are global now that no assembly holds them, so
     # the offset goes straight on each copy.
@@ -194,7 +196,7 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
 
     group_label = (group_label or "").strip()
     if group_label:
-        subgroup(frame_group(doc), group_label).addObjects(
+        subgroup(home or frame_group(doc), group_label).addObjects(
             list(new_bodies.values()))
 
     # The copies are their own placement component: the copy of the
@@ -206,6 +208,7 @@ def duplicate_bent(doc, member_map, joint_serial_map, library_dirs,
         principal_src = next((src for src in member_map if grounded_by(src, inside)),
                              None) or next(iter(member_map))
         rebuild_seats(doc, list(new_bodies.values()),
+                      label=home.Label if home is not None else "",
                       principal=new_bodies[principal_src],
                       anchor_principal=False)
         doc.recompute()

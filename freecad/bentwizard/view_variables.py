@@ -7,9 +7,10 @@ itself is `variables`; this module only draws it.
 
 A click on a row selects the object that holds the value, so FreeCAD's
 Property view opens on it. That selection is the panel's own and does
-not move the panel to a new subject; nor does selecting something that
-is neither a timber nor a timber joint (ProjectVars, a frame group), so
-the listing stays put while the framer works.
+not move the panel to a new subject. Selecting something else that is
+neither a timber nor a timber joint (ProjectVars, a frame group) clears
+the listing, so the panel never shows a subject that is no longer
+selected (Adam, 2026-10-08); clearing the selection altogether leaves it.
 
 A value that comes through bindings has an expand arrow: the chain,
 step by step from the property the row reads to where the value is
@@ -46,6 +47,13 @@ _ERROR_STYLE = "color: #c0392b;"
 def _report(where, err):
     App.Console.PrintError(f"BentWizard: Timber Variables, {where}: "
                            f"{type(err).__name__}: {err}\n")
+
+
+def _nothing_to_list(selection):
+    """The placeholder for a selection with nothing to list."""
+    labels = [o.Label for o in selection[:2]]
+    more = f" and {len(selection) - 2} more" if len(selection) > 2 else ""
+    return (f"Nothing to list for {', '.join(labels)}{more}. {_PLACEHOLDER}")
 
 
 class _SelectionObserver:
@@ -337,11 +345,19 @@ class VariablesPanel(QtWidgets.QWidget):
             if self._own_selection is not None and picked == self._own_selection:
                 return
             self._own_selection = None
-            for obj in Gui.Selection.getSelection():
+            selection = Gui.Selection.getSelection()
+            for obj in selection:
                 subject = variables.subject_of(obj)
                 if subject is not None:
                     self.set_subject(subject)
                     return
+            if selection:
+                # picked, but nothing here belongs to a timber or a timber
+                # joint: the old listing would describe what is no longer
+                # selected
+                self._subject = None
+                self._say("")
+                self._show_empty(_nothing_to_list(selection))
         except Exception as err:
             _report("selection", err)
 
@@ -366,12 +382,13 @@ class VariablesPanel(QtWidgets.QWidget):
 
     # --- drawing ------------------------------------------------------------
 
-    def _show_empty(self):
+    def _show_empty(self, note=_PLACEHOLDER):
         self.tree.clear()
         self._targets = []
         self._rows = []
         self.title.setText(_TITLE)
-        self.subtitle.setText(_PLACEHOLDER)
+        self.subtitle.setText(note)
+        self.subtitle.setVisible(True)
 
     def refresh(self):
         subject = self.subject()

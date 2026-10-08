@@ -422,3 +422,88 @@ round, not before it.
    cost (221 objects) and proves the failures have one cause. Route (b)
    — binding components globally through a `Seat_J-…`-shaped placement
    object — is untouched here and remains section 1's call.
+
+## Finding 13 — box selection is broken on 26.3, upstream, two ways (2026-10-08)
+
+Added after the sweep. Adam's GUI round on `claude/review-fixes`: with
+timber joints in the document, a right-to-left box anywhere in the view
+selected the `TimberJoints_<Frame>` group and everything in it, and a
+left-to-right box picked timbers by what looked like a small part of
+them. Both are 26.3 regressions in stock FreeCAD; BentWizard only makes
+them easy to see. Reproduced with **stock objects only** by driving a
+real `Std_BoxSelection` drag on each build (scratchpad GUI probe, QTest
+mouse events on the 3D viewport):
+
+| drag | 1.1.3 (`145529fe7`) | 26.3 weekly 2026.10.01 (`99c5620c5`) |
+|---|---|---|
+| right-to-left, in an empty corner | nothing | `LooseVarSet`, `GroupOfVarSets`, `VarSetInGroup` |
+| left-to-right, the whole view | `Stick` (the Body) | `Stick.Cut.Tool.` (only the Boolean's tool) |
+
+**(a) Objects with no geometry are selected by any right-to-left box.**
+`src/Gui/Selection/BoxSelection.cpp`, `getBoxSelection`: 1.1.x returned
+early on `!bbox3.IsValid()`; 26.3 skips the box test instead
+(`if (isBBox3Valid && selectionGate == nullptr) {…}`) and then, for an
+object with no sub-objects, `mode == INTERSECT` selects it outright. A
+VarSet has no bounding box, so every visible VarSet is selected wherever
+the box is drawn, and a group whose children are all VarSets counts as
+wholly selected. A timber joint's handle holds only VarSets (parameters,
+accessors, seat), so every handle and then the joints group are taken;
+a timber's `TDim_` VarSet is taken as a sub-object of its Body.
+
+**(b) A PartDesign Boolean reports its tool's bounding box, not its
+result's — and so does its Body.** `ViewObject.getBoundingBox()` on a
+stock Body whose Tip is a `PartDesign::Boolean` (100×100×1000 stick, a
+20 mm tool cut near one end): 1.1.3 gives the stick, z 0–1000; 26.3
+gives the tool, z 500–520, and an **invalid** box when the tool body is
+hidden. Same with `addObject` or direct `Group` assignment, and with
+`UseLegacyBodyPlacement` True or False. Box selection works from that
+box, so a timber is "inside" the box when its joinery is — a post
+selected because the box covers its mortise, missed when it covers the
+rest of the post. Both changes most likely arrive with
+[PR #26291](https://github.com/FreeCAD/FreeCAD/pull/26291) "Core
+Sketcher: Bounding box rework" (merged 2026-07-07), which touched
+`BoxSelection.cpp` and how view providers compute their bounding box.
+
+**Our own part.** A handle's marker has a proper ~100 mm box at its
+datum in the Coin scene graph, but the handle's view provider reports
+none: the `Gui::ViewProviderGroupExtensionPython` it carries (so the
+tree nests its VarSets) answers the bounding box as the union of its
+children, all VarSets. On 1.1.x that made handles unreachable by box
+selection; under (a) it makes them caught by every right-to-left box.
+Once (a) is fixed upstream they are simply not box-selectable — the
+same as before. No workaround in the workbench (Adam to decide):
+hiding every VarSet would dim them in the tree and is undone by a group
+visibility toggle, and (b) is not ours to patch.
+
+Upstream search (2026-10-08, `gh search issues` and the web): nothing
+on file for either; the nearest, #21816 "Box selection and Box element
+selection do not work correctly", is a different symptom (geometry
+behind the front item). Drafts for Adam to file:
+
+> **Regression: right-to-left box selection selects every object
+> without geometry (VarSet, …), wherever the box is drawn.**
+> 26.3 dev (2026.10.01, 99c5620c5), Windows; not in 1.1.3. New
+> document, `Std_VarSet`, a Part box somewhere; drag a box right to
+> left in an empty part of the 3D view: the VarSet is selected (and a
+> Std Group holding only VarSets). `BoxSelection.cpp` `getBoxSelection`
+> no longer returns on an invalid bounding box, so for an object with
+> no sub-objects INTERSECT mode selects it unconditionally. Likely from
+> #26291.
+
+> **Regression: PartDesign Body / Boolean report the Boolean tool's
+> bounding box, breaking box selection.** 26.3 dev (2026.10.01,
+> 99c5620c5); not in 1.1.3. A Body (box 100×100×1000) with a
+> PartDesign Boolean Cut of a second Body (20 mm box near one end):
+> `Body.ViewObject.getBoundingBox()` and the Boolean's return the tool's
+> box (invalid once the tool body is hidden) instead of the result's.
+> A left-to-right box around the whole Body selects
+> `Body.Boolean.Tool.` rather than the Body; a box around only the
+> tool's region selects the Body. Likely from #26291.
+>
+> Attached: `boolean-bbox-regression.FCStd` (saved from the 1.1.3 GUI: two
+> such Bodies, the tool shown in one and hidden in the other, as the
+> Boolean command leaves it) and `boolean_bbox_check.FCMacro`, which
+> compares each Body's and Boolean's `ViewObject.getBoundingBox()` with
+> its `Shape.BoundBox`: 0 mismatches on 1.1.3; on 26.3 the Bodies and
+> Booleans report the tool's box (z 960–980) when it is shown and an
+> invalid box when it is hidden (4 mismatches).

@@ -13,6 +13,7 @@ import _repo_path  # noqa: E402
 try:
     import FreeCAD as App
     _repo_path.graft()
+    import _templates
     HAVE_FREECAD = True
 except ImportError:
     HAVE_FREECAD = False
@@ -160,6 +161,32 @@ class DuplicateBentTest(unittest.TestCase):
         new_bodies, new_joints, skipped = self.duplicate([self.post1, self.beam])
         self.assertEqual(skipped, ["J-HousedMT-002"])
         self.assertEqual([j.Label for j in new_joints], ["J-HousedMT-003"])
+
+    def test_every_parameter_type_is_carried(self):
+        """Duplicate rebuilt every parameter that was not an int, bool or
+        string as '<value> mm', so a Float parameter failed outright
+        ('type must be float or int, not Base.Quantity') and any other
+        quantity was read as a length (review, 2026-10-08)."""
+        from freecad.bentwizard.apply import apply_joint
+        from freecad.bentwizard.duplicate import duplicate_bent
+        from freecad.bentwizard.template import TemplateSpec
+        from freecad.bentwizard.timber import new_timber
+        post, _ = new_timber(self.doc, "T-Post-101", "8 in", "8 in", "8 ft")
+        girt, _ = new_timber(self.doc, "T-Girt-101", "6 in", "8 in", "6 ft")
+        with tempfile.TemporaryDirectory() as td:
+            spec = TemplateSpec(_templates.datum_sized_housing(td))
+            vs = apply_joint(self.doc, spec, "001", {
+                spec.host_role: {"body": post, "face": "YPos", "station": "48 in"},
+                spec.mate_role: {"body": girt, "face": "EndB"}},
+                values={"Shrinkage": 0.06}).varset
+            _bodies, new_joints, _ = duplicate_bent(
+                self.doc, {post: "T-Post-102", girt: "T-Girt-102"},
+                {vs.Label: "002"}, [td])
+        self.assertEqual([j.Label for j in new_joints], ["J-Housing-002"])
+        self.assertAlmostEqual(new_joints[0].Shrinkage, 0.06, places=12)
+        # a quantity keeps its own value through the copy
+        _b, copies, _ = self.duplicate()
+        self.assertAlmostEqual(copies[0].TenonLength / IN, 5, places=9)
 
     def test_output_lints_clean(self):
         from freecad.bentwizard.linter import lint

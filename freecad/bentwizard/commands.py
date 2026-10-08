@@ -6,7 +6,6 @@ are thin wrappers: dialog -> transaction -> core call -> report.
 """
 
 import functools
-import re
 import traceback
 from pathlib import Path
 
@@ -20,7 +19,22 @@ from .apply import (JointError, apply_joint, bent_joints, joint_datums,
                     joint_members, joint_varsets, next_serial, remove_joint)
 from .datums import DatumError
 from .template import TemplateSpec
-from .timber import TimberError, dims_varset, new_timber, timber_bodies
+from .timber import (TimberError, dims_varset, is_timber, new_timber,
+                     timber_bodies)
+
+
+def _at_least(n, objs, test):
+    """True once `n` of `objs` pass `test` — stops there. For IsActive,
+    which FreeCAD polls constantly: building the full list of timbers or
+    joints on every poll cost a pass over the whole document."""
+    if n <= 0:
+        return True
+    for obj in objs:
+        if test(obj):
+            n -= 1
+            if n == 0:
+                return True
+    return False
 
 
 def _quantity_field(default, unit="mm"):
@@ -95,7 +109,9 @@ _FRAMEWORK_PROPERTIES = frozenset((
 
 
 def _is_joint_varset(obj):
-    return (naming.is_joint_varset_label(obj.Label)
+    """A joint's parameter VarSet or its accessor VarSet — neither is a
+    project variable a dimension should bind to."""
+    return (datums.is_joint_varset(obj)
             or any(hasattr(obj, s + a) for s in naming.SIDES
                    for a in naming.ACCESSORS))
 
@@ -628,7 +644,7 @@ class AddDatumCommand:
 
     def IsActive(self):
         doc = App.ActiveDocument
-        return doc is not None and bool(timber_bodies(doc))
+        return doc is not None and _at_least(1, doc.Objects, is_timber)
 
     def Activated(self):
         doc = App.ActiveDocument
@@ -923,7 +939,7 @@ def _joint_of_selection(doc):
             vs = joint_handle.handle_varset(obj)
             if vs is not None:
                 return vs
-        if obj.TypeId == "App::VarSet" and naming.is_joint_varset_label(obj.Label):
+        if datums.is_joint_varset(obj):
             return obj
         if datums.is_datum(obj):
             vs = datums.joint_of(obj)
@@ -980,8 +996,9 @@ def remove_joint_interactive(varset):
     answer = QtWidgets.QMessageBox.question(
         Gui.getMainWindow(), "Remove Timber Joint",
         f"Remove {label} — {len(members)} object(s) across "
-        f"{', '.join(bodies) or 'no timbers'} — plus its VarSet and "
-        f"assembly joint? The datums stay on their timbers.",
+        f"{', '.join(bodies) or 'no timbers'} — plus its VarSets, handle "
+        f"and seat? The datums stay on their timbers, and the timbers "
+        f"stay where they stand.",
         QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
     if answer != QtWidgets.QMessageBox.Yes:
         return
@@ -999,13 +1016,14 @@ class RemoveJointCommand:
         return {
             "MenuText": "Remove Timber Joint",
             "ToolTip": "Remove a timber joint: its components, Booleans, "
-                       "handle, assembly joint and VarSet. The timbers "
-                       "return to their bare sticks and keep their datums",
+                       "handle, seat and VarSets. The timbers return to "
+                       "their bare sticks, keep their datums and stay "
+                       "where they stand",
         }
 
     def IsActive(self):
         doc = App.ActiveDocument
-        return doc is not None and bool(joint_varsets(doc))
+        return doc is not None and _at_least(1, doc.Objects, datums.is_joint_varset)
 
     def Activated(self):
         varset = _pick_joint(App.ActiveDocument, "Remove Timber Joint")
@@ -1332,6 +1350,17 @@ class ApplyJointDialog(QtWidgets.QDialog):
         self.roles_box = QtWidgets.QGroupBox("Timbers", self)
         self.roles_form = QtWidgets.QFormLayout(self.roles_box)
         layout.addWidget(self.roles_box)
+        group_form = QtWidgets.QFormLayout()
+        self.group_box = QtWidgets.QComboBox(self)
+        self.group_box.setEditable(True)
+        self.group_box.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
+        # a name the framer typed or picked survives a change of timber;
+        # until then the field follows the timbers chosen
+        self._group_chosen = False
+        self.group_box.lineEdit().textEdited.connect(self._choose_group)
+        self.group_box.activated.connect(self._choose_group)
+        group_form.addRow("Bent / group:", self.group_box)
+        layout.addLayout(group_form)
         self.params_box = QtWidgets.QGroupBox("Parameters", self)
         self.params_form = QtWidgets.QFormLayout(self.params_box)
         layout.addWidget(self.params_box)
@@ -1404,6 +1433,8 @@ class ApplyJointDialog(QtWidgets.QDialog):
             self.role_widgets[role] = w
             caption, tip = _role_caption(self.spec, role)
             w.add_rows(self.roles_form, caption, tip)
+            w.timber.currentIndexChanged.connect(self._update_group)
+        self._update_group()
         for p in self.spec.parameters:
             self.param_widgets[p["name"]] = self._param_widget(p)
             self.params_form.addRow(f"{p['name']}:", self.param_widgets[p["name"]])
@@ -1414,6 +1445,45 @@ class ApplyJointDialog(QtWidgets.QDialog):
                 f"{sweep.value}", self)
             note.setWordWrap(True)
             self.params_form.addRow(note)
+
+    def _choose_group(self, *_):
+        self._group_chosen = True
+
+    def _update_group(self, *_):
+        """Offer where the joint files a timber that is in no frame yet:
+        the bent the other timber is in, else a new 'Bent-NNN' — any
+        existing bent or group can be picked, or a new name typed. Greyed,
+        showing where they are, when both timbers are already filed:
+        Apply never moves a filed timber."""
+        from .frame import (containing_frame, default_group_label, group_of,
+                            is_frame_group, timber_groups)
+        bodies = [w.timber.currentData() for w in self.role_widgets.values()
+                  if w.timber.currentData() is not None]
+        default = default_group_label(self.doc, bodies) if bodies else None
+        typed = self.group_box.currentText()
+        self.group_box.blockSignals(True)
+        self.group_box.clear()
+        for frame in (o for o in self.doc.Objects if is_frame_group(o)):
+            for group in timber_groups(frame):
+                if self.group_box.findText(group.Label) < 0:
+                    self.group_box.addItem(group.Label)
+        if default is None:
+            self.group_box.setEnabled(False)
+            where = [group_of(b) or containing_frame(b) for b in bodies]
+            self.group_box.setEditText(", ".join(sorted({g.Label for g in where if g})))
+            self.group_box.setToolTip(
+                "Both timbers are already filed in a frame; Apply leaves "
+                "them where they are. Drag them in the tree to re-file them.")
+        else:
+            self.group_box.setEnabled(True)
+            self.group_box.setEditText(typed if self._group_chosen else default)
+            self.group_box.setToolTip(
+                "The group in the frame a timber not yet in one is filed in: "
+                "a bent by default, or name it for what it is (a bay, a roof "
+                "plane, a floor). Pick an existing one or type a new name; "
+                "leave it empty to file it in the frame itself. Tree "
+                "organisation only — it moves nothing.")
+        self.group_box.blockSignals(False)
 
     def _param_widget(self, p):
         t = p["type"]
@@ -1469,8 +1539,10 @@ class ApplyJointDialog(QtWidgets.QDialog):
             else:
                 values[name] = w.text()
         self._check_ranges(values)
+        group = (self.group_box.currentText().strip()
+                 if self.group_box.isEnabled() else None)
         return (self.spec, self.serial.text().strip(), targets, values,
-                self.assemble.isChecked())
+                self.assemble.isChecked(), group)
 
     def _check_ranges(self, values):
         """The template's declared ranges, enforced here rather than on
@@ -1509,18 +1581,21 @@ class ApplyJointCommand:
 
     def IsActive(self):
         doc = App.ActiveDocument
-        return doc is not None and len(timber_bodies(doc)) >= 2
+        return doc is not None and _at_least(2, doc.Objects, is_timber)
 
     def Activated(self):
-        from .frame import is_misfit, place_on_apply
+        from .frame import file_joint, is_misfit, place_on_apply
         doc = App.ActiveDocument
         dialog = ApplyJointDialog(doc, Gui.getMainWindow())
         while dialog.exec() == QtWidgets.QDialog.Accepted:
             try:
-                spec, serial, targets, values, seat_it = dialog.request()
+                spec, serial, targets, values, seat_it, group = dialog.request()
                 doc.openTransaction(f"Apply {spec.kind} joint")
                 try:
                     applied = apply_joint(doc, spec, serial, targets, values=values)
+                    # filed whether or not it is seated: the first joint on
+                    # a timber puts it in its bent
+                    filed_in, filed = file_joint(doc, applied.varset, group)
                     seating = place_on_apply(doc, applied.varset) if seat_it else None
                 except Exception:
                     doc.abortTransaction()
@@ -1532,6 +1607,9 @@ class ApplyJointCommand:
             template_library.set_last_template(spec.stem)
             vs = applied.varset
             msg = f"Applied {vs.Label}."
+            if filed:
+                msg += (f" Filed {', '.join(b.Label for b in filed)} in "
+                        f"{filed_in.Label}.")
             if applied.warnings:
                 msg += " " + " ".join(applied.warnings)
             if seating is not None and seating.mover is not None:
