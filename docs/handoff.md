@@ -39,17 +39,24 @@ round.
   whenever nothing selected belongs to it. A row click selects where the
   value lives.
 - **The 26.3 move is complete** (`freecad-26-3-compatibility-brief.md`).
-  Booleans carry `UseLegacyBodyPlacement` (route (a)).
+  Booleans carry `UseLegacyBodyPlacement` (route (a)), and they keep
+  it: route (b) is blocked upstream (below).
 
 **Next:**
-- **Before 26.3 releases:** the brief's route (b), binding components
-  globally in place of `UseLegacyBodyPlacement` on every Boolean.
 - **The roadmap's deferred list:** face labels per timber role,
   created-part roles (wedges, pegs), the dovetail rebuilt on the new
   contract (have timber-craft-researcher ground it first, building on
   `joinery-*.md`), and the beam tool.
 
-**Waiting on upstream:** two box-selection regressions on the weekly,
+**Waiting on upstream:**
+- **Route (b), binding components globally** (2026-10-08,
+  `spike-26-3-gui-results.md` finding 14). A per-timber pose VarSet
+  converts a frame exactly, but on 26.3 a Boolean is not re-run when its
+  Body moves. A Bay edit at 10 bents left 25 of 48 timbers in two solids
+  with nothing Touched. Route (a) stays. The draft report and the stock
+  repro (`scratch/boolean-stale/`) are for Adam to file. When a build
+  carries a fix, rerun `tests/spike/spike_route_b.py`.
+- Two box-selection regressions on the weekly,
 filed by Adam (`spike-26-3-gui-results.md`, finding 13). A right-to-left
 box selects every VarSet wherever it is drawn, and a Body whose Tip is a
 PartDesign Boolean reports the Boolean's *tool* bounding box. Select
@@ -171,5 +178,5 @@ is there now:
   mirroring's link to it is reported out of scope on every GUI
   recompute. Only handed templates mirror (`Handed` flag); both-hands
   templates, due with the dovetail, remove mirroring entirely.
-- Route (b) of the 26.3 brief, before 26.3 releases.
+- Route (b) of the 26.3 brief, blocked upstream (finding 14).
 - Export to Assembly (flat-frame workstream E, Phase 2).
