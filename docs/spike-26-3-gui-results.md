@@ -593,8 +593,11 @@ Revisit route (b) when a build carries a fix: rerun
 `tests/spike/spike_route_b.py` and the stock repro, and both must come
 out whole with no workbench help.
 
-Upstream search (2026-10-08, open and closed issues and PRs): nothing on
-file. The nearest, #25283 "Boolean cut sometimes produces incorrect
+**Filed by Adam as [#33343](https://github.com/FreeCAD/FreeCAD/issues/33343)** (2026-10-08), from the draft
+below. Watch it: route (b) waits on its fix.
+
+Upstream search before filing (2026-10-08, open and closed issues and
+PRs): nothing on file. The nearest, #25283 "Boolean cut sometimes produces incorrect
 result when recomputing", predates the global semantics. The
 attachments are in `scratch/boolean-stale/` (gitignored):
 `boolean-stale-body-move.FCStd` (saved from the 26.3 GUI, both cases

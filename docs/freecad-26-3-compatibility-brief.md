@@ -9,8 +9,9 @@ under the geometry that 26.3 moved, so workstreams C and D went ahead,
 and the flat-frame rebuild is now built (PR #25). Section 1's route (b),
 binding components globally, was started on 2026-10-08 and is **blocked
 upstream**: on 26.3 a Boolean whose Body moves is silently left stale
-(finding 14 in [spike-26-3-gui-results.md](spike-26-3-gui-results.md)).
-Route (a) stays until a FreeCAD build fixes that.
+(finding 14 in [spike-26-3-gui-results.md](spike-26-3-gui-results.md),
+filed as [#33343](https://github.com/FreeCAD/FreeCAD/issues/33343)). Route (a) stays until a FreeCAD build fixes
+that.
 
 Adam's decision, 2026-09-20: BentWizard moves to 26.3 and takes the
 fine-grained recomputes, and the weekly dev build becomes the primary

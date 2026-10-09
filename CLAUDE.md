@@ -60,7 +60,7 @@ The flat-frame rebuild is done: workstream A (seats, the frame Std Group), C (ha
     Body's *live* Placement, but nothing re-runs the Boolean when that Placement changes. A Body
     moved by a literal never re-runs it; a Body moved by expression runs it before the Body's own
     expression updates. The joinery is left behind with nothing Touched. Upstream defect of
-    #30575, draft in the finding. Retry route (b) only on a build where
+    #30575, filed by Adam as #33343. Retry route (b) only on a build where
     `tests/spike/spike_route_b.py` and the stock repro come out whole.
   - **Fine-grained recomputes did not relax the cycle check** (finding 19): a link that closes a
     cycle between two *objects* is still refused, even through disjoint properties. The seat
