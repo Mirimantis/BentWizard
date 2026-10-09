@@ -7,10 +7,16 @@ itself is `variables`; this module only draws it.
 
 A click on a row selects the object that holds the value, so FreeCAD's
 Property view opens on it. That selection is the panel's own and does
-not move the panel to a new subject. Selecting something else that is
-neither a timber nor a timber joint (ProjectVars, a frame group) clears
-the listing, so the panel never shows a subject that is no longer
-selected (Adam, 2026-10-08); clearing the selection altogether leaves it.
+not move the panel to a new subject.
+
+The listing is sticky (Adam, 2026-10-08): it changes only when another
+timber or timber joint is selected, so a framer can browse the tree and
+open a VarSet with the values still in view. Whenever nothing selected
+belongs to what it lists — ProjectVars picked in the tree, a click on
+empty space — a line under the title says so, so a listing is never
+mistaken for the selection's, and the name in the title becomes a link
+that selects the timber or timber joint again (a joint by its handle, so
+its marker shows where it is).
 
 A value that comes through bindings has an expand arrow: the chain,
 step by step from the property the row reads to where the value is
@@ -29,6 +35,8 @@ Nothing here is an object or a property: nothing is saved.
 
 from __future__ import annotations
 
+import html
+
 import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtGui, QtWidgets
@@ -42,18 +50,13 @@ _COLUMNS = ("", "Value", "Var. Location", "Also drives")
 
 _PANEL = None
 _ERROR_STYLE = "color: #c0392b;"
+# amber, legible on the light and dark themes alike
+_NOT_SELECTED_STYLE = "color: #c27c0e; font-style: italic;"
 
 
 def _report(where, err):
     App.Console.PrintError(f"BentWizard: Timber Variables, {where}: "
                            f"{type(err).__name__}: {err}\n")
-
-
-def _nothing_to_list(selection):
-    """The placeholder for a selection with nothing to list."""
-    labels = [o.Label for o in selection[:2]]
-    more = f" and {len(selection) - 2} more" if len(selection) > 2 else ""
-    return (f"Nothing to list for {', '.join(labels)}{more}. {_PLACEHOLDER}")
 
 
 class _SelectionObserver:
@@ -70,7 +73,7 @@ class _SelectionObserver:
         self.panel.schedule_selection()
 
     def clearSelection(self, *_args):
-        pass                     # keep the listing: nothing new was picked
+        self.panel.schedule_selection()
 
 
 class _DocumentObserver:
@@ -270,8 +273,15 @@ class VariablesPanel(QtWidgets.QWidget):
         font.setBold(True)
         font.setPointSizeF(font.pointSizeF() * 1.15)
         self.title.setFont(font)
+        self._title_text = _TITLE
+        self.title.setTextInteractionFlags(QtCore.Qt.LinksAccessibleByMouse)
+        self.title.linkActivated.connect(self._reselect)
         self.subtitle = QtWidgets.QLabel(self)
         self.subtitle.setForegroundRole(QtGui.QPalette.PlaceholderText)
+        self.not_selected = QtWidgets.QLabel(self)
+        self.not_selected.setWordWrap(True)
+        self.not_selected.setStyleSheet(_NOT_SELECTED_STYLE)
+        self.not_selected.hide()
         self.tree = QtWidgets.QTreeWidget(self)
         self.tree.setColumnCount(len(_COLUMNS))
         self.tree.setHeaderLabels(list(_COLUMNS))
@@ -299,6 +309,7 @@ class VariablesPanel(QtWidgets.QWidget):
         self.status.hide()
         lay.addWidget(self.title)
         lay.addWidget(self.subtitle)
+        lay.addWidget(self.not_selected)
         lay.addWidget(self.tree, 1)
         lay.addWidget(self.status)
 
@@ -341,25 +352,65 @@ class VariablesPanel(QtWidgets.QWidget):
 
     def _selection_settled(self):
         try:
-            picked = {(o.Document.Name, o.Name) for o in Gui.Selection.getSelection()}
-            if self._own_selection is not None and picked == self._own_selection:
-                return
-            self._own_selection = None
             selection = Gui.Selection.getSelection()
-            for obj in selection:
-                subject = variables.subject_of(obj)
+            subjects = [variables.subject_of(o) for o in selection]
+            picked = {(o.Document.Name, o.Name) for o in selection}
+            if self._own_selection is None or picked != self._own_selection:
+                self._own_selection = None
+                subject = next((s for s in subjects if s is not None), None)
                 if subject is not None:
                     self.set_subject(subject)
-                    return
-            if selection:
-                # picked, but nothing here belongs to a timber or a timber
-                # joint: the old listing would describe what is no longer
-                # selected
-                self._subject = None
-                self._say("")
-                self._show_empty(_nothing_to_list(selection))
+            self._mark_selected(subjects)
         except Exception as err:
             _report("selection", err)
+
+    def _mark_selected(self, subjects):
+        """Say so when nothing selected belongs to what the panel lists,
+        and make its name a link that selects it again."""
+        current = self.subject()
+        selected = current is None or any(
+            s is not None and s.Name == current.Name and s.Document is current.Document
+            for s in subjects)
+        if selected:
+            self.not_selected.hide()
+        else:
+            self.not_selected.setText("Not selected. Click to re-select.")
+            self.not_selected.show()
+        self._draw_title()
+
+    def _set_title(self, text):
+        self._title_text = text
+        self._draw_title()
+
+    def _draw_title(self):
+        """The title as plain text, or as a link while the subject is not
+        selected."""
+        if not self.not_selected.isHidden() and self.subject() is not None:
+            self.title.setTextFormat(QtCore.Qt.RichText)
+            self.title.setText(f'<a href="reselect">{html.escape(self._title_text)}</a>')
+            self.title.setToolTip("Select it again.")
+        else:
+            self.title.setTextFormat(QtCore.Qt.PlainText)
+            self.title.setText(self._title_text)
+            self.title.setToolTip("")
+
+    def _reselect(self, _link=None):
+        """Select the listed timber (its Body) or timber joint again — the
+        panel then follows it as any selection. A joint is selected by its
+        handle, so its marker lights up where it sits in the 3D view: the
+        panel already shows its parameters (Adam, 2026-10-08). Its VarSet
+        when it has no handle."""
+        try:
+            subject = self.subject()
+            if subject is None:
+                return
+            if subject.TypeId == "App::VarSet":
+                from . import joint_handle
+                subject = joint_handle.find_handle(subject) or subject
+            Gui.Selection.clearSelection()
+            Gui.Selection.addSelection(subject)
+        except Exception as err:
+            _report("re-select", err)
 
     def document_changed(self, doc):
         if self._active() and self._subject and doc.Name == self._subject[0]:
@@ -382,12 +433,13 @@ class VariablesPanel(QtWidgets.QWidget):
 
     # --- drawing ------------------------------------------------------------
 
-    def _show_empty(self, note=_PLACEHOLDER):
+    def _show_empty(self):
         self.tree.clear()
         self._targets = []
         self._rows = []
-        self.title.setText(_TITLE)
-        self.subtitle.setText(note)
+        self.not_selected.hide()
+        self._set_title(_TITLE)
+        self.subtitle.setText(_PLACEHOLDER)
         self.subtitle.setVisible(True)
 
     def refresh(self):
@@ -405,7 +457,7 @@ class VariablesPanel(QtWidgets.QWidget):
         self.tree.clear()
         self._targets = []
         self._rows = []
-        self.title.setText(listing.title)
+        self._set_title(listing.title)
         self.subtitle.setText(listing.subtitle)
         self.subtitle.setVisible(bool(listing.subtitle))
         for section in listing.sections:

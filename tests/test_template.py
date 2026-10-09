@@ -61,6 +61,35 @@ class HousedMTSpec(unittest.TestCase):
         self.assertIsNone(tw["min"])
         self.assertAlmostEqual(tw["max"], 203.2)
 
+    def test_parameters_named_like_bounds_or_metadata(self):
+        """'ShoulderMax' with no 'Shoulder', and 'TemplateDepth', are
+        parameters; 'TenonWidthMin' left in the Joint group still bounds
+        TenonWidth. Injected into a copy, as above."""
+        import re
+        import tempfile
+        import zipfile
+        with zipfile.ZipFile(LIBRARY / "Joint_HousedMT.FCStd") as z:
+            entries = {n: z.read(n) for n in z.namelist()}
+        xml = entries["Document.xml"].decode("utf-8")
+        block = re.search(r'<Property name="TenonWidth" .*?</Property>', xml, re.S).group(0)
+        added = ""
+        for name, value in (("ShoulderMax", "12.7"), ("TemplateDepth", "25.4"),
+                            ("TenonWidthMin", "101.6")):
+            extra = block.replace('name="TenonWidth"', f'name="{name}"')
+            added += re.sub(r'value="[^"]*"', f'value="{value}"', extra, count=1)
+        entries["Document.xml"] = xml.replace(block, block + added).encode("utf-8")
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "Joint_HousedMT.FCStd"
+            with zipfile.ZipFile(path, "w") as z:
+                for name, data in entries.items():
+                    z.writestr(name, data)
+            spec = TemplateSpec(path)
+        names = {p["name"] for p in spec.parameters}
+        self.assertIn("ShoulderMax", names)
+        self.assertIn("TemplateDepth", names)
+        self.assertNotIn("TenonWidthMin", names)
+        self.assertAlmostEqual(spec.parameter("TenonWidth")["min"], 101.6)
+
     def test_parameters(self):
         names = [p["name"] for p in self.spec.parameters]
         self.assertEqual(sorted(names), ["HousingDepth", "MortiseFit", "PegCount",

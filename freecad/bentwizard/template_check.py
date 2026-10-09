@@ -142,7 +142,8 @@ def rule_ranges(model):
             if p.group is None:
                 continue
             base = naming.range_base(p.name)
-            if base is None or not naming.is_range_property(p.name, p.group):
+            if base is None or not naming.is_range_property(p.name, p.group,
+                                                            vs.properties):
                 continue
             name, bound = base
             param = vs.prop(name)

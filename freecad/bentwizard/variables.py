@@ -372,6 +372,7 @@ def joint_parameters(varset):
     """The names of a timber joint's parameters: the user-added
     properties the framer edits, in the VarSet's order."""
     out = []
+    names = set(varset.PropertiesList)
     for name in varset.PropertiesList:
         try:
             status = varset.getPropertyStatus(name)
@@ -379,7 +380,7 @@ def joint_parameters(varset):
             continue
         if _PROP_DYNAMIC not in status:
             continue
-        if naming.is_joint_parameter(name, varset.getGroupOfProperty(name)):
+        if naming.is_joint_parameter(name, varset.getGroupOfProperty(name), names):
             out.append(name)
     return out
 

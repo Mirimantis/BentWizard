@@ -102,7 +102,7 @@ class TemplateSpec:
             if p.group is None:
                 continue
             name = p.name
-            if not naming.is_joint_parameter(name, p.group):
+            if not naming.is_joint_parameter(name, p.group, props):
                 continue
             entry = {"name": name, "type": p.type_id, "default": p.value,
                      "doc": p.doc or "", "group": p.group,

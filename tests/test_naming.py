@@ -122,6 +122,22 @@ class PropertyNameTest(unittest.TestCase):
         self.assertTrue(naming.is_template_metadata("TemplateSource"))
         self.assertFalse(naming.is_template_metadata("TenonLength"))
 
+    def test_parameters_are_not_told_by_name_alone(self):
+        """A parameter that ends in Min/Max or starts with Template was
+        hidden from the framer as a range bound or as template metadata.
+        A bound is in the Ranges group or bounds a property that exists;
+        metadata is in the Template group or is one the workbench writes."""
+        names = {"TenonLength", "TenonLengthMin", "ShoulderMax", "TemplateDepth"}
+        self.assertTrue(naming.is_range_property("TenonLengthMin", "Joint", names))
+        self.assertTrue(naming.is_range_property("WhateverMax", "Ranges", names))
+        self.assertFalse(naming.is_range_property("ShoulderMax", "Joint", names))
+        self.assertTrue(naming.is_joint_parameter("ShoulderMax", "Joint", names))
+        self.assertFalse(naming.is_joint_parameter("TenonLengthMin", "Joint", names))
+        self.assertTrue(naming.is_joint_parameter("TemplateDepth", "Joint", names))
+        self.assertFalse(naming.is_joint_parameter("TemplateDepth", "Template", names))
+        for meta in ("TemplateSource", "Handed", "SweepFindings"):
+            self.assertFalse(naming.is_joint_parameter(meta, "Joint", names), meta)
+
 
 class DatumLabelTest(unittest.TestCase):
     def test_labels(self):
