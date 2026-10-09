@@ -2191,6 +2191,74 @@ def _guard_command(command):
     return command
 
 
+# --------------------------------------------------------------------------
+# Icons, dropdowns, the toolbar and the menu
+# --------------------------------------------------------------------------
+
+# Drawn by scripts/build_icons.py; each file is named for its command's
+# ID, so a command finds its icon with no table to keep in step.
+ICON_DIR = Path(__file__).resolve().parent / "resources" / "icons"
+
+
+def icon(name):
+    """The icon file for a command ID (or "BentWizard" for the
+    workbench), or "" when there is none."""
+    path = ICON_DIR / f"{name}.svg"
+    return str(path) if path.is_file() else ""
+
+
+def _with_icon(name, command):
+    """Give a command its icon, unless it names one itself."""
+    pixmap = icon(name)
+    if pixmap and "Pixmap" not in command.GetResources():
+        resources = command.GetResources
+        command.GetResources = lambda: {**resources(), "Pixmap": pixmap}
+    return command
+
+
+class _CommandGroup:
+    """A toolbar dropdown of related commands. Its button shows the one
+    last used; the menu lists every command on its own."""
+
+    def __init__(self, menu, tip, commands):
+        self.menu, self.tip, self.commands = menu, tip, tuple(commands)
+
+    def GetCommands(self):
+        return self.commands
+
+    def GetResources(self):
+        return {"MenuText": self.menu, "ToolTip": self.tip,
+                "Pixmap": icon(self.commands[0])}
+
+    def IsActive(self):
+        return True
+
+
+# Apply and Remove stay buttons of their own, side by side: a dropdown
+# shows the command last used, and Apply is too central to be hidden
+# behind Remove (Adam, 2026-10-09).
+GROUPS = {
+    "BentWizard_JointTemplateTools": _CommandGroup(
+        "Joint Templates", "Start a new joint template, or save this document as one",
+        ("BentWizard_NewJointTemplate", "BentWizard_SaveJointTemplate")),
+}
+
+# build the frame | look at it | make templates
+TOOLBAR = ["BentWizard_NewTimber", "BentWizard_AddDatum",
+           "BentWizard_ApplyJoint", "BentWizard_RemoveJoint",
+           "BentWizard_DuplicateBent", "BentWizard_AssembleTimbers",
+           "Separator",
+           "BentWizard_TimberVariables", "BentWizard_AuditTimbers",
+           "BentWizard_ShowFaceMarks",
+           "Separator",
+           "BentWizard_JointTemplateTools"]
+
+# the same order, every command on its own line
+MENU = [c for t in TOOLBAR for c in (GROUPS[t].commands if t in GROUPS else (t,))]
+
+ALL_COMMANDS = [c for c in MENU if c != "Separator"]
+
+
 def register():
     # the handle marker's context menu: whole-joint operations, in one
     # place a future joint-wide tool can extend without touching the
@@ -2213,13 +2281,6 @@ def register():
             ("BentWizard_TimberVariables", TimberVariablesCommand()),
             ("BentWizard_NewJointTemplate", NewJointTemplateCommand()),
             ("BentWizard_SaveJointTemplate", SaveJointTemplateCommand())):
-        Gui.addCommand(name, _guard_command(command))
-
-
-ALL_COMMANDS = ["BentWizard_NewTimber", "BentWizard_AddDatum",
-                "BentWizard_ApplyJoint", "BentWizard_RemoveJoint",
-                "BentWizard_DuplicateBent", "BentWizard_AssembleTimbers",
-                "BentWizard_ShowFaceMarks",
-                "BentWizard_AuditTimbers", "BentWizard_TimberVariables",
-                "BentWizard_NewJointTemplate",
-                "BentWizard_SaveJointTemplate"]
+        Gui.addCommand(name, _guard_command(_with_icon(name, command)))
+    for name, group in GROUPS.items():
+        Gui.addCommand(name, group)

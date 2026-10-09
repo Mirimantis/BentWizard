@@ -4,18 +4,22 @@ Commands register here; all actions are named in domain terms, on one
 dedicated toolbar/menu (friction finding #5).
 """
 
+import os
+
 import FreeCADGui as Gui
 
 
 class BentWizardWorkbench(Gui.Workbench):
     MenuText = "BentWizard"
     ToolTip = "Timber framing — joinery on native geometry"
+    Icon = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "resources", "icons", "BentWizard.svg")
 
     def Initialize(self):
         from freecad.bentwizard import commands
         commands.register()
-        self.appendToolbar("BentWizard", commands.ALL_COMMANDS)
-        self.appendMenu("BentWizard", commands.ALL_COMMANDS)
+        self.appendToolbar("BentWizard", commands.TOOLBAR)
+        self.appendMenu("BentWizard", commands.MENU)
 
     def Activated(self):
         # timber-joint markers: adopt handles in documents already open

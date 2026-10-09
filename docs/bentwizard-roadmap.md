@@ -105,7 +105,7 @@ External research supports the shape: purpose-built timber software earns adopti
 
 ### Near-term
 - **Variable → highlight everything that reads it** (transitive closure over `InList`/`OutList`; a transient view override, never `ShapeColor`). The Timber Variables panel's **Also drives** column is the list half of this, from the other side: a shared value's row names the other timbers resting on it. The highlight in the 3D view is still to do.
-- **Toolbar icons**, so commands can group into dropdowns.
+- ~~**Toolbar icons**, so commands can group into dropdowns.~~ Built 2026-10-09: an icon for the workbench and every command, drawn by `scripts/build_icons.py`; the toolbar runs build (New Timber, Add Datum, Apply and Remove side by side, Duplicate, Seat) | inspect (Timber Variables, Audit, Face Marks) | a Joint Templates dropdown of New/Save. Apply is never in a dropdown: one shows the command last used, and Apply must not hide behind Remove (Adam). The menu lists every command on its own.
 - **Bulk-apply a project variable to selected members** — bind every selected datum's `Station` (or every selected timber's `LengthZ`) to one variable.
 - **Face labels per timber role** (above) feeding the face pickers and the marks.
 
