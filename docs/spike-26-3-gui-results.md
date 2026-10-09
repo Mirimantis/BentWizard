@@ -507,3 +507,152 @@ behind the front item). Drafts for Adam to file:
 > its `Shape.BoundBox`: 0 mismatches on 1.1.3; on 26.3 the Bodies and
 > Booleans report the tool's box (z 960–980) when it is shown and an
 > invalid box when it is hidden (4 mismatches).
+
+## Finding 14 — route (b) is blocked upstream: a Boolean goes stale when its Body moves (2026-10-08)
+
+Route (b) was started: bind every component **globally** and drop
+`UseLegacyBodyPlacement` from the Booleans. The shape built
+(`tests/spike/spike_route_b.py`, converting a production-built frame in
+place):
+
+- every jointed timber gets a pose VarSet `TPos_<label>`, nested in its
+  Body like `TDim_`; whatever drove the Body's Placement (FrameOrigin, a
+  seat, a literal) moves onto the pose, and the Body's Placement reads
+  it;
+- every seat reads the anchor timber's **pose**, never its Body;
+- every accessor reads `pose · datum`
+  (`HostPlacement = <<TPos_host>>.TimberPlacement * <<D_host>>.Placement`).
+
+**Nothing may read a Body's Placement**, which is why the pose exists. A
+component of joint J on the host that read the host Body would be a
+cycle through the host's own Boolean. And with seats reading Bodies,
+J's single accessor VarSet would cycle too: `MatePlacement` reads
+`Seat_J`, which reads the host Body, whose Boolean reads J's host
+component, which reads the same accessor VarSet. Loose and provisional
+timbers have no driver object at all, so some per-timber object is
+unavoidable. The cost: a jointed timber can no longer be dragged; a
+provisional root would be moved through its pose.
+
+The conversion is exact: every timber has the same solids, volume and
+centre, and the worst misfit stays 1e-12 mm. **Then the first layout
+edit breaks it** (26.3 weekly 2026.10.01, `99c5620c5`, the 7010):
+
+| | route (a), 10 bents | route (b), 10 bents |
+|---|---|---|
+| `Bay` 10 → 12 ft | 308 objects, 1.61 s, all whole | 525 objects, 2.14 s, **25 of 48 timbers in two solids** |
+| FrameOrigin moved | 146 objects, 0.37 s, all whole | 483 objects, 2.04 s, **timbers broken** |
+| a tenon length | 15 objects, 0.20 s | 15 objects, 0.19 s |
+
+Nothing is left Touched, and further recomputes change nothing. Only
+`touch()` on the Boolean and a recompute heals it.
+
+**The cause is FreeCAD's** (freecad-scout, with source at `99c5620c5`
+and a stock-objects repro). Since #30575 a non-legacy Boolean takes its
+tool relative to its Body's *live* placement:
+`Feature::getTopoShapeInLocalCoordinates` is
+`bodyPlacement⁻¹ · toolPlacement`. But nothing ties that Placement to
+the Boolean:
+
+- `Boolean::mustExecute` checks only `Group` and `UseLegacyBodyPlacement`,
+  and neither `Body::onChanged` nor `Feature::onChanged` reacts to
+  `Placement`.
+- **A Body moved by a literal assignment never re-runs its Boolean.**
+  The recompute order is just the Body. This is upstream's own #30393
+  scenario ("move the body, the cut should follow"), and it is stale.
+- **A Body moved by expression runs it too early.** The order is
+  pose → tool → Boolean → Body: the Body depends on its features, so its
+  Placement expression is evaluated after the Boolean has used the old
+  value.
+- No expression can add the missing edge: binding a Boolean property to
+  `<<Body>>.Placement` is refused as a cyclic reference. An enclosing
+  `App::Part` holding the pose is stale the same way, and so is a forced
+  full recompute.
+
+On 1.1.3, and with `UseLegacyBodyPlacement = True` on 26.3, the result
+never depends on the Body's placement, so it is never stale. **Route (a)
+is not just the cheaper contract; it is the only correct one for
+expression-placed timbers on this build.** It is also the faster one: a
+moved timber's Booleans do not re-run, which is why route (a)'s
+FrameOrigin move recomputes no geometry at all.
+
+The flag is not deprecated: `Prop_Hidden`, group "Compatibility",
+restored True for old files and False for new objects, with no removal
+mentioned in the source, PR #30575's review or the wiki. No fix has
+landed on `releases/FreeCAD-26-3` or `main` since 2026-10-01.
+
+**A workbench observer would fix it, and is rejected.** A document
+observer that touches a Body's non-legacy Booleans whenever its
+Placement changes gives the right result in one recompute, because
+`Document::recompute` runs a second pass for anything touched during the
+first. But it is workbench code standing between a model and a correct
+recompute: uninstall the workbench and every move silently leaves the
+joinery behind, which fails Tier 1 (governing rule 1).
+
+**Decision for Adam:** keep route (a) and file the defect upstream.
+Revisit route (b) when a build carries a fix: rerun
+`tests/spike/spike_route_b.py` and the stock repro, and both must come
+out whole with no workbench help.
+
+**Filed by Adam as [#33343](https://github.com/FreeCAD/FreeCAD/issues/33343)** (2026-10-08), from the draft
+below. Watch it: route (b) waits on its fix.
+
+Upstream search before filing (2026-10-08, open and closed issues and
+PRs): nothing on file. The nearest, #25283 "Boolean cut sometimes produces incorrect
+result when recomputing", predates the global semantics. The
+attachments are in `scratch/boolean-stale/` (gitignored):
+`boolean-stale-body-move.FCStd` (saved from the 26.3 GUI, both cases
+side by side, the Booleans correct and nothing Touched as saved),
+`boolean_stale_check.FCMacro` (runs the steps on the open file), and
+`upstream_repro.py` with `out_upstream_repro.txt` (the same steps from an
+empty document, on 26.3 and 1.1.3). Draft for Adam to file:
+
+> **Title:** PartDesign: a Boolean doesn't update when its Body is moved
+>
+> **Problem.** Since 26.3 (#30575), a PartDesign Boolean uses its tool
+> body where the tool actually sits in the model, so moving the Body
+> should change the result. But the Boolean isn't recalculated when its
+> Body moves. It keeps its old result, nothing is marked as needing a
+> recompute, and recomputing again doesn't help. Only touching the
+> Boolean brings it up to date.
+>
+> It happens two ways:
+>
+> - **The Body is moved by changing its Placement.** The Boolean isn't
+>   recalculated at all.
+> - **The Body's Placement is driven by an expression** (for example
+>   from a VarSet). The Boolean is recalculated, but before the Body's
+>   own Placement updates, so it works from the Body's old position.
+>
+> The second case breaks any model laid out with expressions: when a
+> Body and its tool both follow one VarSet, the tool comes off the Body
+> every time the VarSet changes.
+>
+> The same happens when the Body is inside a Part and the Part moves.
+>
+> **Steps to reproduce** with the attached `boolean-stale-body-move.FCStd`.
+> Each Body has a box fused with a hidden tool body.
+>
+> 1. Move `LiteralBody` away from its tool and recompute. The tool's box
+>    should stay where it was, as a separate solid. Instead it moves
+>    with the Body, still attached.
+> 2. Change the `Pose` VarSet's placement and recompute. `ExprBody` and
+>    its tool move together, so the fuse should stay in one piece.
+>    Instead the tool's box comes apart from the Body.
+> 3. Touch either Boolean and recompute. It now shows the correct
+>    result.
+>
+> Or run the attached `boolean_stale_check.FCMacro` with the file open.
+> It does these steps and prints the expected and actual result of
+> each.
+>
+> **Not in 1.1.3**, where a Boolean doesn't depend on its Body's
+> position. Booleans with `UseLegacyBodyPlacement` set are not affected.
+>
+> **Possible cause.** The Boolean reads its Body's placement when it
+> runs, but nothing tells it to run again when that placement changes.
+> Touching a Body's Booleans when its Placement (or a containing Part's)
+> changes should fix it. The recompute already runs a second pass for
+> anything touched during the first.
+>
+> **Version:** 26.3 dev weekly 2026.10.01 (99c5620c5), Windows. Nothing
+> relevant has changed on `main` since.

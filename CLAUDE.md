@@ -14,7 +14,7 @@ Timber framing workbench for FreeCAD 26.3. Timber-owned datums, cutter/adder joi
 - **New Joint Template** / **Save as Joint Template**: the template bar, which lints, checks the skeleton and runs the geometry sweep.
 - The shipped library `Joint_Butt` (starter) and `Joint_HousedMT`, both script-built by `scripts/build_library.py`.
 
-The flat-frame rebuild is done: workstream A (seats, the frame Std Group), C (handles) and D (readers) are built, B is retired (26.3's fine-grained recomputes do its job), and E (export to Assembly) is Phase 2. The 26.3 brief is complete. Retired: Preview Mated Joint, Drive Length from Layout Distance, `span.py`, `apply_joint.py`, `assemble.py`, and the dovetail template (to be rebuilt on the new contract). Next: the front end's near-term items and the roadmap's deferred list (face labels per timber role, created-part roles, the dovetail, the beam tool). Before 26.3 releases: the brief's route (b), binding components globally in place of `UseLegacyBodyPlacement`.
+The flat-frame rebuild is done: workstream A (seats, the frame Std Group), C (handles) and D (readers) are built, B is retired (26.3's fine-grained recomputes do its job), and E (export to Assembly) is Phase 2. The 26.3 brief is complete. Retired: Preview Mated Joint, Drive Length from Layout Distance, `span.py`, `apply_joint.py`, `assemble.py`, and the dovetail template (to be rebuilt on the new contract). Next: the front end's near-term items and the roadmap's deferred list (face labels per timber role, created-part roles, the dovetail, the beam tool). The brief's route (b), binding components globally in place of `UseLegacyBodyPlacement`, was started 2026-10-08 and is **blocked upstream** (`docs/spike-26-3-gui-results.md` finding 14); route (a) stays.
 
 ## Read first
 
@@ -55,6 +55,13 @@ The flat-frame rebuild is done: workstream A (seats, the frame Std Group), C (ha
     the path. Python hides deprecation warnings raised inside modules, so the suite is run with
     `-W error::DeprecationWarning` to catch any new use.
   - **Box selection is broken in the 2026.10.01 weekly, upstream** (`docs/spike-26-3-gui-results.md` finding 13, reproduced with stock objects): a right-to-left box selects every VarSet wherever it is drawn (so every timber-joint handle and the joints group), and a Body whose Tip is a PartDesign Boolean reports the Boolean *tool's* bounding box, so timbers are picked by their joinery. Not workbench bugs; drafts for upstream are in the finding.
+  - **Never clear `UseLegacyBodyPlacement` on a Boolean the workbench makes** (finding 14 in
+    `docs/spike-26-3-gui-results.md`): with it False a Boolean takes its tool relative to its
+    Body's *live* Placement, but nothing re-runs the Boolean when that Placement changes. A Body
+    moved by a literal never re-runs it; a Body moved by expression runs it before the Body's own
+    expression updates. The joinery is left behind with nothing Touched. Upstream defect of
+    #30575, filed by Adam as #33343. Retry route (b) only on a build where
+    `tests/spike/spike_route_b.py` and the stock repro come out whole.
   - **Fine-grained recomputes did not relax the cycle check** (finding 19): a link that closes a
     cycle between two *objects* is still refused, even through disjoint properties. The seat
     VarSet and "datums never read each other" stay.

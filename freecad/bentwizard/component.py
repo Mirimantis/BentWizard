@@ -133,8 +133,11 @@ def set_legacy_placement(boolean):
     the old result exactly. It does not exist on 1.1.x, where the old
     behaviour is simply what happens — hence the `hasattr` guard. This
     is one binding choice rather than two mechanisms (Adam, 2026-09-21,
-    brief section 1 route (a)); binding components globally instead is
-    route (b), and is the long-run direction.
+    brief section 1 route (a)). Binding components globally instead,
+    route (b), is blocked upstream: with the flag False nothing re-runs
+    a Boolean when its Body moves, so a seated timber's joinery is left
+    behind on the first layout edit (docs/spike-26-3-gui-results.md,
+    finding 14). Do not clear the flag until FreeCAD fixes that.
 
     Because the default is False, a document saved before this existed
     adopts 26.3's semantics on open — see `ensure_legacy_placement`.

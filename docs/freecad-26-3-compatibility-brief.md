@@ -6,9 +6,12 @@ minimum since 2026-09-21 (route (a), section 1). The accessors are split
 (section 3, [spike-26-3-sweep-results.md](spike-26-3-sweep-results.md)).
 The parked measurements are taken (section 4). The sweep found nothing
 under the geometry that 26.3 moved, so workstreams C and D went ahead,
-and the flat-frame rebuild is now built (PR #25). The one open long-run
-item is section 1's route (b):
-binding components globally, the roadmap's goal before 26.3 releases.
+and the flat-frame rebuild is now built (PR #25). Section 1's route (b),
+binding components globally, was started on 2026-10-08 and is **blocked
+upstream**: on 26.3 a Boolean whose Body moves is silently left stale
+(finding 14 in [spike-26-3-gui-results.md](spike-26-3-gui-results.md),
+filed as [#33343](https://github.com/FreeCAD/FreeCAD/issues/33343)). Route (a) stays until a FreeCAD build fixes
+that.
 
 Adam's decision, 2026-09-20: BentWizard moves to 26.3 and takes the
 fine-grained recomputes, and the weekly dev build becomes the primary
@@ -84,9 +87,13 @@ assume.
 
 `UseLegacyBodyPlacement` is set on every Boolean the workbench creates
 (`component.set_legacy_placement`); see findings 9–12 in
-[spike-26-3-gui-results.md](spike-26-3-gui-results.md). Route (b) stays
-the long-run goal: the roadmap aims for global binding before 26.3
-releases.
+[spike-26-3-gui-results.md](spike-26-3-gui-results.md). Route (b) was
+the long-run goal, aimed for before 26.3 releases. **Started 2026-10-08
+and blocked upstream** (finding 14 there): the pose-VarSet shape below
+converts a frame exactly, but a non-legacy Boolean is not re-run when
+its Body moves, so the first layout edit leaves seated timbers in two
+solids with nothing Touched. Route (a) is the only correct contract for
+expression-placed timbers on 26.3 until FreeCAD fixes that.
 
 Nothing to report upstream and nothing to wait for: the change is
 intentional and the flag is the escape hatch. Two routes, and this is
