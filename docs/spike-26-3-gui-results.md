@@ -595,9 +595,13 @@ out whole with no workbench help.
 
 Upstream search (2026-10-08, open and closed issues and PRs): nothing on
 file. The nearest, #25283 "Boolean cut sometimes produces incorrect
-result when recomputing", predates the global semantics. The stock
-repro, ready to attach, is `scratch/boolean-stale/upstream_repro.py`
-(gitignored). Draft for Adam to file:
+result when recomputing", predates the global semantics. The
+attachments are in `scratch/boolean-stale/` (gitignored):
+`boolean-stale-body-move.FCStd` (saved from the 26.3 GUI, both cases
+side by side, the Booleans correct and nothing Touched as saved),
+`boolean_stale_check.FCMacro` (runs the steps on the open file), and
+`upstream_repro.py` with `out_upstream_repro.txt` (the same steps from an
+empty document, on 26.3 and 1.1.3). Draft for Adam to file:
 
 > **PartDesign: Boolean (non-legacy placement) is not recomputed when
 > its Body or the Body's container moves — the result is silently
@@ -626,5 +630,9 @@ repro, ready to attach, is `scratch/boolean-stale/upstream_repro.py`
 > `Body::onChanged` (or a GeoFeatureGroup ancestor), touch the Body's
 > non-legacy Booleans; `Document::recompute`'s second pass then re-runs
 > them within the same recompute. A Python observer doing exactly that
-> gives the correct result. Attached: `upstream_repro.py`, stock objects
-> only, printing each step on 26.3 and 1.1.3.
+> gives the correct result. Attached: `boolean-stale-body-move.FCStd`
+> (LiteralBody/LiteralFuse for the literal move, ExprBody/ExprFuse driven
+> by the `Pose` VarSet for the expression one) with
+> `boolean_stale_check.FCMacro`, which runs the steps on the open file
+> and prints expected against actual; and `upstream_repro.py`, the same
+> from an empty document, with its output on 26.3 and 1.1.3.
