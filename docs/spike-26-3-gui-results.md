@@ -603,36 +603,53 @@ side by side, the Booleans correct and nothing Touched as saved),
 `upstream_repro.py` with `out_upstream_repro.txt` (the same steps from an
 empty document, on 26.3 and 1.1.3). Draft for Adam to file:
 
-> **PartDesign: Boolean (non-legacy placement) is not recomputed when
-> its Body or the Body's container moves — the result is silently
-> stale.** 26.3 dev (2026.10.01, 99c5620c5), Windows; nothing relevant
-> has changed on `main` since. A Body with a 10 mm AdditiveBox; a
-> ToolBody with a 10 mm AdditiveBox at (2, 0, 9); a Boolean Fuse in the
-> Body with ToolBody as its tool (1 solid, 1920 mm³). Set
-> `Body.Placement` to (300, 0, 0) and recompute. **Expected**, since
-> #30575 takes the tool at its global position: 2 solids, 2000 mm³.
-> **Actual:** only the Body is recomputed; the Boolean keeps 1 solid,
-> 1920 mm³, nothing is Touched, and further recomputes change nothing.
-> Touching the Boolean and recomputing gives 2 / 2000. Same when the
-> Body sits in an App::Part and the Part moves. **Expression variant:**
-> bind Body.Placement and ToolBody.Placement to one VarSet placement so
-> they move together, then change it. The order is VarSet → ToolBody →
-> Boolean → Body, so the Boolean runs with the Body's old Placement
-> (the Body's expression is evaluated after its features), giving 2
-> solids where 1 is right, and it stays stale. Not in 1.1.3, where the
-> result does not depend on the Body's placement: a regression from
-> #30575. **Likely cause:** `getTopoShapeInLocalCoordinates` reads the
-> live placement of the owning Body and its containers, but
-> `Boolean::mustExecute` checks only `Group` and
-> `UseLegacyBodyPlacement`, and nothing touches the Boolean when the
-> Body's or a container's `Placement` changes (a link cannot express it:
-> it would be a cycle). **Possible fix:** on a `Placement` change in
-> `Body::onChanged` (or a GeoFeatureGroup ancestor), touch the Body's
-> non-legacy Booleans; `Document::recompute`'s second pass then re-runs
-> them within the same recompute. A Python observer doing exactly that
-> gives the correct result. Attached: `boolean-stale-body-move.FCStd`
-> (LiteralBody/LiteralFuse for the literal move, ExprBody/ExprFuse driven
-> by the `Pose` VarSet for the expression one) with
-> `boolean_stale_check.FCMacro`, which runs the steps on the open file
-> and prints expected against actual; and `upstream_repro.py`, the same
-> from an empty document, with its output on 26.3 and 1.1.3.
+> **Title:** PartDesign: a Boolean doesn't update when its Body is moved
+>
+> **Problem.** Since 26.3 (#30575), a PartDesign Boolean uses its tool
+> body where the tool actually sits in the model, so moving the Body
+> should change the result. But the Boolean isn't recalculated when its
+> Body moves. It keeps its old result, nothing is marked as needing a
+> recompute, and recomputing again doesn't help. Only touching the
+> Boolean brings it up to date.
+>
+> It happens two ways:
+>
+> - **The Body is moved by changing its Placement.** The Boolean isn't
+>   recalculated at all.
+> - **The Body's Placement is driven by an expression** (for example
+>   from a VarSet). The Boolean is recalculated, but before the Body's
+>   own Placement updates, so it works from the Body's old position.
+>
+> The second case breaks any model laid out with expressions: when a
+> Body and its tool both follow one VarSet, the tool comes off the Body
+> every time the VarSet changes.
+>
+> The same happens when the Body is inside a Part and the Part moves.
+>
+> **Steps to reproduce** with the attached `boolean-stale-body-move.FCStd`.
+> Each Body has a box fused with a hidden tool body.
+>
+> 1. Move `LiteralBody` away from its tool and recompute. The tool's box
+>    should stay where it was, as a separate solid. Instead it moves
+>    with the Body, still attached.
+> 2. Change the `Pose` VarSet's placement and recompute. `ExprBody` and
+>    its tool move together, so the fuse should stay in one piece.
+>    Instead the tool's box comes apart from the Body.
+> 3. Touch either Boolean and recompute. It now shows the correct
+>    result.
+>
+> Or run the attached `boolean_stale_check.FCMacro` with the file open.
+> It does these steps and prints the expected and actual result of
+> each.
+>
+> **Not in 1.1.3**, where a Boolean doesn't depend on its Body's
+> position. Booleans with `UseLegacyBodyPlacement` set are not affected.
+>
+> **Possible cause.** The Boolean reads its Body's placement when it
+> runs, but nothing tells it to run again when that placement changes.
+> Touching a Body's Booleans when its Placement (or a containing Part's)
+> changes should fix it. The recompute already runs a second pass for
+> anything touched during the first.
+>
+> **Version:** 26.3 dev weekly 2026.10.01 (99c5620c5), Windows. Nothing
+> relevant has changed on `main` since.
