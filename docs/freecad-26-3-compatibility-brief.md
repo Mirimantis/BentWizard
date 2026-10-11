@@ -329,23 +329,31 @@ ones that only existed to serve the splits.
   split `releases/FreeCAD-26-3` off `main` at `99c5620c5` — exactly the
   2026.10.01 weekly — and from 2026.10.07 the weekly is built from
   `main` and reports itself as **27.1.0**. **We develop for 26.3, not
-  27.1** (Adam, 2026-10-07): the test environment stays the 2026.10.01
-  weekly — 26.3 as it branched — until a 26.3 release candidate or
-  release can be installed, and then moves to that. Later weeklies are
-  not tracked. What the 26.3 branch took after the split (63 commits to
-  2026-10-07: crash fixes, CAM, TechDraw, Graphviz, a moment unit in the
-  MKS schema) touches nothing the workbench uses; recheck that list when
-  the release candidate appears.
+  27.1** (Adam, 2026-10-07): the test environment stayed the 2026.10.01
+  weekly — 26.3 as it branched — until a 26.3 release candidate could be
+  installed. **RC1 arrived 2026-10-10** and is now the test environment
+  (below); later weeklies are not tracked. What the release branch took
+  between the split and RC1 (64 commits: crash fixes, CAM, TechDraw,
+  Graphviz, an XLink refresh on reopen, a moment unit in the MKS schema)
+  touches nothing the workbench uses.
 - One junction serves every 26.3 build: they share the
   `%APPDATA%\FreeCAD\v26-3` config folder, so
   `scripts\dev-install.ps1 -FreeCadVersion v26-3 main` is a one-time
   setup — Adam runs it from a shell outside the Claude desktop app.
   (27.1 builds use `v27-1`.)
-- Current build: `FreeCAD_weekly-2026.10.01-Windows-x86_64`, 26.3.0, git
-  `99c5620c5` (the 26.3 branch point), Python 3.13. `bin\python.exe` as
-  usual; the top-level `FreeCAD.exe` / `FreeCADCmd.exe` are launchers.
-  It carries the spin-box fix (#32707) and added `Nmm` to the unit
-  names. Before it: `FreeCAD_weekly-2026.09.16-Windows-x86_64-experimental`,
+- Current build (2026-10-10): `FreeCAD_26.3rc1-Windows-x86_64`, the first
+  release candidate: 26.3.0, git `faa2c25b1`, Python 3.13.15, the
+  `v26-3` config folder and the weekly layout (`bin\python.exe`,
+  top-level launchers). On it: the suite green, both sweep harnesses and
+  the lexer's unit names as on the 2026.10.01 weekly, the spin-box fix
+  still in. Adam's two upstream reports are acknowledged but not fixed
+  in it: box selection (finding 13 in the GUI results) and the stale
+  Boolean that blocks route (b) (finding 14, #33343 — the spike at two
+  bents still splits a beam). Glob `..\FreeCAD_26.3*-Windows-x86_64*\`.
+  Before it: `FreeCAD_weekly-2026.10.01-Windows-x86_64`, 26.3.0, git
+  `99c5620c5` (the 26.3 branch point), which carried the spin-box fix
+  (#32707) and added `Nmm` to the unit names; kept as a comparison
+  build. Before that: `FreeCAD_weekly-2026.09.16-Windows-x86_64-experimental`,
   git `a4ce44d33b`. A one-off look at the 27.1 weekly of 2026.10.07 (git
   `3424c4106`) found nothing changed for us: suite 154/154, both sweep
   harnesses, the spin-box probe and the lexer's unit names as on
