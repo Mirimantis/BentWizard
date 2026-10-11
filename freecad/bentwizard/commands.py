@@ -891,6 +891,172 @@ class TimberVariablesCommand:
         view_variables.show()
 
 
+class BindVariableDialog(QtWidgets.QDialog):
+    """Bind one dimension on every selected member to one variable: every
+    timber's Length Z to ProjectVars.Span, every timber joint's Station to
+    a girt height. Shows each member's value and where it is set now, so
+    the framer sees what the binding replaces, and binds all of them or
+    none (`variables.bind`)."""
+
+    def __init__(self, doc, choices, parent=None):
+        super().__init__(parent)
+        from . import variables
+        self._v = variables
+        self.doc, self.choices = doc, choices
+        self.setWindowTitle("Bind to Variable")
+        lay = QtWidgets.QVBoxLayout(self)
+        form = QtWidgets.QFormLayout()
+        self.which = QtWidgets.QComboBox(self)
+        for choice in choices:
+            self.which.addItem(choice.label)
+        self.which.setToolTip("The dimension to bind on every selected member. "
+                              "Only what they all have is offered.")
+        form.addRow("Bind:", self.which)
+        row = QtWidgets.QHBoxLayout()
+        self.expr = _ExpressionEdit(doc, self, include_dims=False, include_joints=False)
+        self.expr.setPlaceholderText("<<ProjectVars>>.GirtHeight")
+        self.expr.setToolTip("The variable to bind to — or any expression — "
+                             "autocompleting over the project's variable sets. "
+                             "Editing that variable later moves every member "
+                             "together.")
+        self.store = QtWidgets.QToolButton(self)
+        self.store.setText("+")
+        self.store.setToolTip("Store in Variable Set — make a new variable on a "
+                              "project variable set, starting from the first "
+                              "member's value, and bind to it.")
+        row.addWidget(self.expr, 1)
+        row.addWidget(self.store)
+        form.addRow("To:", row)
+        self.preview = QtWidgets.QLabel(self)
+        form.addRow("", self.preview)
+        lay.addLayout(form)
+        self.table = QtWidgets.QTreeWidget(self)
+        self.table.setHeaderLabels(["Member", "Now", "Var. Location"])
+        self.table.setRootIsDecorated(False)
+        lay.addWidget(self.table, 1)
+        self.problem = QtWidgets.QLabel(self)
+        self.problem.setWordWrap(True)
+        self.problem.setStyleSheet("color: #c0392b;")
+        self.problem.hide()
+        lay.addWidget(self.problem)
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel, parent=self)
+        buttons.button(QtWidgets.QDialogButtonBox.Ok).setText("Bind")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        lay.addWidget(buttons)
+        self.which.currentIndexChanged.connect(self._fill)
+        self.expr.textChanged.connect(self._preview)
+        self.store.clicked.connect(self._store)
+        self._fill(0)
+        self.resize(600, 440)
+
+    def choice(self):
+        return self.choices[self.which.currentIndex()]
+
+    def _fill(self, _index=0):
+        v = self._v
+        self.table.clear()
+        for label, obj, prop in self.choice().members:
+            source = v.resolve(obj, prop)
+            item = QtWidgets.QTreeWidgetItem(
+                self.table, [label, v.value_text(obj, prop), v.describe(source)])
+            for col in range(3):
+                item.setToolTip(col, v.chain_text(source))
+        for col in range(2):
+            self.table.resizeColumnToContents(col)
+        self.problem.hide()
+        self._preview()
+
+    def _preview(self, _text=""):
+        expr = self.expr.text().strip().lstrip("=").strip()
+        if not expr:
+            self.preview.setText("")
+            return
+        obj, _prop = self.choice().targets[0]
+        try:
+            value = self._v.format_value(obj.evalExpression(expr))
+        except Exception:
+            self.preview.setText("Not a variable or expression this document can read yet.")
+            return
+        self.preview.setText(f"Every member will read {value}.")
+
+    def _store(self):
+        obj, prop = self.choice().targets[0]
+        current = getattr(obj, prop)
+        type_id = obj.getTypeIdOfProperty(prop)
+        unit = self._v.QUANTITY_UNITS.get(type_id)
+        default = float(current.getValueAs(unit)) if unit else float(current)
+        dialog = _StoreInVarSetDialog(self.doc, default, self)
+        for i, (_label, tid, _unit) in enumerate(_StoreInVarSetDialog.TYPES):
+            if tid == type_id or (tid == "App::PropertyLength"
+                                  and type_id == "App::PropertyDistance"):
+                dialog.type_box.setCurrentIndex(i)
+                break
+        if dialog.exec() == QtWidgets.QDialog.Accepted and dialog.reference:
+            self.expr.refresh()
+            self.expr.setText(dialog.reference)
+
+    def accept(self):
+        v = self._v
+        choice = self.choice()
+        affected = [self.doc.getObject(n) for n in choice.timbers]
+        before = v.problems(self.doc, affected)
+        self.doc.openTransaction("Bind to Variable")
+        try:
+            v.bind(choice.targets, self.expr.text())
+            self.doc.recompute()
+        except v.EditError as err:
+            self.doc.abortTransaction()
+            self.problem.setText(f"Nothing was bound: {err}.")
+            self.problem.show()
+            return
+        except Exception:
+            self.doc.abortTransaction()
+            raise
+        self.doc.commitTransaction()
+        expr = v.pretty(self.expr.text().strip().lstrip("=").strip())
+        App.Console.PrintMessage(
+            f"Bound {choice.label} to {expr}: "
+            f"{', '.join(label for label, _o, _p in choice.members)}.\n")
+        new = v.problems(self.doc, affected) - before
+        if new:
+            labels = sorted(self.doc.getObject(n).Label for n in new
+                            if self.doc.getObject(n) is not None)
+            QtWidgets.QMessageBox.warning(
+                self, "Bind to Variable",
+                f"Bound, but {', '.join(labels)} no longer recompute cleanly or are "
+                f"no longer one solid. Undo (Ctrl+Z) reverts the binding.")
+        super().accept()
+
+
+class BindVariableCommand:
+    def GetResources(self):
+        return {
+            "MenuText": "Bind to Variable",
+            "ToolTip": "Bind the same dimension on every selected timber, datum or "
+                       "timber joint to one variable in one step — every selected "
+                       "timber's Length Z to ProjectVars.Span, say, or the Station "
+                       "of every selected timber joint to a girt height. Offers only "
+                       "what the selection has in common; binds all of them or none",
+        }
+
+    def IsActive(self):
+        return App.ActiveDocument is not None and bool(Gui.Selection.getSelection())
+
+    def Activated(self):
+        from . import variables
+        doc = App.ActiveDocument
+        choices = variables.bind_choices(Gui.Selection.getSelection())
+        if not choices:
+            QtWidgets.QMessageBox.information(
+                Gui.getMainWindow(), "Bind to Variable",
+                "Select timbers, side datums or timber joints first: Bind to "
+                "Variable binds a dimension they have in common.")
+            return
+        BindVariableDialog(doc, choices, Gui.getMainWindow()).exec()
+
+
 # --------------------------------------------------------------------------
 # Timber joints: pick, whole-joint operations
 # --------------------------------------------------------------------------
@@ -2248,7 +2414,8 @@ TOOLBAR = ["BentWizard_NewTimber", "BentWizard_AddDatum",
            "BentWizard_ApplyJoint", "BentWizard_RemoveJoint",
            "BentWizard_DuplicateBent", "BentWizard_AssembleTimbers",
            "Separator",
-           "BentWizard_TimberVariables", "BentWizard_AuditTimbers",
+           "BentWizard_TimberVariables", "BentWizard_BindVariable",
+           "BentWizard_AuditTimbers",
            "BentWizard_ShowFaceMarks",
            "Separator",
            "BentWizard_JointTemplateTools"]
@@ -2279,6 +2446,7 @@ def register():
             ("BentWizard_ShowFaceMarks", ShowFaceMarksCommand()),
             ("BentWizard_AuditTimbers", AuditTimbersCommand()),
             ("BentWizard_TimberVariables", TimberVariablesCommand()),
+            ("BentWizard_BindVariable", BindVariableCommand()),
             ("BentWizard_NewJointTemplate", NewJointTemplateCommand()),
             ("BentWizard_SaveJointTemplate", SaveJointTemplateCommand())):
         Gui.addCommand(name, _guard_command(_with_icon(name, command)))

@@ -462,6 +462,127 @@ class VariablesTest(unittest.TestCase):
         self.assertEqual(v.editable(v.resolve(end_b, "Station")),
                          (self.dims(post), "LengthZ"))
 
+    def test_edit_refuses_a_wrong_unit(self):
+        from freecad.bentwizard import variables as v
+        self.project("Pitch", 30, "App::PropertyAngle")
+        post = self.timber("T-Post-001")
+        r = self.row(v.timber_listing(post), "Section and Length", "Length Z")
+        with self.assertRaisesRegex(v.EditError, "is a length"):
+            v.edit(r.source, "=<<ProjectVars>>.Pitch")
+        self.assertIsNone(v.expression_of(self.dims(post), "LengthZ"))
+
+    # --- Bind to Variable ---------------------------------------------------
+
+    def choice(self, choices, label_start):
+        for c in choices:
+            if c.label.startswith(label_start):
+                return c
+        self.fail(f"no choice {label_start!r}: {[c.label for c in choices]}")
+
+    def test_bind_choices_for_timbers(self):
+        from freecad.bentwizard import variables as v
+        beams = [self.timber(f"T-Beam-00{i}", "6 in", "8 in", "10 ft") for i in (1, 2, 3)]
+        # any part of a timber stands for the timber, once
+        choices = v.bind_choices([beams[0], self.dims(beams[1]), beams[2], beams[2]])
+        self.assertEqual([c.label for c in choices],
+                         ["Width X — 3 timbers", "Width Y — 3 timbers",
+                          "Length Z — 3 timbers"])
+        self.assertEqual([lbl for lbl, _o, _p in choices[2].members],
+                         ["T-Beam-001", "T-Beam-002", "T-Beam-003"])
+
+    def test_bind_choices_for_joints_and_datums(self):
+        from freecad.bentwizard import datums
+        from freecad.bentwizard import variables as v
+        from freecad.bentwizard.joint_handle import find_handle
+        p1, p2, _beam, j1, j2 = self.pi_bent()
+        loose = datums.add_datum(p1, "XPos", "30 in")
+        choices = v.bind_choices([find_handle(j1), j2, loose])
+        station = self.choice(choices, "Station")
+        self.assertEqual(sorted(lbl for lbl, _o, _p in station.members),
+                         ["T-Post-101, +X face", "T-Post-101, +Y face",
+                          "T-Post-102, -Y face"])
+        labels = [c.label for c in choices]
+        self.assertIn("Tenon Length — 2 timber joints", labels)
+        self.assertNotIn("Peg Count — 2 timber joints", labels)    # fixed
+
+    def test_bind_lengths_to_a_project_variable(self):
+        from freecad.bentwizard import variables as v
+        self.project("Span", 14 * 12 * IN)
+        beams = [self.timber(f"T-Beam-00{i}", "6 in", "8 in", "10 ft") for i in (1, 2)]
+        length = self.choice(v.bind_choices(beams), "Length Z")
+        v.bind(length.targets, "<<ProjectVars>>.Span")
+        self.doc.recompute()
+        for b in beams:
+            self.assertAlmostEqual(float(self.dims(b).LengthZ), 14 * 12 * IN)
+            self.assertAlmostEqual(b.Shape.BoundBox.ZLength, 14 * 12 * IN, places=6)
+        r = self.row(v.timber_listing(beams[0]), "Section and Length", "Length Z")
+        self.assertEqual(r.set_by, "Span · ProjectVars")
+        self.assertEqual(r.drives, ["T-Beam-002"])
+
+    def test_bind_stations_reseats(self):
+        from freecad.bentwizard import variables as v
+        from freecad.bentwizard.frame import joint_misfit
+        from freecad.bentwizard.measure import is_whole
+        self.project("GirtHeight", 60 * IN)
+        p1, p2, beam, j1, j2 = self.pi_bent()
+        station = self.choice(v.bind_choices([j1, j2]), "Station")
+        v.bind(station.targets, "=<<ProjectVars>>.GirtHeight")     # '=' is allowed
+        self.doc.recompute()
+        for d in (obj for obj, _p in station.targets):
+            self.assertAlmostEqual(float(d.Station), 60 * IN)
+        for vs in (j1, j2):
+            mm, deg = joint_misfit(vs)
+            self.assertLess(mm, 1e-6)
+            self.assertLess(deg, 1e-9)
+        for b in (p1, p2, beam):
+            self.assertTrue(is_whole(b), b.Label)
+
+    def test_bind_a_joint_parameter(self):
+        from freecad.bentwizard import variables as v
+        self.project("Tenon", 5 * IN)
+        _p1, _p2, _beam, j1, j2 = self.pi_bent()
+        tenon = self.choice(v.bind_choices([j1, j2]), "Tenon Length")
+        v.bind(tenon.targets, "<<ProjectVars>>.Tenon")
+        self.doc.recompute()
+        self.assertAlmostEqual(float(j1.TenonLength), 5 * IN)
+        self.assertAlmostEqual(float(j2.TenonLength), 5 * IN)
+
+    def test_bind_is_all_or_nothing(self):
+        from freecad.bentwizard import variables as v
+        self.project("Span", 14 * 12 * IN)
+        self.project("Pitch", 30, "App::PropertyAngle")
+        _p1, _p2, beam, j1, j2 = self.pi_bent()
+        b2 = self.timber("T-Beam-002", "6 in", "8 in", "10 ft")
+        length = self.choice(v.bind_choices([beam, b2]), "Length Z")
+        with self.assertRaisesRegex(v.EditError, "is a length"):
+            v.bind(length.targets, "<<ProjectVars>>.Pitch")
+        with self.assertRaisesRegex(v.EditError, "cannot read"):
+            v.bind(length.targets, "<<NoSuchVars>>.Span")
+        with self.assertRaisesRegex(v.EditError, "fixed by its template"):
+            v.bind([(j1, "TenonLength"), (j2, "PegCount")], "<<ProjectVars>>.Span")
+        self.assertIsNone(v.expression_of(j1, "TenonLength"))
+        for b in (beam, b2):
+            self.assertIsNone(v.expression_of(self.dims(b), "LengthZ"))
+
+    def test_bind_puts_back_what_it_wrote_when_a_later_write_fails(self):
+        """A cycle is only refused on writing: the first member is already
+        bound by then, and must be put back."""
+        from freecad.bentwizard import variables as v
+        b1 = self.timber("T-Beam-001", "6 in", "8 in", "10 ft")
+        b2 = self.timber("T-Beam-002", "6 in", "8 in", "10 ft")
+        b3 = self.timber("T-Beam-003", "6 in", "8 in", "10 ft")
+        self.dims(b2).setExpression("WidthX", "<<TDim_T-Beam-001>>.LengthZ")
+        self.doc.recompute()
+        # b3 reading b2 is fine and is written first; b1 reading b2 closes
+        # b1 -> b2 -> b1 and is refused only when written
+        targets = [(self.dims(b3), "LengthZ"), (self.dims(b1), "LengthZ")]
+        # the message names the member that failed, not the one put back
+        with self.assertRaisesRegex(v.EditError, "T-Beam-001: .*cyclic"):
+            v.bind(targets, "<<TDim_T-Beam-002>>.WidthY")
+        self.assertIsNone(v.expression_of(self.dims(b3), "LengthZ"))
+        self.assertIsNone(v.expression_of(self.dims(b1), "LengthZ"))
+        self.assertAlmostEqual(float(self.dims(b3).LengthZ), 120 * IN)
+
 
 class VariablesWordsTest(unittest.TestCase):
     """The pure helpers, under any interpreter that can import them."""
