@@ -69,9 +69,12 @@ The flat-frame rebuild is done: workstream A (seats, the frame Std Group), C (ha
     the whole window, so the 3D view draws once per operation and timbers visibly update one at
     a time. Headless is unaffected (RC1 is faster than 1.1.3 there), fine-grained recompute is
     not the cause, and our code is 2 ms of it. The status bar's "Progress Indicator" off plus
-    `BaseApp/Preferences/Document/CanAbortRecompute` False restores 1.1.3 speed. Filed upstream
-    by Adam; **no workaround in the workbench** (Adam, 2026-10-11). Before blaming a GUI
-    slowdown on BentWizard, time it headless, or in the GUI with both settings off.
+    `BaseApp/Preferences/Document/CanAbortRecompute` False restores 1.1.3 speed. Timbers
+    appearing in batches during a recompute is older (the abortable recompute's 100 ms event
+    pumps, on 1.1.3 too); the regression is the extra repaint per operation. Not reported yet
+    (Adam, 2026-10-11): retest after 26.3's release and report against 27.1 if it remains;
+    **no workaround in the workbench**. Before blaming a GUI slowdown on BentWizard, time it
+    headless, or in the GUI with both settings off.
   - **Fine-grained recomputes did not relax the cycle check** (finding 19): a link that closes a
     cycle between two *objects* is still refused, even through disjoint properties. The seat
     VarSet and "datums never read each other" stay.

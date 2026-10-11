@@ -670,8 +670,17 @@ empty document, on 26.3 and 1.1.3). Draft for Adam to file:
 Adam's GUI round on Bind to Variable, on the OptiPlex 7010 with a frame
 of 4 posts, 4 beams and 8 housed M&Ts (`scratch/BoxFrameBulkParams.FCStd`,
 549 objects): editing a shared variable took about 0.5 s per timber
-updated, and the timbers visibly redrew one at a time. 1.1.3 updated
-faster and all at once.
+updated, and the timbers visibly redrew one at a time. 1.1.3 felt
+faster.
+
+**What is regression and what is not.** Timbers appearing one at a time
+is **long-standing**: an abortable recompute (`CanAbortRecompute`, on by
+default) pumps events every 100 ms, and each pump redraws whatever has
+finished — 8–11 repaints per recompute on 1.1.3 in safe mode, and Adam
+saw the same staggered update running the stock repro by hand on 1.1.3
+and on RC1 with both settings below applied (2026-10-11). What 26.3 adds
+is a full repaint per OCCT operation on top of that, which multiplies
+the time (3–7×) and flashes the status-bar progress bar.
 
 **It is not fine-grained recompute, and not the workbench.** One edit
 (TenonThickness +½″, which reshapes all 16 Booleans), timed:
@@ -680,7 +689,7 @@ faster and all at once.
 |---|---|---|---|
 | RC1 (`faa2c25b1`), fine-grained on | 0.89 s, 93 objects | 3.52 s | 33 |
 | RC1, fine-grained off | 0.97 s, 116 objects | 4.39 s | 49 |
-| 1.1.3 (`145529fe7`) | 1.74 s, 116 objects | 1.44 s | 1 |
+| 1.1.3 (`145529fe7`) | 1.74 s, 116 objects | 1.44 s | 1 (8–11 in safe mode) |
 
 A GirtHeight edit recomputes 39 objects in 0.18 s headless on RC1 against
 164 in 1.08 s on 1.1.3: fine-grained recompute does its job. A cProfile
@@ -702,17 +711,23 @@ window, 3D view included. 1.1.3's indicator drew nothing. In the
 status bar; stored as `BaseApp/Preferences/StatusBar/progressBar`) plus
 `BaseApp/Preferences/Document/CanAbortRecompute` False restores 1.1.3
 speed: 1.40 s with no repaints on the frame above, 0.95 s on the stock
-repro. Either alone recovers only part. The cost of the second is that
-Esc cannot stop a recompute.
+repro, both measured on a recompute started from a script. Either alone
+recovers only part. The cost of the second is that Esc cannot stop a
+recompute; FreeCAD's own preference text already warns that the setting
+slows recomputes. Editing a VarSet by hand in the Property view with both
+applied, Adam still saw the staggered update — the Property view's
+recompute path, or safe mode's temporary preferences, not checked.
 
 **Upstream:** nothing filed for the slowdown; related #29808 (status-bar
 flicker, closed when the toggle was added), #29680 (a freeze, open),
 #32553 (open PR, gates `setProgress` but not `stop`, so a partial fix).
-Adam is filing it; the stock repro is
-`scratch/repaint/repro_recompute_repaint.FCMacro`, the draft
+Upstream's answer so far has been the "Progress Indicator" toggle
+(#30349, closing #29808). The stock repro is
+`scratch/repaint/repro_recompute_repaint.FCMacro` and a draft report
 `scratch/repaint/upstream-report-draft.md`.
 
-**Decision (Adam, 2026-10-11):** no workaround in the workbench. It
-matters only on a bigger frame on a slow machine for now; Adam runs with
-the progress indicator off. Revisit if 26.3 ships with it and large
-projects suffer.
+**Decision (Adam, 2026-10-11):** not reported for now and not a 26.3
+release blocker. Retest once 26.3 is released, and report it against 27.1
+— which is to focus on bug fixes and performance — if it is still there.
+No workaround in the workbench: it matters only on a bigger frame on a
+slow machine for now, and Adam runs with the progress indicator off.
