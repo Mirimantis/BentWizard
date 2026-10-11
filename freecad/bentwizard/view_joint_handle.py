@@ -268,9 +268,23 @@ class _MarkerObserver:
     def refresh_all(self):
         self._views = [v for v in self._views if v.refresh()]
 
+    def refresh_later(self):
+        """Refresh after this event-loop tick, once FreeCAD has finished."""
+        from PySide import QtCore
+        QtCore.QTimer.singleShot(0, self.refresh_all)
+
     # --- FreeCAD document observer hooks ---
     def slotRecomputedDocument(self, _doc):
         self.refresh_all()
+
+    # Undo and redo restore the datums' placements without a recompute,
+    # so the markers stayed where the undone edit had put them until the
+    # next F5 (Adam's GUI round, 2026-10-11, undoing Bind to Variable).
+    def slotUndoDocument(self, _doc):
+        self.refresh_later()
+
+    def slotRedoDocument(self, _doc):
+        self.refresh_later()
 
     def slotActivateDocument(self, doc):
         """Re-attach markers to a document as it becomes active — which

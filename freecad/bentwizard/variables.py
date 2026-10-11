@@ -703,9 +703,31 @@ def editable(source):
         return None
     if type_id not in EDITABLE_TYPES or _read_only(obj, prop):
         return None
-    if datums.is_datum(obj) and prop == naming.PROP_STATION             and facetable.is_end(datums.face_of(obj)):
+    if _is_end_station(obj, prop):
         return None
     return obj, prop
+
+
+def _is_end_station(obj, prop):
+    """An end datum's Station: fixed at its end, never edited or bound."""
+    return (datums.is_datum(obj) and prop == naming.PROP_STATION
+            and facetable.is_end(datums.face_of(obj)))
+
+
+def _unit_name(unit):
+    return getattr(unit, "Type", "") or str(unit)
+
+
+def _check_unit(obj, prop, value, expr):
+    """Refuse an expression whose unit cannot be the property's — an angle
+    bound to a length. A plain number is let through: FreeCAD reads it in
+    the property's own unit."""
+    want = getattr(obj, prop, None)
+    unit = getattr(value, "Unit", None)
+    if (hasattr(want, "Unit") and unit is not None and unit != App.Units.Unit()
+            and unit != want.Unit):
+        raise EditError(f"{location(obj, prop)} is a {_unit_name(want.Unit).lower()}, "
+                        f"and {pretty(expr)} is a {_unit_name(unit).lower()}")
 
 
 def _parse(obj, prop, text):
@@ -777,9 +799,10 @@ def edit(source, value):
         if not expr:
             raise EditError("nothing after '='")
         try:
-            obj.evalExpression(expr)
+            result = obj.evalExpression(expr)
         except Exception as err:
             raise EditError(f"{spaced(prop)}: bad expression {expr!r} ({err})")
+        _check_unit(obj, prop, result, expr)
         try:
             obj.setExpression(prop, expr)
         except Exception as err:          # a cycle, say
@@ -796,6 +819,141 @@ def edit(source, value):
         return
     obj.setExpression(prop, None)
     setattr(obj, prop, value)
+
+
+def problems(doc, bodies=()):
+    """Names of objects in error, and of the `bodies` that are no longer
+    one solid — compared before and after an edit, so the framer hears
+    what the edit broke and nothing that was broken already."""
+    from .measure import is_whole
+    bad = {o.Name for o in doc.Objects if "Invalid" in o.State}
+    bad |= {b.Name for b in bodies if b is not None and not is_whole(b)}
+    return bad
+
+
+# --------------------------------------------------------------------------
+# Binding many members to one variable (Bind to Variable)
+# --------------------------------------------------------------------------
+
+@dataclass
+class BindChoice:
+    """One dimension the selected members share: what Bind to Variable
+    offers to bind, and to which (object, property) on each member."""
+    prop: str                      # the property name, as bound
+    noun: str                      # "timber", "datum", "timber joint"
+    members: list = field(default_factory=list)   # [(label, object, property)]
+    timbers: frozenset = frozenset()              # timber Names it shapes
+
+    @property
+    def label(self):
+        n = len(self.members)
+        return f"{spaced(self.prop)} — {n} {self.noun}{'' if n == 1 else 's'}"
+
+    @property
+    def targets(self):
+        return [(obj, prop) for _label, obj, prop in self.members]
+
+
+def _selected_members(objects):
+    """(timbers, side datums, timber joints) the selection points at, each
+    once, in selection order. A datum counts as itself (not its timber);
+    anything else goes by `subject_of`."""
+    timbers, datum_list, joints, seen = [], [], [], set()
+    for obj in objects:
+        if datums.is_datum(obj):
+            if not facetable.is_end(datums.face_of(obj)) and obj.Name not in seen:
+                seen.add(obj.Name)
+                datum_list.append(obj)
+            continue
+        subject = subject_of(obj)
+        if subject is None or subject.Name in seen:
+            continue
+        seen.add(subject.Name)
+        (joints if subject.TypeId == "App::VarSet" else timbers).append(subject)
+    return timbers, datum_list, joints
+
+
+def bind_choices(objects):
+    """What Bind to Variable can bind for these selected objects: a
+    timber's Width X, Width Y and Length Z; the Station of each selected
+    side datum and of each selected timber joint's face datum; and every
+    parameter the selected timber joints share, unless a template fixes
+    it."""
+    timbers, datum_list, joints = _selected_members(objects)
+    out = []
+    for prop in DIMS:
+        members = [(t.Label, dims_varset(t), prop) for t in timbers
+                   if dims_varset(t) is not None]
+        if members:
+            out.append(BindChoice(prop, "timber", members,
+                                  frozenset(t.Name for t in timbers)))
+    stations, shaped, seen = [], set(), set()
+    for d in datum_list + [d for vs in joints for d in joint_datums(vs)
+                           if not facetable.is_end(datums.face_of(d))]:
+        if d.Name in seen:
+            continue
+        seen.add(d.Name)
+        owner = datums.owner(d)
+        stations.append((f"{owner.Label if owner else '?'}, {face_words(d)}",
+                         d, naming.PROP_STATION))
+        vs = datums.joint_of(d)
+        shaped |= ({owner.Name} if owner else set()) | \
+            (set(_joint_timbers(vs)) if vs is not None else set())
+    if stations:
+        out.append(BindChoice(naming.PROP_STATION, "datum", stations, frozenset(shaped)))
+    if joints:
+        common = [n for n in joint_parameters(joints[0])
+                  if all(n in joint_parameters(vs) for vs in joints[1:])
+                  and not any(_read_only(vs, n) for vs in joints)]
+        shaped = frozenset(n for vs in joints for n in _joint_timbers(vs))
+        for name in common:
+            out.append(BindChoice(name, "timber joint",
+                                  [(vs.Label, vs, name) for vs in joints], shaped))
+    return out
+
+
+def bind(targets, expression):
+    """Bind every (object, property) in `targets` to one expression — all
+    of them or none. Every target is checked before any is written (not
+    fixed by its template, not an end datum's Station, the expression
+    valid where it is read and of the right unit), and if a write still
+    fails (a cycle) the ones already written are put back. Raises
+    EditError naming the member. Opens no transaction and does not
+    recompute: the caller owns both."""
+    expr = expression.strip()
+    if expr.startswith("="):
+        expr = expr[1:].strip()
+    if not expr:
+        raise EditError("give a variable or an expression to bind to")
+    if not targets:
+        raise EditError("nothing selected to bind")
+    for obj, prop in targets:
+        if _read_only(obj, prop):
+            raise EditError(f"{location(obj, prop)} is fixed by its template")
+        if _is_end_station(obj, prop):
+            raise EditError(f"{location(obj, prop)} is fixed at its end")
+        try:
+            result = obj.evalExpression(expr)
+        except Exception as err:
+            raise EditError(f"{location(obj, prop)}: cannot read {pretty(expr)} "
+                            f"there ({err})")
+        _check_unit(obj, prop, result, expr)
+    done = []
+    try:
+        for obj, prop in targets:
+            before = expression_of(obj, prop), getattr(obj, prop)
+            if datums.is_datum(obj) and prop == naming.PROP_STATION:
+                datums.set_station(obj, "=" + expr)
+            else:
+                obj.setExpression(prop, expr)
+            done.append((obj, prop, before))
+    except Exception as err:
+        failed = location(obj, prop)       # before the loop below rebinds them
+        for put, name, (old_expr, old_value) in reversed(done):
+            put.setExpression(name, old_expr)
+            if old_expr is None:
+                setattr(put, name, old_value)
+        raise EditError(f"{failed}: {err}")
 
 
 # --------------------------------------------------------------------------

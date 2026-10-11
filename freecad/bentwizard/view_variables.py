@@ -572,7 +572,6 @@ class VariablesPanel(QtWidgets.QWidget):
 
     def commit_edit(self, row, value):
         """Write one edit in its own transaction, recompute, and report."""
-        from . import measure
         source = row.source
         doc = source.holder.Document
         where = variables.location(source.holder, source.prop)
@@ -582,9 +581,7 @@ class VariablesPanel(QtWidgets.QWidget):
                     if b is not None and b.TypeId == "PartDesign::Body"]
 
         def broken():
-            bad = {o.Name for o in doc.Objects if "Invalid" in o.State}
-            bad |= {b.Name for b in affected if not measure.is_whole(b)}
-            return bad
+            return variables.problems(doc, affected)
 
         before = broken()
         doc.openTransaction(f"Edit {where}")

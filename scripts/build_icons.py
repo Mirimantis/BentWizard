@@ -153,6 +153,18 @@ def variables_panel():
     return "".join(out)
 
 
+def bound():
+    """Two timbers, each tied by a blue line to one variable."""
+    out = timber(2, 12, 24, 11, 6) + timber(2, 41, 24, 11, 6)
+    out += line(32, 17, 41, 29, BLUE[0], 3) + line(32, 46, 41, 36, BLUE[0], 3)
+    out += (f'<rect x="40" y="21" width="22" height="22" rx="4" fill="{BLUE[0]}" '
+            f'stroke="{BLUE[1]}" stroke-width="2"/>'
+            f'<text x="51" y="38" font-family="Georgia, Times New Roman, serif" '
+            f'font-size="19" font-style="italic" font-weight="bold" fill="#ffffff" '
+            f'text-anchor="middle">x</text>')
+    return out
+
+
 ICONS = {
     "BentWizard": bent(),
     "BentWizard_NewTimber": timber(2, 22, 44, 20, 12) + badge(51, 51, GREEN, "plus"),
@@ -168,6 +180,7 @@ ICONS = {
                                  + tag(41, 42, 21, 19, END_BLUE, "B", 15)),
     "BentWizard_AuditTimbers": timber(2, 34, 40, 18, 10) + magnifier(40, 24),
     "BentWizard_TimberVariables": variables_panel(),
+    "BentWizard_BindVariable": bound(),
     "BentWizard_NewJointTemplate": tenoned() + badge(51, 51, GREEN, "plus"),
     "BentWizard_SaveJointTemplate": tenoned() + badge(51, 51, BLUE, "save"),
 }
