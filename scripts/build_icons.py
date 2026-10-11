@@ -157,7 +157,7 @@ ICONS = {
     "BentWizard": bent(),
     "BentWizard_NewTimber": timber(2, 22, 44, 20, 12) + badge(51, 51, GREEN, "plus"),
     "BentWizard_AddDatum": timber(2, 28, 46, 20, 12) + triad(22, 40),
-    "BentWizard_ApplyJoint": joint(),
+    "BentWizard_ApplyJoint": joint() + badge(51, 51, GREEN, "plus"),
     "BentWizard_RemoveJoint": joint() + badge(51, 51, RED, "cross"),
     "BentWizard_DuplicateBent": bent(18, 0, 0.75, PALE) + bent(0, 16, 0.75),
     "BentWizard_AssembleTimbers": (timber(6, 38, 12, 22, 5) + timber(40, 38, 12, 22, 5)

@@ -425,6 +425,9 @@ round, not before it.
 
 ## Finding 13 — box selection is broken on 26.3, upstream, two ways (2026-10-08)
 
+**Still present in 26.3 RC1** (git `faa2c25b1`, 2026-10-10): Adam's
+report is acknowledged upstream and being worked on, not fixed in RC1.
+
 Added after the sweep. Adam's GUI round on `claude/review-fixes`: with
 timber joints in the document, a right-to-left box anywhere in the view
 selected the `TimberJoints_<Frame>` group and everything in it, and a
@@ -509,6 +512,11 @@ behind the front item). Drafts for Adam to file:
 > invalid box when it is hidden (4 mismatches).
 
 ## Finding 14 — route (b) is blocked upstream: a Boolean goes stale when its Body moves (2026-10-08)
+
+**Still present in 26.3 RC1** (git `faa2c25b1`, 2026-10-10):
+`spike_route_b.py 2` leaves `T-Beam-002` in two solids after the Bay
+edit and breaks the FrameOrigin move under route (b), while route (a)
+stays whole. #33343 is acknowledged upstream and being worked on.
 
 Route (b) was started: bind every component **globally** and drop
 `UseLegacyBodyPlacement` from the Booleans. The shape built
