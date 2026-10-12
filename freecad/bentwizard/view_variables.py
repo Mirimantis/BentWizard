@@ -6,14 +6,16 @@ component or its Boolean) and it lists what sets the joint. The listing
 itself is `variables`; this module only draws it.
 
 A click on a row selects the object that holds the value, so FreeCAD's
-Property view opens on it. That selection is the panel's own and does
+Property view opens on it; a click on a timber joint's heading selects
+its handle, so its marker shows where it is. That selection is the panel's own and does
 not move the panel to a new subject.
 
 The listing is sticky (Adam, 2026-10-08): it changes only when another
 timber or timber joint is selected, so a framer can browse the tree and
 open a VarSet with the values still in view. Whenever nothing selected
 belongs to what it lists — ProjectVars picked in the tree, a click on
-empty space — a line under the title says so, so a listing is never
+empty space — a note beside the title says so (on its line, so the
+list never moves), so a listing is never
 mistaken for the selection's, and the name in the title becomes a link
 that selects the timber or timber joint again (a joint by its handle, so
 its marker shows where it is).
@@ -23,6 +25,18 @@ step by step from the property the row reads to where the value is
 typed, each step a click away from being selected in the tree. That is
 how a binding is cut loose — on purpose, in the Property view — and
 never from a double-click here (Adam, 2026-10-07).
+
+The row in hand lights, in the 3D view, every timber its value drives
+(`view_highlight`): the timbers the row is about and every timber the
+Also drives column names, or, on a step of a chain, only the timbers
+whose values pass that way. The light goes out when the selection moves
+anywhere the panel did not put it, and when the panel closes.
+
+The timbers a value drives can be selected from here, which box
+selection (broken upstream) cannot do: a click on the Also drives cell
+drops down the list, and a right-click on any row opens the same one —
+every timber it drives at once, or one by name. That selection is the panel's own too, so the listing and the
+highlight stay where they are.
 
 A double-click edits the value in place: the variable at the row's Var.
 Location (`variables.edit`), in one undoable transaction, recomputed at
@@ -41,12 +55,14 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtGui, QtWidgets
 
-from . import variables
+from . import variables, view_highlight
 
 _OBJECT_NAME = "BentWizardTimberVariables"
 _TITLE = "Timber Variables"
 _PLACEHOLDER = "Select a timber or a timber joint."
 _COLUMNS = ("", "Value", "Var. Location", "Also drives")
+_DRIVES = 3                          # the Also drives column
+_DROP = "  \u25be"                    # marks a cell that drops down a list
 
 _PANEL = None
 _ERROR_STYLE = "color: #c0392b;"
@@ -146,7 +162,28 @@ class _ValueDelegate(QtWidgets.QStyledItemDelegate):
             return                  # the autocomplete list
         if editor.isAncestorOf(new):
             return
+        # after whatever moved the focus has finished: Enter moves it too,
+        # and finishing from inside that closed the editor under Qt's feet
+        QtCore.QTimer.singleShot(0, lambda: self._focus_left(editor))
+
+    def _focus_left(self, editor):
+        focus = QtWidgets.QApplication.focusWidget()
+        if editor is not self._open or (focus is not None and editor.isAncestorOf(focus)):
+            return
         self._finish(editor)
+
+    def eventFilter(self, watched, event):
+        """Enter in the dimension field is ours alone. Qt's own handling
+        queues a commit-and-close that ran after the field had already
+        been closed, and printed "commitData/closeEditor called with an
+        editor that does not belong to this view" on every Enter (Adam's
+        GUI rounds, 2026-10-11). The key reaches here after the spin box
+        or expression box has read the typed text."""
+        if event.type() == QtCore.QEvent.KeyPress and hasattr(watched, "fx") \
+                and event.key() in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter):
+            self._finish(watched)
+            return True
+        return super().eventFilter(watched, event)
 
     def destroyEditor(self, editor, index):
         if editor is self._open:
@@ -218,7 +255,17 @@ class _ValueDelegate(QtWidgets.QStyledItemDelegate):
 
     def _finish(self, editor):
         """Enter in either half of a dimension field commits it. The
-        view would only see the key if the child passed it up."""
+        view would only see the key if the child passed it up.
+
+        Once only: committing moves focus to the tree, which reached
+        `_focus_moved` and finished the editor again from inside the
+        first finish — the inner one closed it, and the outer one's
+        signals found it gone: Qt printed "commitData/closeEditor called
+        with an editor that does not belong to this view" on every Enter
+        (Adam's GUI round, 2026-10-11)."""
+        if editor is not self._open or getattr(editor, "_bw_finishing", False):
+            return
+        editor._bw_finishing = True
         self.commitData.emit(editor)
         self.closeEditor.emit(editor, QtWidgets.QAbstractItemDelegate.NoHint)
 
@@ -264,6 +311,10 @@ class VariablesPanel(QtWidgets.QWidget):
         self._own_selection = None    # what a row click selected
         self._targets = []            # per row: (document Name, object Name)
         self._rows = []               # per tree item: its variables.Row, or None
+        self._lit = []                # per tree item: {timber Name} it lights
+        self._lit_path = None         # texts down to the lit item, kept over a refresh
+        self._lit_doc = None          # document Name the highlight is in
+        self._refreshing = False
         self._open_chains = set()     # (section title, row label) shown expanded
 
         lay = QtWidgets.QVBoxLayout(self)
@@ -278,9 +329,16 @@ class VariablesPanel(QtWidgets.QWidget):
         self.title.linkActivated.connect(self._reselect)
         self.subtitle = QtWidgets.QLabel(self)
         self.subtitle.setForegroundRole(QtGui.QPalette.PlaceholderText)
+        # on the title's line, so showing it never moves the list: it
+        # appeared on the first click of a double-click, the rows moved
+        # down a line, and the second click landed on the row above
+        # (Adam's GUI round, 2026-10-11)
         self.not_selected = QtWidgets.QLabel(self)
-        self.not_selected.setWordWrap(True)
+        self.not_selected.setWordWrap(False)
         self.not_selected.setStyleSheet(_NOT_SELECTED_STYLE)
+        self.not_selected.setTextFormat(QtCore.Qt.PlainText)
+        self.not_selected.setSizePolicy(QtWidgets.QSizePolicy.Ignored,
+                                        QtWidgets.QSizePolicy.Preferred)
         self.not_selected.hide()
         self.tree = QtWidgets.QTreeWidget(self)
         self.tree.setColumnCount(len(_COLUMNS))
@@ -297,6 +355,9 @@ class VariablesPanel(QtWidgets.QWidget):
         self._user_sized = False
         header.sectionResized.connect(self._column_resized)
         self.tree.itemClicked.connect(self._clicked)
+        self.tree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._context_menu)
+        self.tree.currentItemChanged.connect(self._current_changed)
         self.tree.setItemDelegateForColumn(1, _ValueDelegate(self))
         self.tree.setEditTriggers(QtWidgets.QAbstractItemView.DoubleClicked
                                   | QtWidgets.QAbstractItemView.EditKeyPressed)
@@ -307,9 +368,13 @@ class VariablesPanel(QtWidgets.QWidget):
         self.status.setWordWrap(True)
         self.status.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
         self.status.hide()
-        lay.addWidget(self.title)
+        head = QtWidgets.QHBoxLayout()
+        head.setContentsMargins(0, 0, 0, 0)
+        head.addWidget(self.title)
+        head.addSpacing(8)
+        head.addWidget(self.not_selected, 1, QtCore.Qt.AlignVCenter)
+        lay.addLayout(head)
         lay.addWidget(self.subtitle)
-        lay.addWidget(self.not_selected)
         lay.addWidget(self.tree, 1)
         lay.addWidget(self.status)
 
@@ -337,6 +402,7 @@ class VariablesPanel(QtWidgets.QWidget):
         new = (obj.Document.Name, obj.Name) if obj is not None else None
         if new != self._subject:
             self._say("")
+            self._unlight()
         self._subject = new
         self.refresh()
 
@@ -357,6 +423,7 @@ class VariablesPanel(QtWidgets.QWidget):
             picked = {(o.Document.Name, o.Name) for o in selection}
             if self._own_selection is None or picked != self._own_selection:
                 self._own_selection = None
+                self._unlight()
                 subject = next((s for s in subjects if s is not None), None)
                 if subject is not None:
                     self.set_subject(subject)
@@ -374,7 +441,8 @@ class VariablesPanel(QtWidgets.QWidget):
         if selected:
             self.not_selected.hide()
         else:
-            self.not_selected.setText("Not selected. Click to re-select.")
+            # the name beside it is the link (Adam, 2026-10-11)
+            self.not_selected.setText("Not selected.")
             self.not_selected.show()
         self._draw_title()
 
@@ -419,6 +487,7 @@ class VariablesPanel(QtWidgets.QWidget):
     def object_deleted(self, obj):
         try:
             if self._subject == (obj.Document.Name, obj.Name):
+                self._unlight()
                 self._subject = None
                 self._show_empty()
             elif self._subject and obj.Document.Name == self._subject[0]:
@@ -427,6 +496,10 @@ class VariablesPanel(QtWidgets.QWidget):
             _report("deletion", err)
 
     def document_deleted(self, doc):
+        view_highlight.forget(doc.Name)
+        if self._lit_doc == doc.Name:
+            self._lit_doc = None
+            self._lit_path = None
         if self._subject and doc.Name == self._subject[0]:
             self._subject = None
             self._show_empty()
@@ -434,9 +507,15 @@ class VariablesPanel(QtWidgets.QWidget):
     # --- drawing ------------------------------------------------------------
 
     def _show_empty(self):
-        self.tree.clear()
+        self._unlight()
+        self._refreshing = True
+        try:
+            self.tree.clear()
+        finally:
+            self._refreshing = False
         self._targets = []
         self._rows = []
+        self._lit = []
         self.not_selected.hide()
         self._set_title(_TITLE)
         self.subtitle.setText(_PLACEHOLDER)
@@ -449,14 +528,24 @@ class VariablesPanel(QtWidgets.QWidget):
             self._show_empty()
             return
         try:
-            listing = variables.listing_for(subject)
+            index = variables.drives_index(subject.Document)
+            listing = variables.listing_for(subject, index)
         except Exception as err:
             _report("listing", err)
             return
+        self._refreshing = True
+        try:
+            self._draw(listing, index)
+        finally:
+            self._refreshing = False
+        self._relight()
+
+    def _draw(self, listing, index):
         scroll = self.tree.verticalScrollBar().value()
         self.tree.clear()
         self._targets = []
         self._rows = []
+        self._lit = []
         self._set_title(listing.title)
         self.subtitle.setText(listing.subtitle)
         self.subtitle.setVisible(bool(listing.subtitle))
@@ -476,9 +565,10 @@ class VariablesPanel(QtWidgets.QWidget):
                 item.setForeground(0, self.palette().brush(QtGui.QPalette.PlaceholderText))
                 self._attach(item, None)
             for row in section.rows:
+                drives = variables.drives_text(row.drives)
                 item = QtWidgets.QTreeWidgetItem(
                     head, [row.label, row.value, row.set_by,
-                           variables.drives_text(row.drives)])
+                           drives + _DROP if drives else ""])
                 tip = row.tip
                 if variables.editable(row.source) is not None:
                     item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
@@ -488,9 +578,11 @@ class VariablesPanel(QtWidgets.QWidget):
                 for col in range(len(_COLUMNS)):
                     item.setToolTip(col, tip)
                 if row.drives:
-                    item.setToolTip(3, "Also drives: " + ", ".join(row.drives))
-                self._attach(item, row.target, row)
-                if self._add_chain(item, row) and \
+                    item.setToolTip(_DRIVES, "Also drives: " + ", ".join(row.drives)
+                                    + "\nClick to select them, together or one by name.")
+                lit = variables.driven_by_row(index, row)
+                self._attach(item, row.target, row, lit)
+                if self._add_chain(item, row, index, lit) and \
                         (section.title, row.label) in self._open_chains:
                     item.setExpanded(True)
             head.setExpanded(True)
@@ -501,6 +593,9 @@ class VariablesPanel(QtWidgets.QWidget):
                     self.tree.resizeColumnToContents(col)
             finally:
                 self._sizing = False
+        lit = self._item_at(self._lit_path)
+        if lit is not None:
+            self.tree.setCurrentItem(lit)
         self.tree.verticalScrollBar().setValue(scroll)
 
     def _column_resized(self, col, _old, _new):
@@ -508,14 +603,17 @@ class VariablesPanel(QtWidgets.QWidget):
         if not self._sizing and col < len(_COLUMNS) - 1:
             self._user_sized = True
 
-    def _attach(self, item, target, row=None):
+    def _attach(self, item, target, row=None, lit=frozenset()):
         item.setData(0, QtCore.Qt.UserRole, len(self._targets))
         self._targets.append((target.Document.Name, target.Name)
                              if target is not None else None)
         self._rows.append(row)
+        self._lit.append(frozenset(lit))
 
-    def _add_chain(self, item, row):
-        """The chain under a row's item; True when it has one."""
+    def _add_chain(self, item, row, index, row_lit):
+        """The chain under a row's item; True when it has one. A step
+        lights the timbers whose values pass through it; a value a
+        formula reads, the timbers resting on it."""
         steps = variables.chain_steps(row.source)
         for i, (obj, prop) in enumerate(steps):
             expr = variables.expression_of(obj, prop)
@@ -529,7 +627,8 @@ class VariablesPanel(QtWidgets.QWidget):
                    "Where the value is typed in. Click to select it.")
             for col in range(len(_COLUMNS)):
                 child.setToolTip(col, tip)
-            self._attach(child, obj)
+            lit = variables.driven(index, {(obj.Name, prop)}) or row_lit
+            self._attach(child, obj, lit=lit)
         if row.source is not None and row.source.kind == variables.FORMULA:
             for obj, prop in row.source.reads:
                 src = variables.resolve(obj, prop)
@@ -539,7 +638,8 @@ class VariablesPanel(QtWidgets.QWidget):
                            variables.describe(src), ""])
                 for col in range(len(_COLUMNS)):
                     child.setToolTip(col, variables.chain_text(src))
-                self._attach(child, src.holder)
+                lit = variables.driven(index, variables.leaf_keys(src)) | set(row.own)
+                self._attach(child, src.holder, lit=lit)
         return item.childCount() > 0
 
     def _chain_toggled(self, item, expanded):
@@ -551,6 +651,152 @@ class VariablesPanel(QtWidgets.QWidget):
             self._open_chains.add(key)
         else:
             self._open_chains.discard(key)
+
+    # --- the highlight ---------------------------------------------------------
+
+    @staticmethod
+    def _path(item):
+        path = []
+        while item is not None:
+            path.append(item.text(0))
+            item = item.parent()
+        return tuple(reversed(path))
+
+    def _item_at(self, path):
+        if not path:
+            return None
+        items = [self.tree.topLevelItem(i) for i in range(self.tree.topLevelItemCount())]
+        found = None
+        for text in path:
+            found = next((it for it in items if it.text(0) == text), None)
+            if found is None:
+                return None
+            items = [found.child(i) for i in range(found.childCount())]
+        return found
+
+    def _current_changed(self, current, _previous):
+        if self._refreshing:
+            return
+        self._lit_path = self._path(current) if current is not None else None
+        self._relight()
+
+    def _relight(self):
+        """Light what the current item drives; nothing if it drives
+        nothing, or the panel is hidden."""
+        try:
+            item = self.tree.currentItem()
+            i = item.data(0, QtCore.Qt.UserRole) if item is not None else None
+            names = self._lit[i] if i is not None and i < len(self._lit) else frozenset()
+            subject = self.subject()
+            if not names or subject is None or not self._active():
+                self._unlight(forget=False)
+                return
+            doc = subject.Document
+            if self._lit_doc not in (None, doc.Name):
+                self._unlight(forget=False)
+            view_highlight.show(doc, names)
+            self._lit_doc = doc.Name
+        except Exception as err:
+            _report("highlight", err)
+
+    def _unlight(self, forget=True):
+        """Take the highlight down; with `forget`, a refresh does not
+        put it back."""
+        if forget:
+            self._lit_path = None
+        if self._lit_doc is None:
+            return
+        doc = App.listDocuments().get(self._lit_doc)
+        self._lit_doc = None
+        try:
+            if doc is not None:
+                view_highlight.clear(doc)
+        except Exception as err:
+            _report("highlight", err)
+
+    def dock_visibility(self, visible):
+        if visible:
+            self._relight()
+        else:
+            self._unlight(forget=False)
+
+    # --- selecting what a value drives -------------------------------------------
+
+    def driven_entries(self, item):
+        """[(text, [timber Name])] the menu offers for an item: every
+        timber it drives, then each by name. Empty when it drives
+        nothing."""
+        i = item.data(0, QtCore.Qt.UserRole) if item is not None else None
+        if i is None or i >= len(self._lit) or not self._lit[i]:
+            return []
+        subject = self.subject()
+        if subject is None:
+            return []
+        doc = subject.Document
+        bodies = sorted((b for b in (doc.getObject(n) for n in self._lit[i])
+                         if b is not None), key=lambda b: b.Label)
+        every = [b.Name for b in bodies]
+        entries = []
+        # one select-all only: every timber, the listed one included
+        # (Adam, 2026-10-11: a second, "also drives" only, confused)
+        if len(every) > 1:
+            entries.append((f"Select all {len(every)} it drives", every))
+            entries.append(("", []))           # a separator
+        for b in bodies:
+            mine = " (listed here)" if b.Name == subject.Name else ""
+            entries.append((f"Select {b.Label}{mine}", [b.Name]))
+        return entries
+
+    def driven_menu(self, item):
+        entries = self.driven_entries(item)
+        if not entries:
+            return None
+        menu = QtWidgets.QMenu(self.tree)
+        for text, names in entries:
+            if not names:
+                menu.addSeparator()
+                continue
+            action = menu.addAction(text)
+            action.triggered.connect(lambda _=False, n=names: self.select_timbers(n))
+        return menu
+
+    def _context_menu(self, pos):
+        try:
+            item = self.tree.itemAt(pos)
+            if item is None:
+                return
+            self.tree.setCurrentItem(item)
+            menu = self.driven_menu(item)
+            if menu is not None:
+                menu.exec(self.tree.viewport().mapToGlobal(pos))
+        except Exception as err:
+            _report("menu", err)
+
+    def _drop_down(self, item):
+        """The list under the Also drives cell, as a combo box drops."""
+        menu = self.driven_menu(item)
+        if menu is None:
+            return False
+        rect = self.tree.visualItemRect(item)
+        at = QtCore.QPoint(self.tree.columnViewportPosition(_DRIVES), rect.bottom())
+        menu.exec(self.tree.viewport().mapToGlobal(at))
+        return True
+
+    def select_timbers(self, names):
+        """Select timbers by internal Name, as the panel's own selection:
+        the listing and the highlight stay."""
+        try:
+            subject = self.subject()
+            if subject is None:
+                return
+            doc = subject.Document
+            bodies = [b for b in (doc.getObject(n) for n in names) if b is not None]
+            self._own_selection = {(doc.Name, b.Name) for b in bodies}
+            Gui.Selection.clearSelection()
+            for b in bodies:
+                Gui.Selection.addSelection(b)
+        except Exception as err:
+            _report("select", err)
 
     def row_at(self, index):
         """The variables.Row behind a model index, or None."""
@@ -616,8 +862,15 @@ class VariablesPanel(QtWidgets.QWidget):
         else:
             self._say(text)
 
-    def _clicked(self, item, _column):
+    def _clicked(self, item, column):
         try:
+            # a click on the row already current lights it again, after
+            # a selection elsewhere put the light out
+            self._lit_path = self._path(item)
+            self._relight()
+            if column == _DRIVES and item.text(_DRIVES).endswith(_DROP) \
+                    and self._drop_down(item):
+                return
             index = item.data(0, QtCore.Qt.UserRole)
             if index is None or self._targets[index] is None:
                 return
@@ -646,6 +899,7 @@ def show():
         _PANEL = VariablesPanel(dock)
         dock.setWidget(_PANEL)
         mw.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
+        dock.visibilityChanged.connect(_PANEL.dock_visibility)
         _PANEL._observers = (_SelectionObserver(_PANEL), _DocumentObserver(_PANEL))
         Gui.Selection.addObserver(_PANEL._observers[0])
         App.addDocumentObserver(_PANEL._observers[1])

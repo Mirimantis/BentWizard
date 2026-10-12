@@ -217,6 +217,20 @@ def leaf_keys(source, _depth=0):
     return keys
 
 
+def through_keys(source, _depth=0):
+    """{(object Name, property)} every variable `source` passes on its
+    way: the property it starts at, each binding along the chain, where
+    it is edited, and for a formula the same for each value it reads.
+    A superset of `leaf_keys`, so the drives index answers for a chain
+    step as well as for a value's end."""
+    steps = [source.start, *source.via, (source.holder, source.prop)]
+    keys = {(obj.Name, prop) for obj, prop in steps}
+    if source.kind == FORMULA and _depth < 8:
+        for obj, prop in source.reads:
+            keys |= through_keys(resolve(obj, prop), _depth + 1)
+    return keys
+
+
 # --------------------------------------------------------------------------
 # Words
 # --------------------------------------------------------------------------
@@ -442,8 +456,11 @@ def _parameter_rows(varset, own):
 
 def _joint_section(varset, body, shown=frozenset()):
     """One timber joint, as seen from `body`. A datum whose Station is in
-    `shown` (the Position group's, already listed) is not listed again."""
-    s = Section(f"Timber joint {varset.Label}", target=varset)
+    `shown` (the Position group's, already listed) is not listed again.
+    Its heading selects the joint's handle, so its marker shows where it
+    is (Adam, 2026-10-11); a parameter row still selects the VarSet."""
+    s = Section(f"Timber joint {varset.Label}",
+                target=joint_handle.find_handle(varset) or varset)
     own = _joint_timbers(varset)
     pair = joint_datums(varset)
     mine = [d for d in pair if (datums.owner(d) or body).Name == body.Name]
@@ -621,13 +638,15 @@ def joint_listing(varset, index=None):
 # --------------------------------------------------------------------------
 
 def drives_index(doc):
-    """{(object Name, property): {timber Name}}: for every value the
-    listings show, the timbers resting on it. A shared value (Span on
-    ProjectVars) collects every timber that reads it."""
+    """{(object Name, property): {timber Name}}: for every variable a
+    listed value passes through, the timbers resting on it. A shared
+    value (Span on ProjectVars) collects every timber that reads it; a
+    binding part-way along a chain collects only the timbers whose
+    values pass that way."""
     index = {}
 
     def add(source, timbers):
-        for key in leaf_keys(source):
+        for key in through_keys(source):
             index.setdefault(key, set()).update(timbers)
 
     for body in timber_bodies(doc):
@@ -659,13 +678,27 @@ def fill_drives(listing, index):
         for row in section.rows:
             if row.source is None:
                 continue
-            names = set()
-            for key in leaf_keys(row.source):
-                names |= index.get(key, set())
-            names -= row.own
+            names = driven(index, leaf_keys(row.source)) - row.own
             labels = [doc.getObject(n).Label for n in names
                       if doc.getObject(n) is not None]
             row.drives = sorted(labels)
+
+
+def driven(index, keys):
+    """{timber Name} resting on any of `keys` ((object Name, property)
+    pairs, as `leaf_keys` or a chain step gives them)."""
+    names = set()
+    for key in keys:
+        names |= index.get(key, set())
+    return names
+
+
+def driven_by_row(index, row):
+    """{timber Name} a row's value drives: the timbers the row is about
+    and every other timber resting on the same value."""
+    if row.source is None:
+        return set(row.own)
+    return set(row.own) | driven(index, leaf_keys(row.source))
 
 
 def drives_text(labels, limit=3):
