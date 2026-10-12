@@ -193,6 +193,11 @@ class VariablesTest(unittest.TestCase):
         self.assertIn("Station on T-Post-101, +Y face",
                       [r.label for r in self.section(listing, "Position").rows])
         self.assertEqual(s.notes, ["This timber's End A meets T-Post-101's +Y face."])
+        # the heading selects the handle (its marker), a parameter the VarSet
+        from freecad.bentwizard import joint_handle
+        self.assertIs(s.target, joint_handle.find_handle(j1))
+        self.assertIsNotNone(s.target)
+        self.assertIs(next(r for r in s.rows if r.label == "Tenon Length").target, j1)
 
     def test_template_fixed_parameter(self):
         from freecad.bentwizard import variables as v
@@ -246,6 +251,32 @@ class VariablesTest(unittest.TestCase):
         self.assertEqual(r.drives, ["T-Beam-002", "T-Beam-003"])
         r = self.row(v.timber_listing(beams[0]), "Section and Length", "Width X")
         self.assertEqual(r.drives, [])
+
+    def test_what_a_value_drives_for_the_highlight(self):
+        from freecad.bentwizard import variables as v
+        self.project("Span", 12 * 12 * IN)
+        self.project("Overhang", 6 * IN)
+        b1, b2, b3, b4 = (self.timber(f"T-Beam-00{i}", "6 in", "8 in", "10 ft")
+                          for i in (1, 2, 3, 4))
+        self.dims(b1).setExpression("LengthZ", "<<ProjectVars>>.Span")
+        self.dims(b2).setExpression("LengthZ", "<<TDim_T-Beam-001>>.LengthZ")
+        self.dims(b3).setExpression("LengthZ", "<<ProjectVars>>.Span")
+        self.dims(b4).setExpression(
+            "LengthZ", "<<ProjectVars>>.Span - 2 * <<ProjectVars>>.Overhang")
+        self.doc.recompute()
+        index = v.drives_index(self.doc)
+        names = lambda *bodies: {b.Name for b in bodies}
+        # a row: the timbers resting on its value, its own included
+        r = self.row(v.timber_listing(b2), "Section and Length", "Length Z")
+        self.assertEqual(v.driven_by_row(index, r), names(b1, b2, b3, b4))
+        r = self.row(v.timber_listing(b1), "Section and Length", "Width X")
+        self.assertEqual(v.driven_by_row(index, r), names(b1))
+        # a step part-way along a chain: only what passes that way
+        step = (self.dims(b1).Name, "LengthZ")
+        self.assertEqual(v.driven(index, {step}), names(b1, b2))
+        # a value only a formula reads
+        self.assertEqual(v.driven(index, {(self.pv.Name, "Overhang")}), names(b4))
+        self.assertEqual(v.driven(index, {(self.pv.Name, "Nothing")}), set())
 
     def test_joint_listing(self):
         from freecad.bentwizard import variables as v
