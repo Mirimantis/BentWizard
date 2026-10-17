@@ -571,6 +571,20 @@ def global_placement(obj):
     return App.GeoFeature.getGlobalPlacementOf(obj, root, subname)
 
 
+def place_at_point(body, point):
+    """(place, station in mm) where a point in document coordinates —
+    a click's picked point — lies on timber `body`, or None when it is on
+    joinery or off the timber (`facetable.place_at`). Read from the
+    timber's own Dims and placement, never from the picked face's
+    topology: nothing about the face is kept."""
+    vs = dims_varset(body)
+    if vs is None:
+        return None
+    local = global_placement(body).inverse().multVec(App.Vector(*point))
+    return facetable.place_at(float(vs.WidthX), float(vs.WidthY),
+                              float(vs.LengthZ), (local.x, local.y, local.z))
+
+
 def seat_target(host, mate):
     """The global placement the MATE datum must have when seated: the
     host datum's, flipped 180° about local Y."""

@@ -124,6 +124,40 @@ def position_expressions(face, dims_label):
     return out
 
 
+PICK_TOLERANCE = 0.5     # mm off a face plane that still counts as on it
+
+
+def place_at(width_x, width_y, length_z, point, tol=PICK_TOLERANCE):
+    """(place, station) for a point on a timber, in its own coordinates
+    (mm), or None when it is on none of the timber's six faces.
+
+    What a click on the model means (Add Datum, Apply Timber Joint): the
+    face whose plane the point lies on, and how far along the timber it
+    is (the station; None on an end). A point within `tol` of two planes
+    (an arris) takes the nearer. A point past either end belongs to that
+    end — it is on an adder there, a tenon growing out of the end. A
+    point set into the section (a housing floor, a mortise cheek) is on
+    joinery, not on a face, and gives None: a housing floor parallel to
+    +Y must not read as +Y at a depth the datum would never sit at."""
+    x, y, z = point
+    if z < -tol:
+        return "EndA", None
+    if z > length_z + tol:
+        return "EndB", None
+    hx, hy = width_x / 2.0, width_y / 2.0
+    if abs(x) > hx + tol or abs(y) > hy + tol:
+        return None                 # off the section: not this timber
+    planes = (("XPos", abs(x - hx)), ("XNeg", abs(x + hx)),
+              ("YPos", abs(y - hy)), ("YNeg", abs(y + hy)),
+              ("EndA", abs(z)), ("EndB", abs(z - length_z)))
+    place, off = min(planes, key=lambda p: p[1])
+    if off > tol:
+        return None
+    if is_end(place):
+        return place, None
+    return place, min(max(z, 0.0), length_z)
+
+
 def same_rotation(q1, q2, tol=1e-6):
     """True when two (x, y, z, w) quaternions are the same rotation
     (q and -q are)."""
