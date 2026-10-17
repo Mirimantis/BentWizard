@@ -3,19 +3,25 @@
 Living pointer for a fresh session. Read after CLAUDE.md and the rev-2
 workflow doc. Update it as work lands.
 
-## Where things stand (2026-10-08)
+## Where things stand (2026-10-16)
 
-On `main`, FreeCAD 26.3 (the minimum). The test environment is the
-2026.10.01 weekly (git `99c5620c5`, the 26.3 branch point) until a 26.3
-release candidate replaces it. 195 tests green, run with
-`-W error::DeprecationWarning`; every piece has been through Adam's GUI
-round.
+On `main`, FreeCAD 26.3 (the minimum). The test environment is 26.3 RC1
+(git `faa2c25b1`) until a later release candidate replaces it. 219 tests
+green, run with `-W error::DeprecationWarning`; every piece has been
+through Adam's GUI round.
 
 - **The rev-2 foundation.** New Timber, Add Datum, Apply / Remove Timber
   Joint, Duplicate Timbers, Seat Timbers, Show Face & End Marks, Audit
-  Timbers, Store in Variable Set, and the template bar (New / Save as
-  Joint Template). The shipped library is `Joint_Butt` and
+  Timbers, Timber Variables, Bind to Variable, Store in Variable Set,
+  and the template bar (New / Save as Joint Template), each with a
+  toolbar icon. The shipped library is `Joint_Butt` and
   `Joint_HousedMT`.
+- **Face marks and picking a face** (2026-10-16). The marks are lettered on the faces of the selected timbers,
+  hidden on faces turned away, and turn to read level. Clicking a face
+  on the model before Add Datum or Apply fills in the timber, face and
+  station (`facetable.place_at`, `datums.place_at_point`).
+  Per-timber face names are deferred until after the 2D planning
+  sketch; the direction and the research are in the roadmap.
 - **The flat frame.** No Assembly object: the frame is a Std Group of
   bent and bay Std Groups. Every timber but the anchor is **seated by
   expression** (`Seat_J-…` under the placing joint's handle), and the
@@ -43,10 +49,12 @@ round.
   it: route (b) is blocked upstream (below).
 
 **Next:**
-- **The roadmap's deferred list:** face labels per timber role,
-  created-part roles (wedges, pegs), the dovetail rebuilt on the new
-  contract (have timber-craft-researcher ground it first, building on
-  `joinery-*.md`), and the beam tool.
+- **The front end's Next list:** generate a bent from a 2D sketch, then
+  the New Project dialog. Per-timber face names follow the sketch (they
+  need its plan to name things after).
+- **The roadmap's deferred list:** created-part roles (wedges, pegs),
+  the dovetail rebuilt on the new contract (have timber-craft-researcher
+  ground it first, building on `joinery-*.md`), and the beam tool.
 
 **Waiting on upstream:**
 - **Route (b), binding components globally** (2026-10-08,
@@ -170,9 +178,9 @@ is there now:
 
 ## Known limitations / backlog (the roadmap has the full list)
 
-- Per-timber face labels (a `Role` on the Dims VarSet defaulting
-  `FaceLabelXPos` … for drawings and the face pickers) are not built;
-  the pickers show ±X/±Y.
+- Per-timber face names are not built; the pickers and marks show
+  ±X/±Y. Deferred until after the 2D planning sketch: derived from where
+  a timber sits, never stored (roadmap).
 - Created-part roles (wedges, pegs), the dovetail on the new contract,
   and the beam tool.
 - A mirrored component's source body sits at the document root, and the
