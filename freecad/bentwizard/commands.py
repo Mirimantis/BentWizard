@@ -585,6 +585,82 @@ def _selected_timber(doc):
     return timbers[0] if timbers else None
 
 
+class _Pick:
+    """Where the selection says a datum or a timber joint goes on one
+    timber: the timber, and — from a face clicked on the model — the
+    place (a facetable face or end) and the station there (mm, None on an
+    end), or a free datum selected itself. `missed` is a click on the
+    timber's joinery rather than on one of its faces."""
+
+    def __init__(self, body, place=None, station=None, datum=None,
+                 missed=False):
+        self.body, self.place, self.station = body, place, station
+        self.datum, self.missed = datum, missed
+
+
+def _selected_picks(doc):
+    """[_Pick], one per timber, in selection order.
+
+    A face clicked on a timber gives its place and station
+    (`datums.place_at_point`, from the click's picked point — nothing of
+    the face is kept, so no face is ever referenced). A datum selected
+    gives its own place. A timber or anything in it selected without a
+    face gives the timber alone. Two entries for one timber (the Body in
+    the tree, then a face) keep the one that says where."""
+    out = []
+    for sel in Gui.Selection.getSelectionEx(doc.Name):
+        obj = sel.Object
+        for parent in obj.InList:       # a datum's own axis or plane
+            if datums.is_datum(parent) and not datums.is_datum(obj):
+                obj = parent
+        if datums.is_datum(obj):
+            body = datums.owner(obj)
+            if body is not None and is_timber(body):
+                out.append(_Pick(body, datums.face_of(obj), None, obj))
+            continue
+        body = obj if is_timber(obj) else obj.getParentGeoFeatureGroup()
+        if body is None or not is_timber(body):
+            continue
+        faces = [(s, p) for s, p in zip(sel.SubElementNames, sel.PickedPoints)
+                 if s.rsplit(".", 1)[-1].startswith("Face")]
+        if not faces:
+            out.append(_Pick(body))
+        for _sub, point in faces:
+            found = datums.place_at_point(body, (point.x, point.y, point.z))
+            out.append(_Pick(body, *found) if found else _Pick(body, missed=True))
+    kept = []
+    for pick in out:
+        same = next((k for k in kept if k.body is pick.body), None)
+        if same is None:
+            kept.append(pick)
+        elif same.place is None and pick.place is not None:
+            kept[kept.index(same)] = pick
+    return kept
+
+
+def _as_displayed(mm):
+    """`mm` rounded to what a dimension field shows in the user's unit
+    schema — a clicked station is only ever approximate, and a value
+    finer than the display would place the datum somewhere the dialog
+    never showed (the reason `_DatumChoice._station_changed` compares as
+    displayed too)."""
+    try:
+        shown = App.Units.Quantity(float(mm), App.Units.Length).UserString
+        return float(App.Units.Quantity(shown).Value)
+    except Exception:
+        return float(mm)
+
+
+def _missed_note(picks):
+    """The words for clicks that landed on joinery, or ''."""
+    missed = [p.body.Label for p in picks if p.missed]
+    if not missed:
+        return ""
+    return (f"The point picked on {', '.join(missed)} is on joinery, not on "
+            f"one of the timber's faces, so the face is left to choose "
+            f"below. Click the face itself to fill it in.")
+
+
 class AddDatumDialog(QtWidgets.QDialog):
     """Timber + face + station: the three things a datum is placed from.
     Position, rotation and accessors come from the face table."""
@@ -604,8 +680,10 @@ class AddDatumDialog(QtWidgets.QDialog):
             self.face.addItem(facetable.display(face), face)
         self.face.setToolTip(
             "Which face of the timber the datum sits on, in the timber's "
-            "own axes (Show Face && End Marks labels them in the 3D view). "
-            "The datum's Z points out of that face.")
+            "own axes (Show Face && End Marks letters them in the 3D view). "
+            "Click the face on the model before running Add Datum and it "
+            "is filled in, with the station where you clicked. The "
+            "datum's Z points out of that face.")
         form.addRow("Face:", self.face)
         self.station = _DimField(1219.2, doc, self, include_dims=False,
                                  include_joints=False)
@@ -613,18 +691,46 @@ class AddDatumDialog(QtWidgets.QDialog):
             "Where along the timber (from end A) the datum sits. Bind it "
             "to a project variable to move a whole line of joints at once.")
         form.addRow("Station:", self.station)
+        self.note = QtWidgets.QLabel("", self)
+        self.note.setWordWrap(True)
+        self.note.hide()
+        form.addRow(self.note)
         buttons = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
             parent=self)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
-        preselected = _selected_timber(doc)
-        if preselected is not None:
-            for i in range(self.timber.count()):
-                if self.timber.itemData(i) is preselected:
-                    self.timber.setCurrentIndex(i)
-                    break
+        picks = _selected_picks(doc)
+        if picks:
+            self._preset(picks[0])
+
+    def _preset(self, pick):
+        """Fill the dialog from the selection: the timber, and from a face
+        clicked on it, that face and the station clicked — rounded as the
+        field shows it and selected, so typing the exact one replaces it."""
+        for i in range(self.timber.count()):
+            if self.timber.itemData(i) is pick.body:
+                self.timber.setCurrentIndex(i)
+                break
+        note = _missed_note([pick])
+        if pick.place is not None and facetable.is_end(pick.place):
+            note = ("A datum is added on a side face; each end has its own "
+                    "datum from the start. Choose the face below.")
+        elif pick.place is not None:
+            self.face.setCurrentIndex(self.face.findData(pick.place))
+            if pick.station is not None and pick.datum is None:
+                self.station.set_literal(_as_displayed(pick.station))
+                QtCore.QTimer.singleShot(0, self._focus_station)
+        if note:
+            self.note.setText(note)
+            self.note.show()
+
+    def _focus_station(self):
+        spin = self.station.spin
+        if spin is not None:
+            spin.setFocus()
+            spin.selectAll()
 
     def values(self):
         return (self.timber.currentData(), self.face.currentData(),
@@ -679,11 +785,13 @@ class ShowFaceMarksCommand:
     def GetResources(self):
         return {
             "MenuText": "Show Face && End Marks",
-            "ToolTip": "Label every timber's faces (+X, -X, +Y, -Y) and ends "
-                       "(A/B) in the 3D view, so Add Datum's and Apply "
+            "ToolTip": "Letter the faces (+X, -X, +Y, -Y) and ends (A/B) "
+                       "of the selected timbers, or of a selected timber "
+                       "joint's two timbers, so Add Datum's and Apply "
                        "Timber Joint's choices are readable off the model. "
+                       "The marks follow the selection while this is on. "
                        "View-only — nothing is added to the document. Run "
-                       "again to clear.",
+                       "again to turn them off.",
             "Checkable": True,
         }
 
@@ -698,9 +806,9 @@ class ShowFaceMarksCommand:
         view_face_marks.install()
         if view_face_marks.toggle(doc):
             App.Console.PrintMessage(
-                f"Face and end marks shown on {len(timber_bodies(doc))} timber(s).\n")
+                "Face and end marks on: they letter the timbers you select.\n")
         else:
-            App.Console.PrintMessage("Face and end marks cleared.\n")
+            App.Console.PrintMessage("Face and end marks off.\n")
 
 
 # --------------------------------------------------------------------------
@@ -1253,13 +1361,16 @@ class _DatumChoice(QtCore.QObject):
             self.datum.setToolTip(
                 "The end of the timber this half of the joint is cut into. "
                 "Only ends not already joined are offered. Show Face && "
-                "End Marks labels the ends in the 3D view.")
+                "End Marks letters the ends in the 3D view; click an end on "
+                "the model before Apply to fill this in.")
             self.station = None     # an end's station is fixed: 0, or LengthZ
         else:
             self.datum.setToolTip(
                 "A free datum already on one of the timber's side faces, or "
                 "a new datum on a face at the station below. Show Face && "
-                "End Marks labels the faces in the 3D view.")
+                "End Marks letters the faces in the 3D view; click a face on "
+                "the model before Apply to fill this in, with the station "
+                "where you clicked.")
             self.station = _DimField(1219.2, doc, parent, include_dims=False,
                                      include_joints=False)
             self.station.setToolTip(
@@ -1399,6 +1510,41 @@ class _DatumChoice(QtCore.QObject):
                     self._show_station(moved)
                 return
 
+    def preset(self, pick):
+        """Fill this half from the selection (`_assign_picks`): the timber,
+        then — from a face clicked on it — that face as a new datum at
+        the station clicked (rounded as the field shows it), or that end;
+        a free datum selected itself is reused. Marked as the framer's
+        choice, so a template switch carries it."""
+        for i in range(self.timber.count()):
+            if self.timber.itemData(i) is pick.body:
+                self.timber.setCurrentIndex(i)
+                break
+        if pick.place is None or facetable.is_end(pick.place) != self.butting:
+            return
+        for i in range(self.datum.count()):
+            data = self.datum.itemData(i)
+            if data is None:
+                continue
+            kind, value = data
+            if pick.datum is not None:
+                hit = kind == "datum" and value.Name == pick.datum.Name
+            elif self.butting:
+                hit = kind == "datum" and datums.face_of(value) == pick.place
+            else:
+                hit = kind == "face" and value == pick.place
+            if hit:
+                self.datum.setCurrentIndex(i)
+                self._user_chose = True
+                break
+        else:
+            return                  # a joined end, or a datum not offered
+        if (self.station is not None and pick.datum is None
+                and pick.station is not None):
+            state = ("literal", _as_displayed(pick.station))
+            self._own_station = state
+            self._show_station(state)
+
     def _toggle_station(self):
         """For a new datum, the station to place it at; for an existing
         one, THAT datum's station — editable, and Apply moves the datum
@@ -1486,6 +1632,36 @@ class _DatumChoice(QtCore.QObject):
                 out["station"] = self.station.value()
             return out
         return {"body": body, "face": value, "station": self.station.value()}
+
+
+def _assign_picks(spec, picks):
+    """{role: _Pick} — which picked timber goes to which half.
+
+    A pick that says where (a face clicked, or a datum) goes to the half
+    that can land there: a side face to a passing half, an end to a
+    butting one — so clicking the post's face and the girt's end fills
+    both halves in whichever order they were clicked. Halves left over
+    take the remaining picks' timbers in selection order, first picked
+    = Primary, as a plain timber selection always did."""
+    order = [spec.host_role, spec.mate_role]
+    out, used = {}, set()
+    for role in order:
+        butting = _role_is_butting(spec, role)
+        for i, pick in enumerate(picks):
+            if (i not in used and pick.place is not None
+                    and facetable.is_end(pick.place) == butting):
+                out[role] = pick
+                used.add(i)
+                break
+    for role in order:
+        if role in out:
+            continue
+        for i, pick in enumerate(picks):
+            if i not in used:
+                out[role] = _Pick(pick.body)    # its place fits no half
+                used.add(i)
+                break
+    return out
 
 
 def _group_box(parent, on_choose):
@@ -1631,10 +1807,12 @@ class ApplyJointDialog(QtWidgets.QDialog):
             self.problem.setText(f"Cannot load this template: {err}")
             return
         self.serial.setText(next_serial(self.doc, self.spec.kind))
-        # the selection fills the roles in order: first picked = Primary
-        # (host), second = Secondary (mate)
-        selected = _selected_timbers(self.doc)
-        preset = dict(zip([self.spec.host_role, self.spec.mate_role], selected))
+        # the selection fills the roles (`_assign_picks`) — only on the
+        # first load: a template switch carries what the halves hold
+        picks = [] if carried else _selected_picks(self.doc)
+        preset = _assign_picks(self.spec, picks)
+        if picks:
+            self.problem.setText(_missed_note(picks))
         for n, role in enumerate(self.spec.roles):
             w = _DatumChoice(self.doc, self,
                              butting=_role_is_butting(self.spec, role))
@@ -1642,10 +1820,7 @@ class ApplyJointDialog(QtWidgets.QDialog):
             if n < len(carried):
                 w.restore(*carried[n])
             elif role in preset:
-                for i in range(w.timber.count()):
-                    if w.timber.itemData(i) is preset[role]:
-                        w.timber.setCurrentIndex(i)
-                        break
+                w.preset(preset[role])
             self.role_widgets[role] = w
             caption, tip = _role_caption(self.spec, role)
             w.add_rows(self.roles_form, caption, tip)

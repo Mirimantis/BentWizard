@@ -20,6 +20,7 @@ outlines to the panel; they may go once picking in the 3D view works.
 from __future__ import annotations
 
 from .timber import dims_varset
+from .view_text import upright
 
 # pivy is imported in the drawing functions, so `outline` stays
 # importable, and testable, without a GUI
@@ -33,7 +34,6 @@ _TEXT_HEIGHT = 0.45             # of the larger section width
 _LABEL_AT = 0.62                # along the length: past the face marks at 1/2
 _MIDDLE = 0.35                  # of the height: the middle of a capital, above
                                 # the baseline — the pivot the text turns on
-_UPRIGHT_BAND = 0.2             # of the screen direction: "near upright"
 
 _LIT = {}                       # document Name -> {timber Name}
 
@@ -64,36 +64,12 @@ def label_frame(width_x, width_y, length_z):
     return height, clearance, length_z * _LABEL_AT
 
 
-def _upright(_data, action):
-    """Turn the name end for end when it would read right to left —
-    from the far side of a beam it would otherwise be upside down. Runs
-    on each draw, in the text's own frame: its baseline is local +X and
-    it faces the viewer, so a half turn about local Z keeps it facing
-    and puts the baseline left to right."""
-    from pivy import coin
-    if not action.isOfType(coin.SoGLRenderAction.getClassTypeId()):
-        return
-    state = action.getState()
-    model = coin.SoModelMatrixElement.get(state)
-    view = coin.SoViewingMatrixElement.get(state)
-    baseline = view.multDirMatrix(model.multDirMatrix(coin.SbVec3f(1, 0, 0)))
-    x, y, _z = baseline.getValue()
-    size = (x * x + y * y) ** 0.5
-    if size < 1e-12:
-        return                       # end on: nothing to read anyway
-    x, y = x / size, y / size
-    # near upright (a post) it reads bottom to top, either way up; the
-    # band keeps float noise from flipping it as the view turns
-    if x < -_UPRIGHT_BAND or (abs(x) <= _UPRIGHT_BAND and y < 0):
-        coin.SoModelMatrixElement.rotateBy(
-            state, None, coin.SbRotation(coin.SbVec3f(0, 0, 1), 3.141592653589793))
-
-
 def _label(text, dims):
     """The timber's name, written along its length beside it, turning
     about the timber's axis to face the viewer (a VRML billboard) and end
-    for end to read left to right (`_upright`), so it is read side-on
-    from anywhere around it and never crosses the timber's edges."""
+    for end to read left to right (`view_text.upright`), so it is read
+    side-on from anywhere around it and never crosses the timber's
+    edges."""
     from pivy import coin
     height, clearance, middle = label_frame(*dims)
     sep = coin.SoSeparator()
@@ -114,9 +90,9 @@ def _label(text, dims):
     turn = coin.SoRotation()
     turn.rotation.setValue(coin.SbVec3f(0, 0, 1), 1.5707963267948966)
     board.addChild(turn)
-    upright = coin.SoCallback()
-    upright.setCallback(_upright)
-    board.addChild(upright)
+    upright_cb = coin.SoCallback()
+    upright_cb.setCallback(upright)
+    board.addChild(upright_cb)
     down = coin.SoTranslation()
     down.translation.setValue(0.0, -height * _MIDDLE, 0.0)
     board.addChild(down)

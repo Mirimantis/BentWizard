@@ -355,6 +355,36 @@ class GlobalPlacementTest(unittest.TestCase):
             self.close(datums.global_placement(d), body.Placement.multiply(d.Placement))
             self.close(datums.global_placement(body), body.Placement)
 
+    def test_a_click_on_each_face_of_a_moved_timber(self):
+        """`place_at_point` reads a picked point — global, as a click
+        reports it — against the timber's own faces, wherever its bent
+        has put it: every face of the solid's centre names the face the
+        face table puts there."""
+        from freecad.bentwizard import datums, facetable
+        from freecad.bentwizard.timber import new_timber
+        body, _ = new_timber(self.doc, "T-Post-001", "6 in", "10 in", "8 ft")
+        bent = self.doc.addObject("App::DocumentObjectGroup", "Bent")
+        bent.addObject(body)
+        body.Placement = App.Placement(App.Vector(900, -400, 300),
+                                       App.Rotation(App.Vector(1, 1, 0), 37))
+        self.doc.recompute()
+        inverse = body.Placement.Rotation.inverted()
+        seen = set()
+        for face in body.Shape.Faces:
+            centre = face.CenterOfMass
+            u, v = face.Surface.parameter(centre)
+            normal = inverse.multVec(face.normalAt(u, v))
+            place, station = datums.place_at_point(body, (centre.x, centre.y, centre.z))
+            want = facetable.FACE_TABLE[place].outward
+            self.assertLess((normal - App.Vector(*want)).Length, 1e-9, place)
+            if facetable.is_end(place):
+                self.assertIsNone(station)
+            else:
+                local = body.Placement.inverse().multVec(centre)
+                self.assertAlmostEqual(station, local.z, places=6)
+            seen.add(place)
+        self.assertEqual(seen, set(facetable.PLACES))
+
     def test_two_geofeaturegroups_deep(self):
         from freecad.bentwizard import datums
         part = self.doc.addObject("App::Part", "Part")
